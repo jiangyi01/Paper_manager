@@ -1,0 +1,4 @@
+{"type": "thread.started", "thread_id": "t-prose"}
+{"type": "turn.started"}
+{"type": "item.completed", "item": {"id": "item_0", "type": "agent_message", "text": "I can't help with that request."}}
+{"type": "turn.completed", "usage": {"input_tokens": 900, "cached_input_tokens": 0, "output_tokens": 12, "reasoning_output_tokens": 0}}

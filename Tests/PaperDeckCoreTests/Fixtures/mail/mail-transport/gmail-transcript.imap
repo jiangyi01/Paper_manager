@@ -1,0 +1,52 @@
+* OK Gimap ready for requests from 203.0.113.7 a1mb12345abc.12
+* CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 XYZZY SASL-IR AUTH=XOAUTH2 AUTH=PLAIN AUTH=PLAIN-CLIENTTOKEN AUTH=OAUTHBEARER
+A001 OK Thats all she wrote! a1mb12345abc.12
+* CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+A002 OK me@gmail.com authenticated (Success)
+* FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+* OK [PERMANENTFLAGS ()] Flags permitted.
+* OK [UIDVALIDITY 1] UIDs valid.
+* 5321 EXISTS
+* 0 RECENT
+* OK [UIDNEXT 90210] Predicted next UID.
+* OK [HIGHESTMODSEQ 4412345]
+A003 OK [READ-ONLY] INBOX selected. (Success)
+* SEARCH 90001 90005
+A004 OK SEARCH completed (Success)
+* 5301 FETCH (UID 90001 RFC822.SIZE 570 INTERNALDATE "29-Sep-2026 14:05:00 +0000" BODY[HEADER.FIELDS (FROM SENDER SUBJECT DATE MESSAGE-ID AUTHENTICATION-RESULTS CONTENT-TYPE)] {353}
+Authentication-Results: mx.google.com; dkim=pass header.i=@biorxiv.org; spf=pass smtp.mailfrom=biorxiv.org; dmarc=pass (p=NONE) header.from=biorxiv.org
+From: bioRxiv <alerts@biorxiv.org>
+Subject: New results in Neuroscience
+Date: Tue, 29 Sep 2026 14:04:31 +0000
+Message-ID: <alert-2026-09-29@biorxiv.org>
+Content-Type: text/plain; charset=utf-8
+
+)
+* 5305 FETCH (UID 90005 RFC822.SIZE 360 INTERNALDATE " 1-Oct-2026 09:30:12 -0500" BODY[HEADER.FIELDS (FROM SENDER SUBJECT DATE MESSAGE-ID AUTHENTICATION-RESULTS CONTENT-TYPE)] {209}
+From: "Prof. X" <x@wustl.edu>
+Subject: Papers for Thursday's journal club
+Date: Thu, 01 Oct 2026 09:30:00 -0500
+Message-ID: <CAFx-advisor-0001@mail.wustl.edu>
+Content-Type: text/plain; charset=us-ascii
+
+)
+A005 OK Success
+* 5305 FETCH (UID 90005 BODY[]<0> {360}
+From: "Prof. X" <x@wustl.edu>
+To: me@gmail.com
+Subject: Papers for Thursday's journal club
+Date: Thu, 01 Oct 2026 09:30:00 -0500
+Message-ID: <CAFx-advisor-0001@mail.wustl.edu>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+Hi, please read these two papers before Thursday's journal club:
+https://arxiv.org/abs/2606.24530
+)
+Thanks, X
+)
+A006 OK Success
+A007 NO [AUTHENTICATIONFAILED] Invalid credentials (Failure)
+A008 NO [ALERT] Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)
+* BYE LOGOUT Requested
+A009 OK 73 good day (Success)

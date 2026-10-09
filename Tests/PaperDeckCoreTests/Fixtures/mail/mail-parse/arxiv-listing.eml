@@ -1,0 +1,58 @@
+From: no-reply@arxiv.org
+To: yi@gmail.com
+Subject: q-bio daily Subj-class mailing 25 1
+Date: Wed, 30 Sep 2026 00:30:01 -0400
+Message-ID: <20260930043001.123@arxiv.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+Send any comments regarding submissions directly to submitter.
+------------------------------------------------------------------------------
+Archives at http://arxiv.org/
+To unsubscribe, e-mail To: q-bio@arXiv.org, Subject: cancel
+------------------------------------------------------------------------------
+ Submissions to:
+Quantitative Biology
+ received from  Mon 28 Sep 26 18:00:00 GMT  to  Tue 29 Sep 26 18:00:00 GMT
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+\\
+arXiv:2609.20001
+Date: Mon, 28 Sep 2026 19:12:44 GMT   (2048kb,D)
+
+Title: Graph neural networks for cell-type deconvolution of spatial
+  transcriptomics data
+Authors: Mei Lin, Arjun Rao (Stanford University) and Sofia Duarte
+Categories: q-bio.GN cs.LG
+Comments: 14 pages, 6 figures
+\\
+  Spatial transcriptomics measures gene expression in situ but mixes several
+cell types per spot. We introduce a graph neural network that deconvolves
+spots using a single-cell reference.
+\\ ( https://arxiv.org/abs/2609.20001 ,  2048kb)
+------------------------------------------------------------------------------
+\\
+arXiv:2609.20417
+Date: Tue, 29 Sep 2026 08:01:02 GMT   (512kb)
+
+Title: A minimal model of cortical oscillations
+Authors: Tomasz Nowak and Hana Sato
+Categories: q-bio.NC
+\\
+  We derive a minimal rate model that reproduces gamma oscillations.
+\\ ( https://arxiv.org/abs/2609.20417 ,  512kb)
+------------------------------------------------------------------------------
+\\
+arXiv:2609.19876 (*cross-listing*)
+Date: Sun, 27 Sep 2026 22:40:00 GMT   (900kb)
+
+Title: Protein language models predict enzyme thermostability
+Authors: J. Alvarez, K. Osei, L. Martin
+Categories: cs.LG q-bio.BM
+\\
+  We fine-tune protein language models on 30,000 enzymes.
+\\ ( https://arxiv.org/abs/2609.19876 ,  900kb)
+------------------------------------------------------------------------------

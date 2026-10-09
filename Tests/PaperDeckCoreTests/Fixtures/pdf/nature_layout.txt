@@ -1,0 +1,106 @@
+Article
+Synthetic dynamics of the developing test cortex
+https://doi.org/10.1038/s41586-000-00000-0
+Received: 26 December 2023
+Accepted: 31 October 2024
+Ada Lovelace1, Grace Hopper1,2 & Alan Turing2
+Open access
+The development of the synthetic cortex is highly dynamic, involving complex cellular
+trajectories controlled by gene regulation. Here we collected paired single-nucleus
+chromatin accessibility and transcriptome data from 38 synthetic samples and report
+the lineage potential of progenitors across development.
+Gene regulation involves epigenetic reprogramming and subsequent transcriptional
+changes that are central to cortical development (Fig. 1a). We profiled the samples
+with a multi-omic assay and a spatial panel (Fig. 1b,c and Extended Data Fig. 1).
+Nature | Vol 600 | 1 January 2025 | 101Article
+Cell–cell communication
+Interactions between excitatory and inhibitory neurons were abundant (Fig. 2a–c,
+Extended Data Fig. 2 and Supplementary Fig. 3). We identified regulators of devel-
+opment that guide the differentiation of neuronal subtypes (Figs. 3–4).
+Fig. 1 | A multi-omic survey of the developing synthetic cortex. a, Sampling
+scheme. b, UMAP of cell types.
+Glial progenitors
+Tri-IPCs generate interneurons, oligodendrocytes and astrocytes (Fig. 5d). Benchmark
+comparisons with published atlases confirmed the annotations (Supplementary Table 2).
+102 | Nature | Vol 600 | 1 January 2025Article
+Discussion
+Our data establish a multi-omic atlas of the developing synthetic cortex and reveal
+how progenitors generate diverse neuronal and glial lineages over development.
+Online content
+Any methods, additional references, Nature Portfolio reporting summaries, source data,
+extended data and supplementary information are available at the article page.
+1. 2. 3. 4. 5. 6. 7. 8. 9. 10. 11. 12. Molnar, Z. et al. New insights into the development of the human cerebral cortex. J. Anat.
+235, 432–451 (2019).
+Long, H. K., Prescott, S. L. & Wysocka, J. Ever-changing landscapes: transcriptional
+enhancers in development and evolution. Cell 167, 1170–1187 (2016).
+Zhu, K. et al. Multi-omic profiling of the developing human cerebral cortex at the
+single-cell level. Sci. Adv. 9, eadg3754 (2023).
+Trevino, A. E. et al. Chromatin and gene-regulatory dynamics of the developing human
+cerebral cortex at single-cell resolution. Cell 184, 5053–5069 (2021).
+Hao, Y. et al. Integrated analysis of multimodal single-cell data. Cell 184, 3573–3587 (2021).
+Velmeshev, D. et al. Single-cell analysis of prenatal and postnatal human cortical
+development. Science 382, eadf0834 (2023).
+Jorstad, N. L. et al. Transcriptomic cytoarchitecture reveals principles of human neocortex
+organization. Science 382, eadf6812 (2023).
+Chen, K. H., Boettiger, A. N., Moffitt, J. R., Wang, S. & Zhuang, X. Spatially resolved, highly
+multiplexed RNA profiling in single cells. Science 348, aaa6090 (2015).
+Stenman, J., Toresson, H. & Campbell, K. Identification of two distinct progenitor populations
+in the lateral ganglionic eminence. J. Neurosci. 23, 167–174 (2003).
+Akay, L. A., Effenberger, A. H. & Tsai, L. H. Cell of all trades: oligodendrocyte precursor
+cells in synaptic, vascular, and immune function. Genes Dev. 35, 180–198 (2021).
+Fischer, D. S., Schaar, A. C. & Theis, F. J. Modeling intercellular communication in tissues
+using spatial graphs of cells. Nat. Biotechnol. 41, 332–336 (2022).
+Jin, S. et al. Inference and analysis of cell-cell communication using CellChat. Nat. Commun.
+12, 1088 (2021).
+103 | Nature | Vol 600 | 1 January 2025Methods
+Brain tissue samples
+Human brain tissue samples were acquired from four sources and staged using
+crown-rump length. All samples were dissected and snap-frozen on dry ice.
+Single-nucleus multiome
+Nuclei were isolated with an iodixanol gradient and processed with the 10x
+Multiome kit following the manufacturer's protocol (Fig. 2).
+Statistics
+Differential expression used a Wilcoxon test with Benjamini–Hochberg correction.
+Nature | Vol 600 | 1 January 2025 | 104Reporting summary
+Further information on research design is available in the Nature Portfolio Reporting
+Summary linked to this article.
+Data availability
+All sequencing data were deposited to the GEO under accession GSE000000.
+Code availability
+The code used for data analysis is available at GitHub (https://github.com/example/cortex).
+48. 49. 50. 51. 52. 53. 54. 55. 56. 57. Wolock, S. L., Lopez, R. & Klein, A. M. Scrublet: computational identification of cell
+doublets in single-cell transcriptomic data. Cell Syst. 8, 281–291 (2019).
+Zhang, Y. et al. Model-based Analysis of ChIP-Seq (MACS). Genome Biol. 9, R137 (2008).
+Amemiya, H. M., Kundaje, A. & Boyle, A. P. The ENCODE Blacklist: identification of problematic
+regions of the genome. Sci. Rep. 9, 9354 (2019).
+Stuart, T., Srivastava, A., Madad, S., Lareau, C. A. & Satija, R. Single-cell chromatin state
+analysis with Signac. Nat. Methods 18, 1333–1341 (2021).
+Choudhary, S. & Satija, R. Comparison and evaluation of statistical error models for scRNA-
+seq. Genome Biol. 23, 27 (2022).
+Butler, A., Hoffman, P., Smibert, P., Papalexi, E. & Satija, R. Integrating single-cell
+transcriptomic data across different conditions. Nat. Biotechnol. 36, 411–420 (2018).
+Waltman, L. & Van Eck, N. J. A smart local moving algorithm for large-scale modularity-
+based community detection. Eur. Phys. J. B 86, 471 (2013).
+Phipson, B. et al. propeller: testing for differences in cell type proportions in single cell data.
+Bioinformatics 38, 4720–4726 (2022).
+Ritchie, M. E. et al. limma powers differential expression analyses for RNA-sequencing and
+microarray studies. Nucleic Acids Res. 43, e47 (2015).
+Schep, A. N., Wu, B., Buenrostro, J. D. & Greenleaf, W. J. chromVAR: inferring transcription-
+factor-associated accessibility. Nat. Methods 14, 975–978 (2017).
+Hie, B., Cho, H., DeMeo, B., Bryson, B. & Berger, B. Geometric sketching compactly
+summarizes the single-cell transcriptomic landscape. Cell Syst. 8, 483–493 (2019).
+Janky, R. et al. iRegulon: from a gene list to a gene regulatory network using large motif
+and track collections. PLoS Comput. Biol. 10, e1003731 (2014).
+Merkle, F. T., Mirzadeh, Z. & Alvarez-Buylla, A. Mosaic organization of neural stem cells in
+the adult brain. Science 317, 381–384 (2007).
+Ulirsch, J. C. et al. Interrogation of human hematopoiesis at single-cell and single-variant
+resolution. Nat. Genet. 51, 683–693 (2019).
+Acknowledgements We thank the staff of the Synthetic Tissue Bank for providing samples.
+Author contributions A.L. and G.H. designed the study. A.T. analysed the data.
+Competing interests The authors declare no competing interests.
+Additional information
+Correspondence and requests for materials should be addressed to Ada Lovelace.Article
+Extended Data Fig. 1 | Filtering of the synthetic data. a, UMAP plots showing
+the distribution of cell subclasses prior to data filtering. b, Quality metrics.Article
+Extended Data Fig. 2 | Quality control of the synthetic data. a, Violin plots of
+quality control metrics for individual samples. b, UMAP plots by age group.

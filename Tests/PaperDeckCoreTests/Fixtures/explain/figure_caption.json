@@ -1,0 +1,30 @@
+{
+ "note": "a figure whose only text is its two-line caption",
+ "imageSize": [
+  1000,
+  820
+ ],
+ "expect": "mixed",
+ "lines": [
+  {
+   "t": "Figure 3: Expression of the marker genes across the trajectory; shaded",
+   "b": [
+    20,
+    740,
+    960,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "bands show the 95% interval over three replicates.",
+   "b": [
+    20,
+    772,
+    620,
+    24
+   ],
+   "c": 0.62
+  }
+ ]
+}

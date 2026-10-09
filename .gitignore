@@ -1,0 +1,9 @@
+# SwiftPM build products and staging (build_app.sh assembles in .build/stage)
+.build/
+# This Mac's build settings (bundle id, signing identity, install folder) — see build.local.env.example
+build.local.env
+# Packages made by ./build_app.sh --package
+dist/
+
+# macOS Finder metadata
+.DS_Store

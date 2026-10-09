@@ -1,0 +1,21 @@
+Real API responses fetched 2026-09-30 with User-Agent "PaperDeck/0.1 (macOS)" (no mailto), sequential and spaced.
+Tests replay them through a fake HTTPFetching; they never touch the network.
+
+arxiv-2606-24530.xml                 https://export.arxiv.org/api/query?id_list=2606.24530
+arxiv-2604-09554.xml                 https://export.arxiv.org/api/query?id_list=2604.09554
+arxiv-notfound.xml                   https://export.arxiv.org/api/query?id_list=2601.99999
+biorxiv-2025-09-01-673319.json       https://api.biorxiv.org/details/biorxiv/10.1101/2025.09.01.673319
+biorxiv-64898-2026-02-27-708412.json https://api.biorxiv.org/details/biorxiv/10.64898/2026.02.27.708412
+biorxiv-64898-2026-04-06-716850.json https://api.biorxiv.org/details/biorxiv/10.64898/2026.04.06.716850
+biorxiv-2024-01-16-575956.json       https://api.biorxiv.org/details/biorxiv/10.1101/2024.01.16.575956   (published → 10.1038/s41586-024-08351-7)
+biorxiv-notfound.json                https://api.biorxiv.org/details/biorxiv/10.1101/2026.02.27.708412   (bioRxiv moved to prefix 10.64898)
+crossref-s41586-024-08351-7.json     https://api.crossref.org/works/10.1038/s41586-024-08351-7
+crossref-pii-S0092867424013321.json  https://api.crossref.org/works?filter=alternative-id:S0092867424013321&rows=1
+crossref-preprints202608-0213-v1.json https://api.crossref.org/works/10.20944/preprints202608.0213.v1
+crossref-64898-2026-02-27-708412.json https://api.crossref.org/works/10.64898/2026.02.27.708412
+crossref-query-spatialformer.json    https://api.crossref.org/works?query.bibliographic=SpatialFormer%3A%20universal%20spatial%20representation%20learning%20from%20subcellular%20molecular%20to%20multicellular%20landscapes&query.author=Wang&rows=3
+crossref-query-neocortex.json        https://api.crossref.org/works?query.bibliographic=Molecular%20and%20cellular%20dynamics%20of%20the%20developing%20human%20neocortex&query.author=Wang&rows=3
+crossref-notfound.txt                https://api.crossref.org/works/10.1101/2026.02.27.708412   (HTTP 404)
+openalex-s41586-024-08351-7.json     https://api.openalex.org/works/doi:10.1038/s41586-024-08351-7?select=id,doi,title,display_name,publication_year,type,authorships,primary_location,abstract_inverted_index
+openalex-cell-2024-11-015.json       https://api.openalex.org/works/doi:10.1016/j.cell.2024.11.015?select=…(same)
+openalex-notfound.html               https://api.openalex.org/works/doi:10.1234/definitely-not-a-real-doi-xyz?select=…   (HTTP 404)

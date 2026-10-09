@@ -1,0 +1,50 @@
+{
+ "note": "prose with one Greek symbol",
+ "imageSize": [
+  1000,
+  150
+ ],
+ "expect": "text",
+ "lines": [
+  {
+   "t": "The learning rate α was set to 0.001 and decayed by a factor of",
+   "b": [
+    20,
+    20,
+    960,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "ten every five epochs. We used a batch size of 64 and stopped",
+   "b": [
+    20,
+    52,
+    960,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "training when the validation loss had not improved for three",
+   "b": [
+    20,
+    84,
+    960,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "consecutive epochs, which happened after about forty epochs.",
+   "b": [
+    20,
+    116,
+    960,
+    24
+   ],
+   "c": 0.62
+  }
+ ]
+}

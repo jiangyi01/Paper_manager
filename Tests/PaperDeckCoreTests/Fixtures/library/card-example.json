@@ -1,0 +1,9 @@
+{"schema":"paperdeck.card/1","id":"…","sha256":"…","addedAt":"…","updatedAt":"…","pdf":"2024_Wang_….pdf","originalName":"s41586-024-08351-7.pdf",
+ "ids":{"doi":"10.1038/s41586-024-08351-7","arxiv":null,"arxivVersion":null,"pii":null,"publishedDoi":null},
+ "meta":{"title":"…","titleRank":4,"authors":["Li Wang","…"],"year":2024,"venue":"Nature","abstract":"…","source":"crossref","userEdited":false,"pageCount":49},
+ "reading":{"status":"to_read","priority":0,"deadline":"2026-10-02","scheduleMode":"auto","deadlineOrigin":"place","queueRank":17,
+            "placementFloor":"2026-09-30","provisional":false,"estMinutes":110,"estSource":"agent","openedAt":null,"doneAt":null,"deletedAt":null},
+ "state":{"stage":"ready","flags":0,"nameFinal":true,"needsReview":false,"textQuality":"good","aiState":"done"},
+ "checklist":[{"id":"k3f9a2qd","text":"…","section":"Fig. 2","page":5,"minutes":15,"kind":"figure","origin":"agent","userEdited":false,"doneAt":null}],
+ "category":{"name":"Neuroscience & Development","userSet":false},"tags":[{"name":"single-cell","origin":"agent"}],"notes":"…",
+ "ai":{"provider":"claude","model":"claude-sonnet-…","cardVersion":1,"generatedAt":"…","card":{}}}

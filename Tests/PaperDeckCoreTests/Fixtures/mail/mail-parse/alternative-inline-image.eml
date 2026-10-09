@@ -1,0 +1,31 @@
+From: Lab Bot <labbot@wustl.edu>
+To: yi.jiang@wustl.edu
+Subject: Weekly lab update
+Date: Thu, 24 Sep 2026 12:00:00 -0500
+Message-ID: <weekly-update-38@wustl.edu>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="ALT"
+
+--ALT
+Content-Type: text/plain; charset=utf-8
+
+Weekly update: the new confocal is installed in room 4102. No papers this week.
+
+--ALT
+Content-Type: multipart/related; boundary="REL"; type="text/html"
+
+--REL
+Content-Type: text/html; charset=utf-8
+
+<html><body><p><img src="cid:logo123@wustl" alt="Lab logo"></p><p>Weekly update: the new confocal is installed in room 4102. No papers this week.</p></body></html>
+--REL
+Content-Type: image/png; name="logo.png"
+Content-Transfer-Encoding: base64
+Content-ID: <logo123@wustl>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmM
+IQAAAABJRU5ErkJggg==
+--REL--
+
+--ALT--

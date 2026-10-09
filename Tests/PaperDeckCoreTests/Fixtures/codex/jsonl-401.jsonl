@@ -1,0 +1,4 @@
+{"type": "thread.started", "thread_id": "t-401"}
+{"type": "turn.started"}
+{"type": "error", "message": "unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9a1b2c3d4e5f6a7b-SJC"}
+{"type": "turn.failed", "error": {"message": "unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://chatgpt.com/backend-api/codex/responses, cf-ray: 9a1b2c3d4e5f6a7b-SJC"}}

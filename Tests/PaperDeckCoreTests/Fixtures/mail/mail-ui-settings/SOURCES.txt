@@ -1,0 +1,7 @@
+mail-ui-settings fixtures (synthetic, no real mail; used by the MailSettingsUI suites and by
+`--selftest mail --fixtures Tests/PaperDeckCoreTests/Fixtures/mail/mail-ui-settings --senders "advisor:jsmith@wustl.edu"`):
+- advisor-journal-club-pdf.eml: an advisor request with a real one-page PDF attachment (a synthetic,
+  hand-built Helvetica PDF: "Cortical organoids reveal timing of human interneuron migration" — no real
+  paper) and an arXiv link.
+- biorxiv-alert.eml, scholar-alert.eml: copies of the mail-parse fixtures.
+- colleague-share.eml: copy of the mail-sync fixture (a person's FYI share with an arXiv link).

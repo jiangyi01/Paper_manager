@@ -1,0 +1,48 @@
+{
+  "cardSystemPromptSHA256" : "63643f28348bd11c4648155824f0330fe8285c732be53b3db824c6ac249d1a87",
+  "field" : "lifeSciencesCompBio",
+  "organization" : "washu",
+  "strings" : {
+    "en" : {
+      "field.alertsTip" : "Tip: subscribe your Google Scholar, bioRxiv, arXiv and journal alerts to this address (or forward them to it), then add those senders to the sender list.",
+      "field.categoryDescriptionPlaceholder" : "e.g. Single-cell and spatial omics methods and atlases",
+      "field.customInstructionsHint" : "Sent with every AI triage request (never in local-rules-only mode), marked as your own preferences. Example: “Papers on spatial transcriptomics always count as requests.”",
+      "field.describeHint" : "e.g. Single-cell and spatial transcriptomics methods and atlases",
+      "org.accountsIntro" : "Add the mailbox or folder PaperDeck should check. WashU (Microsoft 365): use Power Automate — or Gmail if IT blocks it.",
+      "org.consentNote.ChatGPT" : "Sends this one email's text to ChatGPT once (links become markers; the signature and other addresses are removed). WashU guidance: don't send unpublished work to an unapproved AI.",
+      "org.consentNote.Claude" : "Sends this one email's text to Claude once (links become markers; the signature and other addresses are removed). WashU guidance: don't send unpublished work to an unapproved AI.",
+      "org.gmailBlurb" : "Recommended if WashU blocks Power Automate: subscribe or forward your alerts to a Gmail address. Needs 2-Step Verification.",
+      "org.oneDriveMissing" : "OneDrive isn't set up on this Mac (no “OneDrive – Washington University in St. Louis” folder). Install OneDrive and sign in with your WashU account, or choose another folder.",
+      "org.paBlockedNote" : "If WashU blocks Power Automate or the OneDrive connector, use Gmail (IMAP) instead: subscribe or forward the alerts to a Gmail address and add it here.",
+      "org.paDefaultAccountName" : "WashU (Power Automate)",
+      "org.paIntro" : "Set this up once at make.powerautomate.com with your WashU account (about 5 minutes). The flow copies new emails from your sender list into OneDrive as .eml files; OneDrive syncs them to this Mac. Already built it? Check it against the steps below.",
+      "org.paTemplateBlurb" : "Your own Power Automate flow saves allowlisted emails as .eml files to OneDrive; PaperDeck watches the synced folder. No IT app approval needed.",
+      "org.paTemplateName" : "Microsoft 365 via Power Automate (WashU)",
+      "org.patternInvalid" : "Not an address or a domain. Examples: prof.x@wustl.edu, @biorxiv.org, @*.nature.com",
+      "org.personSenderWarning" : "People may send unpublished work; WashU asks not to put it into AI tools that aren't approved.",
+      "org.policyNote" : "WashU AI guidance: don't put WashU data or unpublished work into AI platforms that aren't approved (Claude Edu / ChatGPT Edu are). “Ask each time” keeps this sender's mail on your Mac until you decide per email.",
+      "org.triagePrivacy" : "Only emails from your sender list, cleaned first: links become [c1 biorxiv.org] markers, phone numbers and other people's addresses are removed, signatures are cut. The model has no tools and the email is marked as untrusted. WashU: prefer Claude Edu / ChatGPT Edu logins for people's mail."
+    },
+    "zh" : {
+      "field.alertsTip" : "提示：把 Google Scholar、bioRxiv、arXiv 和期刊的提醒订阅（或转发）到这个地址，再把这些发件人加入下方的发件人列表。",
+      "field.categoryDescriptionPlaceholder" : "例如：单细胞与空间组学方法和图谱",
+      "field.customInstructionsHint" : "随每次 AI 分拣请求一起发送（「仅本地规则」时不发送），并标明是你的偏好。例如：「空间转录组的论文都算请求」。",
+      "field.describeHint" : "例如：单细胞与空间转录组方法和图谱",
+      "org.accountsIntro" : "添加 PaperDeck 要检查的邮箱或文件夹。WashU（Microsoft 365）用 Power Automate；如果 IT 禁止，改用 Gmail。",
+      "org.consentNote.ChatGPT" : "只把这一封邮件的文字发送给 ChatGPT 一次（链接换成标记，签名和其他邮箱地址会去掉）。WashU 规定：未发表的工作不要发给未经批准的 AI。",
+      "org.consentNote.Claude" : "只把这一封邮件的文字发送给 Claude 一次（链接换成标记，签名和其他邮箱地址会去掉）。WashU 规定：未发表的工作不要发给未经批准的 AI。",
+      "org.gmailBlurb" : "如果 WashU 禁止 Power Automate，推荐改用：把论文提醒订阅或转发到 Gmail。需要开启两步验证。",
+      "org.oneDriveMissing" : "这台 Mac 上还没有 OneDrive（找不到 OneDrive – Washington University in St. Louis 文件夹）。请安装 OneDrive 并用 WashU 账号登录，或选择其他文件夹。",
+      "org.paBlockedNote" : "如果 WashU 禁止 Power Automate 或 OneDrive 连接器，就改用 Gmail（IMAP）：把提醒订阅或转发到一个 Gmail 地址，再在这里添加。",
+      "org.paDefaultAccountName" : "WashU（Power Automate）",
+      "org.paIntro" : "用 WashU 账号在 make.powerautomate.com 设置一次（约 5 分钟）。这个流把发件人列表中的新邮件存成 .eml 放进 OneDrive，OneDrive 再同步到这台 Mac。已经建好了？对照下面的步骤检查一遍。",
+      "org.paTemplateBlurb" : "用你自己的 Power Automate 流把白名单发件人的邮件存成 .eml 到 OneDrive，PaperDeck 监视同步到本机的文件夹。无需 IT 审批应用。",
+      "org.paTemplateName" : "Microsoft 365 · Power Automate（WashU）",
+      "org.patternInvalid" : "不是地址或域名。例如：prof.x@wustl.edu、@biorxiv.org、@*.nature.com",
+      "org.personSenderWarning" : "个人发件人可能发来未发表的工作；WashU 要求不要放进未经批准的 AI 工具。",
+      "org.policyNote" : "WashU AI 使用指引：不要把 WashU 数据或未发表的工作放进未经批准的 AI 平台（Claude Edu / ChatGPT Edu 已获批准）。「每次询问」让这位发件人的邮件留在本机，直到你逐封决定。",
+      "org.triagePrivacy" : "只发送发件人列表中的邮件，并先清理：链接换成 [c1 biorxiv.org] 标记，电话号码和他人的邮箱地址会被移除，签名会被截掉。模型没有任何工具，邮件标记为不可信数据。WashU：个人发件人的邮件建议使用 Claude Edu / ChatGPT Edu 登录。"
+    }
+  },
+  "version" : 1
+}

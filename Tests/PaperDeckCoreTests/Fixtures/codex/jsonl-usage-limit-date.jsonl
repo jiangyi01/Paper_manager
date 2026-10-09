@@ -1,0 +1,4 @@
+{"type": "thread.started", "thread_id": "t-ul2"}
+{"type": "turn.started"}
+{"type": "error", "message": "You've hit your usage limit for gpt-5.6-sol. Switch to another model now, or try again at Oct 2nd, 2026 9:00 AM."}
+{"type": "turn.failed", "error": {"message": "You've hit your usage limit for gpt-5.6-sol. Switch to another model now, or try again at Oct 2nd, 2026 9:00 AM."}}

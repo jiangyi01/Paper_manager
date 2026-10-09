@@ -1,0 +1,30 @@
+{
+ "note": "math-dense lines",
+ "imageSize": [
+  960,
+  90
+ ],
+ "expect": "mixed",
+ "lines": [
+  {
+   "t": "Let x ∈ ℝⁿ and A = UΣVᵀ with σ₁ ≥ σ₂ ≥ … ≥ σₙ ≥ 0.",
+   "b": [
+    20,
+    20,
+    900,
+    26
+   ],
+   "c": 0.6
+  },
+  {
+   "t": "Then ‖Ax‖ ≤ σ₁‖x‖ and ∑ᵢ σᵢ² = ‖A‖²_F for all x ≠ 0.",
+   "b": [
+    20,
+    54,
+    900,
+    26
+   ],
+   "c": 0.6
+  }
+ ]
+}

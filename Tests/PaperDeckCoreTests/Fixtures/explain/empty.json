@@ -1,0 +1,9 @@
+{
+ "note": "nothing recognized",
+ "imageSize": [
+  600,
+  400
+ ],
+ "expect": "visual",
+ "lines": []
+}

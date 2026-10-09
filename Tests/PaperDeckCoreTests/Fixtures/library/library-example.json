@@ -1,0 +1,26 @@
+{
+  "categories" : [
+    {
+      "acknowledged" : true,
+      "description" : "Brain, neural circuits, and developmental biology",
+      "hue" : 4,
+      "name" : "Neuroscience & Development",
+      "origin" : "starter"
+    },
+    {
+      "acknowledged" : false,
+      "description" : "Spatial foundation models",
+      "hue" : 7,
+      "name" : "Spatial Models",
+      "origin" : "agent"
+    }
+  ],
+  "format" : 1,
+  "libraryID" : "7d0c6f8e-3a52-4c1e-9b8f-2f4b5d6e7a81",
+  "skipDays" : [
+    "2026-10-03",
+    "2026-10-01",
+    "not-a-date"
+  ],
+  "updatedAt" : "2026-09-30T10:42:00Z"
+}

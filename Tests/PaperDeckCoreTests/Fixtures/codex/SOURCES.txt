@@ -1,0 +1,22 @@
+Codex CLI fixtures (codex-cli 0.153.4, bundled in /Applications/ChatGPT.app/Contents/Resources/codex).
+
+Captured on the development Mac with zero-quota commands only (stdin=/dev/null):
+  codex-version-0.153.4.txt        codex --version                         (stdout, exit 0)
+  codex-exec-help-0.153.4.txt      codex exec --help                       (stdout, exit 0)
+  codex-features-list-0.153.4.txt  codex features list                     (stdout, exit 0)
+  login-status-chatgpt.txt         codex login status, after `codex login` (stderr, exit 0)
+  login-status-logged-out.txt      codex login status, before login        (stderr, exit 1)
+
+Hand-written (no `codex exec` was ever run; shapes follow the 0.153.4 JSONL event names and the
+error strings embedded in the binary):
+  login-status-api-key.txt         "Logged in using an API key - …" (exit 0)
+  last-message-card.json           the -o file: one card object (same card as agent/envelope-success.json)
+  jsonl-success.jsonl              thread.started, turn.started, reasoning, agent_message(card), turn.completed
+  jsonl-success-fenced.jsonl       the card inside a ```json fence with prose around it
+  jsonl-reconnect-then-success.jsonl  transient error events, then success
+  jsonl-prose-answer.jsonl         the turn completes with a non-JSON answer
+  jsonl-usage-limit.jsonl          "You've hit your usage limit … try again at 3:45 PM." (turn.failed)
+  jsonl-usage-limit-date.jsonl     "… for gpt-5.6-sol … try again at Oct 2nd, 2026 9:00 AM."
+  jsonl-schema-error.jsonl         HTTP 400 invalid_json_schema
+  jsonl-401.jsonl                  unexpected status 401 Unauthorized
+  jsonl-5xx.jsonl                  exceeded retry limit, last status: 503 Service Unavailable

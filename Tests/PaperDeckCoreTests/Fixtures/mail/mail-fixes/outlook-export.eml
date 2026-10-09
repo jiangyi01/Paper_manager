@@ -1,0 +1,109 @@
+Received: from SA1PR08MB0001.namprd08.prod.outlook.com (2603:10b6:806:1::11) by
+ CH0PR08MB0002.namprd08.prod.outlook.com with HTTPS; Wed, 30 Sep 2026 14:02:11 +0000
+Received: from BN9PR03CA0003.namprd03.prod.outlook.com (2603:10b6:408:13d::8) by
+ SA1PR08MB0001.namprd08.prod.outlook.com (2603:10b6:806:1::11) with Microsoft SMTP
+ Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id
+ 15.20.8000.1; Wed, 30 Sep 2026 14:02:10 +0000
+ARC-Seal: i=2; a=rsa-sha256; s=arcselector10001; d=microsoft.com; cv=pass;
+ b=FAKEarcSEALvalueFAKEarcSEALvalueFAKEarcSEALvalue==
+ARC-Message-Signature: i=2; a=rsa-sha256; c=relaxed/relaxed; d=microsoft.com;
+ s=arcselector10001; h=From:Date:Subject:Message-ID:Content-Type:MIME-Version;
+ bh=FAKEbodyhash=; b=FAKEarcMSGsig==
+ARC-Authentication-Results: i=2; mx.microsoft.com 1; spf=pass
+ smtp.mailfrom=wustl.edu; dmarc=pass action=none header.from=wustl.edu; dkim=pass
+ header.d=wustl.edu; arc=none
+Authentication-Results: spf=pass (sender IP is 192.0.2.10)
+ smtp.mailfrom=wustl.edu; dkim=pass (signature was verified)
+ header.d=wustl.edu;dmarc=pass action=none header.from=wustl.edu;
+From: "Smith, Jane" <jsmith@wustl.edu>
+To: "Student, Pat" <student@wustl.edu>
+Subject: Paper for Friday's meeting
+Thread-Topic: Paper for Friday's meeting
+Thread-Index: AQHbFAKEFAKEFAKEFAKE==
+Date: Wed, 30 Sep 2026 14:01:58 +0000
+Message-ID: <SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2@SA1PR08MB0001.namprd08.prod.outlook.com>
+Accept-Language: en-US
+Content-Language: en-US
+X-MS-Has-Attach: yes
+X-MS-TNEF-Correlator:
+X-MS-Exchange-Organization-AuthSource: SA1PR08MB0001.namprd08.prod.outlook.com
+X-MS-Exchange-Organization-AuthAs: Internal
+X-MS-Exchange-Organization-Network-Message-Id: 0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b
+X-MS-Exchange-Organization-SCL: -1
+X-MS-Exchange-CrossTenant-OriginalArrivalTime: 30 Sep 2026 14:01:58.0000 (UTC)
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: SA1PR08MB0001
+Content-Type: multipart/mixed;
+	boundary="_004_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_"
+MIME-Version: 1.0
+
+--_004_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_
+Content-Type: multipart/alternative;
+	boundary="_000_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_"
+
+--_000_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+You don't often get email from jsmith@wustl.edu. Learn why this is importan=
+t <https://nam10.safelinks.protection.outlook.com/?url=3Dhttps%3A%2F%2Faka.=
+ms%2FLearnAboutSenderIdentification&data=3D05%7C02%7Cstudent%40wustl.edu%7C=
+99ff%7C0%7C0&sdata=3DZXCVfake%3D&reserved=3D0>
+
+Hi,
+
+Please read the attached manuscript before our meeting on Friday, and also =
+skim this preprint:
+https://nam10.safelinks.protection.outlook.com/?url=3Dhttps%3A%2F%2Fwww.bio=
+rxiv.org%2Fcontent%2F10.1101%2F2026.08.12.607788v1&data=3D05%7C02%7Cstudent=
+%40wustl.edu%7C0a1b2c3d4e5f%7C4ccca3b571cd4e6d974b4d9beb96c6d6%7C0%7C0%7C63=
+8931234567890123%7CUnknown&sdata=3DQWERTYfakefakefake%3D&reserved=3D0
+
+Thanks,
+Jane
+
+--_000_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><head><meta http-equiv=3D"Content-Type" content=3D"text/html; charset=
+=3Dutf-8"></head><body><table><tr><td style=3D"background:#D1D1D1">You don'=
+t often get email from jsmith@wustl.edu. <a href=3D"https://nam10.safelinks=
+.protection.outlook.com/?url=3Dhttps%3A%2F%2Faka.ms%2FLearnAboutSenderIdent=
+ification&data=3D05%7C02%7Cstudent%40wustl.edu%7C99ff%7C0%7C0&sdata=3DZXCVf=
+ake%3D&reserved=3D0">Learn why this is important</a></td></tr></table><div =
+style=3D"font-family:Aptos,Arial,sans-serif;font-size:12pt"><p>Hi,</p><p>Pl=
+ease read the attached manuscript before our meeting on Friday, and also sk=
+im this preprint: <a href=3D"https://nam10.safelinks.protection.outlook.com=
+/?url=3Dhttps%3A%2F%2Fwww.biorxiv.org%2Fcontent%2F10.1101%2F2026.08.12.6077=
+88v1&data=3D05%7C02%7Cstudent%40wustl.edu%7C0a1b2c3d4e5f%7C4ccca3b571cd4e6d=
+974b4d9beb96c6d6%7C0%7C0%7C638931234567890123%7CUnknown&sdata=3DQWERTYfakef=
+akefake%3D&reserved=3D0" originalsrc=3D"https://www.biorxiv.org/content/10.=
+1101/2026.08.12.607788v1">Thalamic input shapes cortical organoid layering<=
+/a></p><p>Thanks,<br>Jane</p></div></body></html>
+--_000_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_--
+
+--_004_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_
+Content-Type: application/pdf; name="Smith2026_organoid_atlas.pdf"
+Content-Description: Smith2026_organoid_atlas.pdf
+Content-Disposition: attachment; filename="Smith2026_organoid_atlas.pdf";
+	size=851; creation-date="Wed, 30 Sep 2026 14:01:00 GMT";
+	modification-date="Wed, 30 Sep 2026 14:01:00 GMT"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4K
+ZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4K
+ZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAg
+MCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAw
+IFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAzMDEgPj4Kc3RyZWFtCkJUIC9G
+MSAyMiBUZiA1NCA3MjAgVGQgKENvcnRpY2FsIG9yZ2Fub2lkIGF0bGFzIG9mIGh1bWFuIG5ldXJv
+ZGV2ZWxvcG1lbnQpIFRqIEVUCkJUIC9GMSAxMSBUZiA1NCA2OTAgVGQgKEphbmUgU21pdGggYW5k
+IEFsZXggRG9lKSBUaiBFVApCVCAvRjEgOSBUZiA1NCA2NzAgVGQgKERPSTogMTAuMTAzOC9zNDE1
+ODYtMDI2LTAxMjM0LTUpIFRqIEVUCkJUIC9GMSAxMCBUZiA1NCA2NDAgVGQgKEFic3RyYWN0LiBD
+b3J0aWNhbCBvcmdhbm9pZHMgcmVjYXBpdHVsYXRlIGVhcmx5IGh1bWFuIG5ldXJvZGV2ZWxvcG1l
+bnQuKSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5
+cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAw
+MDAwIDY1NTM1IGYgCjAwMDAwMDAwMTUgMDAwMDAgbiAKMDAwMDAwMDA2NCAwMDAwMCBuIAowMDAw
+MDAwMTIxIDAwMDAwIG4gCjAwMDAwMDAyNDcgMDAwMDAgbiAKMDAwMDAwMDU5OCAwMDAwMCBuIAp0
+cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjY2OAolJUVPRgo=
+
+--_004_SA1PR08MB0001A1B2C3D4E5F6A7B8C9D0E1F2SA1PR08MB0001namp_--

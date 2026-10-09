@@ -1,0 +1,7 @@
+mail-sync fixtures (synthetic, no real mail):
+- advisor-request-pdf.eml, biorxiv-alert.eml, arxiv-listing.eml: copies of the mail-parse fixtures; the two
+  alerts carry the bulk headers real alert services send (List-Unsubscribe / List-Id, Precedence) —
+  an alert rule's AI-always triages only bulk mail automatically.
+- crossref-s41586-024-08351-7.json: copy of Fixtures/metadata (real Crossref response, public metadata).
+- stranger-secret.eml: a non-allowlisted sender whose subject/body markers must never be stored.
+- colleague-share.eml: a person's FYI share with an arXiv link.

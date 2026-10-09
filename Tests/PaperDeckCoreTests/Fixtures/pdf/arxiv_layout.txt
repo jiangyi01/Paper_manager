@@ -1,0 +1,36 @@
+A Synthetic Benchmark for Evaluating Coding Agents on Biology Tasks
+Ada Lovelace 1 Grace Hopper 2
+arXiv:2606.24530v2 [cs.CL] 6 Jul 2026
+Abstract
+We introduce a synthetic benchmark of ninety tasks distilled from published papers and
+evaluate six coding agents on it. The best agent solves 41% of the benchmark tasks.
+1 Introduction
+Coding agents are increasingly used for research. Existing benchmark suites focus on
+software engineering (Figure 1), so we build a benchmark grounded in biology papers.2 Related Work
+Prior benchmarks such as MLE-bench and LAB-Bench evaluate narrower skills.
+3 Method
+Each task pairs a paper with a reproducible benchmark environment (Figure 2).
+Method
+Accuracy
+Figure 2: Overview of the benchmark construction pipeline.4 Experiments
+We run every agent three times on the benchmark and report the mean (Table 1, Figure 3).
+Agents that plan explicitly score higher on the benchmark (Figure 3b).
+5 Conclusion
+The benchmark exposes large gaps between agents and published results.
+Acknowledgments
+We thank the anonymous reviewers for helpful feedback.References
+Samuel Alber, Bowen Chen, Eric Sun, Alina Isakova, Aaron J. Wilk, and James Zou. Cellvoyager: Ai compbio
+agent generates new insights by autonomously analyzing biological data. bioRxiv, 2025. doi: 10.1101/2025.
+06.03.657517. URL https://www.biorxiv.org/content/early/2025/06/04/2025.06.03.657517.
+Jun Shern Chan, Neil Chowdhury, Oliver Jaffe, James Aung, Dane Sherburn, Evan Mays, Giulio Starace, Kevin
+Liu, Leon Maksin, Tejal Patwardhan, Lilian Weng, and Aleksander Madry. Mle-bench: Evaluating machine
+learning agents on machine learning engineering, 2025. URL https://arxiv.org/abs/2410.07095.
+Josh Abramson, Jonas Adler, Jack Dunger, Richard Evans, Tim Green, Alexander Pritzel, Olaf
+Ronneberger, Lindsay Willmore, Andrew J Ballard, Joshua Bambrick, et al. Accurate structure
+prediction of biomolecular interactions with alphafold 3. Nature, 630(8016):493–500, 2024.
+Kexin Huang, Tianfan Fu, Wenhao Gao, Yue Zhao, Yusuf Roohani, Jure Leskovec, Connor W. Coley, Cao Xiao,
+Jimeng Sun, and Marinka Zitnik. Therapeutics data commons: Machine learning datasets and tasks for drug
+discovery and development, 2021. URL https://arxiv.org/abs/2102.09548.A. Additional Details
+The appendix lists every task with its metric and baseline (Figure 4).
+B Case Studies
+We walk through two representative agent trajectories in detail.

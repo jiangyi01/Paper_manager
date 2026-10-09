@@ -1,0 +1,74 @@
+Return-Path: <jsmith@wustl.edu>
+Received: from smtp2.mx.wustl.edu (smtp2.mx.wustl.edu [128.252.1.2])
+	by mail.wustl.edu with ESMTPS id 4fGh7;
+	Tue, 29 Sep 2026 14:05:12 -0500
+Authentication-Results: mx.wustl.edu; dkim=pass header.d=wustl.edu;
+ spf=pass smtp.mailfrom=wustl.edu; dmarc=pass header.from=wustl.edu
+From: "Smith, Jane" <JSmith@wustl.edu>
+To: Yi Jiang <yi.jiang@wustl.edu>
+Cc: Lab Manager <lab.manager@wustl.edu>
+Subject: Paper for Thursday's lab meeting
+Date: Tue, 29 Sep 2026 14:05:00 -0500
+Message-ID: <CAF3xYz+Abc123@MAIL.Gmail.COM>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mixed-001"
+
+This is a multi-part message in MIME format.
+
+--mixed-001
+Content-Type: multipart/alternative; boundary="alt-001"
+
+--alt-001
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hi Yi,
+
+Please read the attached paper before Thursday's lab meeting and be ready t=
+o present Fig. 2. The companion preprint is here: https://www.biorxiv.org/c=
+ontent/10.1101/2026.09.14.612345v2?utm_source=3Dalert&utm_medium=3Demail
+
+If anything is unclear, call me at +1 (314) 555-0199 or email the lab manag=
+er at lab.manager@wustl.edu.
+
+Thanks,
+Jane
+
+--=20
+Jane Smith, PhD
+Professor of Neuroscience, Washington University in St. Louis
+Phone: (314) 555-0123 | jsmith@wustl.edu
+
+On Mon, Sep 28, 2026 at 9:00 AM Yi Jiang <yi.jiang@wustl.edu> wrote:
+> Hi Jane, is there a paper for this week?
+> https://www.nature.com/articles/s41586-099-99999-9
+
+--alt-001
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><head><style>p{margin:0}</style></head><body><div dir=3D"ltr"><p>Hi Y=
+i,</p><p>Please read the attached paper before Thursday&#39;s lab meeting a=
+nd be ready to present Fig. 2. The companion preprint is <a href=3D"https:/=
+/www.biorxiv.org/content/10.1101/2026.09.14.612345v2?utm_source=3Dalert&amp=
+;utm_medium=3Demail">here</a>.</p><p>If anything is unclear, call me at +1 =
+(314) 555-0199 or email the lab manager at <a href=3D"mailto:lab.manager@wu=
+stl.edu">lab.manager@wustl.edu</a>.</p><p>Thanks,<br>Jane</p><div class=3D"=
+gmail_signature">-- <br>Jane Smith, PhD<br>Professor of Neuroscience</div><=
+/div><br><div class=3D"gmail_quote"><div dir=3D"ltr" class=3D"gmail_attr">O=
+n Mon, Sep 28, 2026 at 9:00 AM Yi Jiang &lt;yi.jiang@wustl.edu&gt; wrote:<b=
+r></div><blockquote class=3D"gmail_quote">Hi Jane, is there a paper for thi=
+s week?<br><a href=3D"https://www.nature.com/articles/s41586-099-99999-9">h=
+ttps://www.nature.com/articles/s41586-099-99999-9</a></blockquote></div></b=
+ody></html>
+--alt-001--
+
+--mixed-001
+Content-Type: application/pdf; name="Smith2026_neocortex.pdf"
+Content-Disposition: attachment; filename="Smith2026_neocortex.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2Jq
+CjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFtdIC9Db3VudCAwID4+IGVuZG9iagp0cmFp
+bGVyIDw8IC9Sb290IDEgMCBSID4+CiUlRU9GCg==
+--mixed-001--

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>agent.mode</key>
+	<string>claude</string>
+	<key>agent.provider</key>
+	<string>claude</string>
+	<key>library.path</key>
+	<string>/Users/example/Documents/PaperDeck</string>
+	<key>mail.accounts</key>
+	<string>[{"id":"washu-pa","kind":"folder","displayName":"WashU (Power Automate)","enabled":true,"lookbackDays":14,"folderPath":"\/Users\/example\/Library\/CloudStorage\/OneDrive-WashingtonUniversityinSt.Louis\/PaperDeck Mail","deleteProcessedFiles":false,"mailbox":"INBOX"}]</string>
+	<key>mail.criteria</key>
+	<string>{"keepKinds":["advisor_request","journal_club","alert_digest","fyi"],"includeKeywords":["spatial transcriptomics"],"excludeKeywords":[],"researchInterests":"Single-cell and spatial omics of the developing brain; AI agents for biology.","customInstructions":"","minConfidence":0.5,"maxAlertPapers":8}</string>
+	<key>mail.enabled</key>
+	<true/>
+	<key>mail.senders</key>
+	<string>[{"id":"advisor-jsmith","pattern":"jsmith@wustl.edu","label":"Prof. Jane Smith","kind":"advisor","enabled":true,"aiPolicy":"ask","useDueDateAsDDL":true,"autoMerge":false,"autoDownload":true},{"id":"preset-google-scholar","pattern":"scholaralerts-noreply@google.com","label":"Google Scholar Alerts","kind":"alert","enabled":true,"aiPolicy":"always","useDueDateAsDDL":true,"autoMerge":false,"autoDownload":true},{"id":"preset-biorxiv","pattern":"@biorxiv.org","label":"bioRxiv","kind":"alert","enabled":true,"aiPolicy":"always","useDueDateAsDDL":true,"autoMerge":false,"autoDownload":true}]</string>
+	<key>setup.completed</key>
+	<true/>
+</dict>
+</plist>

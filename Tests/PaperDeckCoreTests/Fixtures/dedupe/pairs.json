@@ -1,0 +1,1218 @@
+{
+ "schema": "paperdeck.dedupe-pairs/1",
+ "note": "Synthetic pairs (no real papers' text): `new` is the file being added, `existing` what the library has. truth: same | related | different.",
+ "pairs": [
+  {
+   "name": "biorxiv prefix 10.1101 vs 10.64898",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "same_work"
+   },
+   "new": {
+    "title": "Spatial atlas of the developing human cortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2026,
+    "doi": "10.64898/2026.01.02.573456",
+    "venue": "bioRxiv"
+   },
+   "existing": {
+    "title": "Spatial atlas of the developing human cortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2026,
+    "doi": "10.1101/2026.01.02.573456",
+    "venue": "bioRxiv"
+   }
+  },
+  {
+   "name": "bioRxiv preprint has published DOI of the journal file",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "newer_version"
+   },
+   "new": {
+    "title": "Molecular dynamics of the developing neocortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025,
+    "doi": "10.1038/s41586-025-01234-5",
+    "venue": "Nature"
+   },
+   "existing": {
+    "title": "Molecular dynamics of the developing neocortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "doi": "10.1101/2024.03.01.582345",
+    "publishedDOI": "10.1038/s41586-025-01234-5",
+    "venue": "bioRxiv"
+   }
+  },
+  {
+   "name": "journal record has-preprint -> preprint dropped later",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "older_version"
+   },
+   "new": {
+    "title": "Lineage tracing in organoids",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023,
+    "doi": "10.1101/2023.11.11.566789",
+    "venue": "bioRxiv"
+   },
+   "existing": {
+    "title": "Lineage tracing in human organoids at scale",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "doi": "10.1016/j.cell.2024.05.001",
+    "venue": "Cell",
+    "relations": [
+     {
+      "kind": "hasPreprint",
+      "doi": "10.1101/2023.11.11.566789"
+     }
+    ]
+   }
+  },
+  {
+   "name": "arXiv v3 over v1",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "newer_version"
+   },
+   "new": {
+    "title": "Scalable inference of cell trajectories",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "arxiv": "2401.01234",
+    "arxivVersion": 3,
+    "venue": "arXiv"
+   },
+   "existing": {
+    "title": "Scalable inference of cell trajectories",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "arxiv": "2401.01234",
+    "arxivVersion": 1,
+    "venue": "arXiv"
+   }
+  },
+  {
+   "name": "arXiv DataCite DOI vs arXiv id",
+   "truth": "same",
+   "expect": {
+    "band": "certain"
+   },
+   "new": {
+    "title": "Benchmarking spatial clustering methods",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "doi": "10.48550/arXiv.2402.05678"
+   },
+   "existing": {
+    "title": "Benchmarking spatial clustering methods",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "arxiv": "2402.05678",
+    "venue": "arXiv"
+   }
+  },
+  {
+   "name": "eLife reviewed preprint .1 vs VOR .3",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "newer_version"
+   },
+   "new": {
+    "title": "Chromatin states define progenitor fate",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2025,
+    "doi": "10.7554/eLife.98765.3",
+    "venue": "eLife"
+   },
+   "existing": {
+    "title": "Chromatin states define progenitor fate",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "doi": "10.7554/eLife.98765.1",
+    "venue": "eLife"
+   }
+  },
+  {
+   "name": "F1000Research .2 vs .1",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "newer_version"
+   },
+   "new": {
+    "title": "A protocol for nucleus isolation",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023,
+    "doi": "10.12688/f1000research.12345.2"
+   },
+   "existing": {
+    "title": "A protocol for nucleus isolation",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2022,
+    "doi": "10.12688/f1000research.12345.1"
+   }
+  },
+  {
+   "name": "Research Square v2 vs v1",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "newer_version"
+   },
+   "new": {
+    "title": "Immune response variants in a patient cohort",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2023,
+    "doi": "10.21203/rs.3.rs-1234567/v2"
+   },
+   "existing": {
+    "title": "Immune response variants in a patient cohort",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2023,
+    "doi": "10.21203/rs.3.rs-1234567/v1"
+   }
+  },
+  {
+   "name": "journal version-of relation",
+   "truth": "same",
+   "expect": {
+    "band": "certain"
+   },
+   "new": {
+    "title": "Gene regulatory networks of the adult retina",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "doi": "10.1093/nar/gkae999"
+   },
+   "existing": {
+    "title": "Gene regulatory networks of the adult retina",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2023,
+    "doi": "10.1093/nar/gkae111",
+    "relations": [
+     {
+      "kind": "isVersionOf",
+      "doi": "10.1093/nar/gkae999"
+     }
+    ]
+   }
+  },
+  {
+   "name": "identical bytes",
+   "truth": "same",
+   "expect": {
+    "band": "certain",
+    "relation": "same_file"
+   },
+   "new": {
+    "title": "Any title at all for this file",
+    "sha": "aa11"
+   },
+   "existing": {
+    "title": "Another name for the same bytes",
+    "sha": "aa11"
+   }
+  },
+  {
+   "name": "supplement mmc1.pdf printing the main DOI",
+   "truth": "related",
+   "expect": {
+    "band": "certain",
+    "relation": "supplement"
+   },
+   "new": {
+    "title": "",
+    "fileName": "mmc1.pdf",
+    "doi": "10.1016/j.cell.2024.05.001",
+    "pages": 40
+   },
+   "existing": {
+    "title": "Lineage tracing in human organoids at scale",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "doi": "10.1016/j.cell.2024.05.001",
+    "pages": 22
+   }
+  },
+  {
+   "name": "Springer ESM supplement",
+   "truth": "related",
+   "expect": {
+    "band": "certain",
+    "relation": "supplement"
+   },
+   "new": {
+    "title": "Supplementary Information",
+    "fileName": "41586_2025_1234_MOESM1_ESM.pdf",
+    "doi": "10.1038/s41586-025-01234-5",
+    "pages": 18
+   },
+   "existing": {
+    "title": "Molecular dynamics of the developing neocortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025,
+    "doi": "10.1038/s41586-025-01234-5",
+    "pages": 30
+   }
+  },
+  {
+   "name": "correction notice printing the original DOI",
+   "truth": "related",
+   "expect": {
+    "band": "certain",
+    "relation": "correction"
+   },
+   "new": {
+    "title": "Author Correction: Molecular dynamics of the developing neocortex",
+    "doi": "10.1038/s41586-025-01234-5",
+    "pages": 1
+   },
+   "existing": {
+    "title": "Molecular dynamics of the developing neocortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025,
+    "doi": "10.1038/s41586-025-01234-5",
+    "pages": 30
+   }
+  },
+  {
+   "name": "OpenAlex work id only",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Cortical neurons in culture and in tissue",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2022,
+    "doi": "10.1371/journal.pone.0270001",
+    "openalex": "W4200000001"
+   },
+   "existing": {
+    "title": "Cortical neurons in culture and in tissue",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2022,
+    "doi": "10.5281/zenodo.700001",
+    "openalex": "https://openalex.org/W4200000001"
+   }
+  },
+  {
+   "name": "preprint title changed on publication",
+   "truth": "same",
+   "expect": {
+    "band": "possible"
+   },
+   "new": {
+    "title": "Developmental trajectories of human interneurons",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025,
+    "doi": "10.1126/science.adk0001",
+    "abstract": "trajectory regulatory single accessibility accuracy trajectory method mutation analysis differentiation performance development function temporal cells trajectory profile identify sequencing response development cortex development neurons mutation dataset response development reveal state accuracy identify protein identify regulatory inference patient cortex resolution differentiation tissue patient accessibility genome robust dynamic robust organoid tumor sample accuracy robust mechanism differentiation benchmark characterize imaging resolution adult binding domain progenitor state scalable sequencing accessibility framework mechanism identify performance development method atlas immune mechanism embryonic embryonic robust identify neurons model identify imaging scalable protein structure inference profile cells function scalable spatial framework analysis dynamic gene benchmark binding model temporal microscopy performance structure resolution protein cells genome inference development identify adult tissue progenitor single transcriptomic network lineage cortex trajectory neurons mutation characterize profile chromatin development protein trajectory regulatory embryonic pathway single embryonic profile patient inference variant accuracy method chromatin development"
+   },
+   "existing": {
+    "title": "Trajectories of human interneuron development",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing"
+    ],
+    "year": 2024,
+    "doi": "10.1101/2024.02.02.578000",
+    "venue": "bioRxiv",
+    "abstract": "cluster regulatory single accessibility accuracy trajectory method mutation analysis differentiation performance development function temporal cells trajectory profile identify sequencing response development cortex development neurons mutation dataset dynamic development reveal state accuracy identify protein identify reveal inference patient cortex resolution differentiation tissue patient accessibility genome robust dynamic robust organoid tumor sample accuracy robust mechanism transcriptomic benchmark characterize imaging resolution adult binding domain progenitor state scalable sequencing pathway framework mechanism domain performance development method atlas immune mechanism embryonic embryonic robust identify neurons model identify imaging scalable protein structure inference profile cells function scalable spatial framework analysis dynamic gene benchmark binding model robust microscopy performance structure resolution protein cells genome inference development identify adult tissue progenitor single transcriptomic network lineage cortex trajectory neurons cohort characterize profile chromatin tissue protein patient regulatory embryonic pathway single embryonic profile patient inference variant accuracy method chromatin development"
+   }
+  },
+  {
+   "name": "same title same first author no ids on one side",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Robust benchmarking of single-cell integration methods",
+    "authors": [
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024
+   },
+   "existing": {
+    "title": "Robust benchmarking of single-cell integration methods",
+    "authors": [
+     "Kenji Sato",
+     "Maria Garcia"
+    ],
+    "year": 2023,
+    "doi": "10.1038/s41592-024-00001-1"
+   }
+  },
+  {
+   "name": "publisher vs author copy (same text)",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Temporal dynamics of chromatin accessibility in organoids",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "text": "trajectory computational trajectory scalable organoid tissue scalable method tissue differentiation trajectory tumor marker progenitor atlas mechanism trajectory pathway pathway regulatory gene transcriptomic organoid define development computational variant state progenitor framework identify patient accuracy cells lineage inference cohort microscopy lineage single response identify scalable binding development regulatory sequencing imaging sequencing patient function regulatory cortex cells dataset analysis expression method mutation mechanism resolution network model profile assembly progenitor immune genome neurons microscopy accessibility cluster characterize differentiation neurons gene computational performance adult organoid trajectory scalable organoid spatial resolution function immune mechanism resolution dataset cells profile tumor cortex analysis tissue mechanism differentiation atlas marker dataset state nucleus neurons genome patient function network network progenitor analysis characterize neurons domain domain inference spatial benchmark cluster function tissue signaling immune identify characterize organoid pathway model dataset benchmark lineage resolution expression sequencing sequencing transcriptomic scalable single define mechanism single resolution performance patient framework adult regulatory spatial identify benchmark network cohort dataset analysis cortex regulatory profile microscopy trajectory characterize gene atlas adult sample domain spatial progenitor binding cluster trajectory genome framework cluster transcriptomic cortex method structure immune transcriptomic cortex network benchmark regulatory immune response cluster network network trajectory domain atlas spatial assembly structure lineage method network resolution development accuracy neurons mutation mutation neurons network lineage progenitor chromatin single resolution genome function inference state computational lineage framework scalable development immune mechanism benchmark cortex identify chromatin accuracy performance single neurons domain tumor marker model framework embryonic assembly state accuracy define variant imaging single model temporal model dataset function reveal response analysis cluster cluster accuracy protein atlas regulatory cohort embryonic chromatin trajectory"
+   },
+   "existing": {
+    "title": "Temporal dynamics of chromatin accessibility in organoids",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "doi": "10.1016/j.stem.2024.01.001",
+    "text": "trajectory computational trajectory scalable organoid tissue scalable method tissue differentiation trajectory tumor marker progenitor atlas mechanism trajectory pathway neurons regulatory gene transcriptomic organoid define development computational variant state model framework identify patient accuracy cells lineage inference cohort microscopy lineage single response identify scalable sample development regulatory sequencing imaging sequencing patient function regulatory cortex cells dataset analysis expression method mutation mechanism resolution network model profile assembly progenitor immune genome neurons microscopy accessibility cluster characterize differentiation neurons gene computational performance adult organoid trajectory scalable organoid spatial resolution function chromatin mechanism resolution dataset cells profile tumor cortex analysis tissue mechanism differentiation atlas marker dataset state nucleus neurons genome patient function network network progenitor analysis characterize neurons domain domain inference spatial benchmark cluster function tissue signaling immune identify characterize organoid pathway model function benchmark lineage resolution expression sequencing sequencing transcriptomic scalable single define mechanism single resolution performance patient framework adult regulatory spatial identify benchmark network cohort dataset analysis cortex regulatory profile microscopy trajectory characterize gene atlas adult sample domain spatial progenitor binding cluster trajectory genome framework cluster transcriptomic cortex method structure immune transcriptomic cortex network benchmark regulatory immune response cluster network network trajectory domain atlas spatial assembly structure lineage method network resolution development accuracy neurons mutation mutation neurons network lineage progenitor chromatin single resolution genome function inference state computational lineage framework scalable development immune progenitor benchmark cortex identify chromatin accuracy performance single neurons domain tumor marker model framework embryonic assembly state accuracy define variant imaging single model temporal model dataset function reveal response analysis cluster cluster accuracy protein atlas regulatory cohort embryonic chromatin trajectory"
+   }
+  },
+  {
+   "name": "garbled title, same text and authors",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Microsoft Word draft v7 final",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "text": "method profile protein marker mutation neurons domain benchmark cohort inference identify cells marker state domain pathway assembly analysis gene model network scalable assembly imaging progenitor cortex gene scalable reveal progenitor dynamic state chromatin neurons cluster response pathway expression embryonic robust lineage imaging resolution method benchmark function development lineage organoid nucleus structure binding function immune chromatin single define genome binding domain scalable robust adult development mutation temporal transcriptomic framework development reveal dynamic atlas function analysis sequencing reveal adult network cohort transcriptomic temporal cohort accuracy protein expression scalable inference domain analysis assembly sample inference method benchmark define embryonic computational binding tissue organoid reveal cells profile assembly adult define neurons robust atlas characterize chromatin binding robust signaling development variant cohort accessibility identify robust benchmark spatial structure nucleus state pathway trajectory patient atlas cohort genome scalable state dataset sample framework single development cells development spatial profile resolution cluster define model temporal method gene nucleus atlas resolution temporal progenitor imaging model protein domain function pathway cortex signaling development transcriptomic network resolution model mutation differentiation structure organoid immune profile performance accessibility dataset mechanism characterize network microscopy structure variant lineage genome marker progenitor immune immune tissue method binding adult development analysis performance state performance adult gene assembly inference define variant differentiation reveal cells binding binding cohort model temporal patient reveal framework marker robust genome pathway robust computational function robust characterize inference inference expression identify microscopy mechanism framework state expression sequencing immune protein cortex variant accuracy binding immune embryonic cluster benchmark reveal cluster single accuracy atlas dynamic binding sample microscopy sample function variant marker spatial nucleus transcriptomic mutation"
+   },
+   "existing": {
+    "title": "Gene expression atlas of adult tissue",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "doi": "10.1038/s41467-024-00002-2",
+    "text": "method profile protein marker mutation neurons domain benchmark cohort inference identify cells marker state domain pathway assembly analysis gene model network scalable assembly imaging progenitor cortex gene scalable reveal progenitor dynamic state chromatin dynamic cluster response pathway expression embryonic robust lineage imaging resolution method benchmark function development lineage organoid nucleus structure binding function immune chromatin single define genome binding domain scalable robust adult development mutation temporal transcriptomic framework development reveal dynamic atlas function analysis sequencing reveal adult network cohort transcriptomic temporal cohort accuracy protein expression scalable inference domain analysis assembly sample inference method benchmark define embryonic computational binding tissue organoid reveal cells profile assembly adult define neurons robust atlas characterize chromatin binding robust signaling development variant cohort accessibility identify robust benchmark performance structure nucleus state pathway trajectory patient atlas cohort genome scalable state dataset sample framework single development cells development spatial profile resolution cluster define model temporal method gene nucleus atlas resolution temporal progenitor imaging model protein domain function pathway cortex signaling development transcriptomic network resolution model mutation differentiation structure organoid immune profile performance accessibility dataset mechanism characterize network microscopy structure variant lineage genome marker progenitor immune immune tissue temporal binding adult development analysis performance state performance adult gene assembly inference define variant differentiation reveal cells binding binding cohort model temporal patient reveal framework marker robust genome pathway robust computational function robust characterize inference inference expression identify microscopy mechanism framework state expression sequencing immune protein cortex variant accuracy binding immune embryonic cluster benchmark reveal cluster single accuracy atlas dynamic binding sample microscopy sample function variant marker spatial nucleus transcriptomic mutation"
+   }
+  },
+  {
+   "name": "conference to journal extension (two final DOIs)",
+   "truth": "same",
+   "expect": {
+    "band": "possible"
+   },
+   "new": {
+    "title": "Fast scalable clustering of single cell transcriptomes",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024,
+    "doi": "10.1109/tcbb.2024.0001"
+   },
+   "existing": {
+    "title": "Fast scalable clustering of single-cell transcriptomes",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023,
+    "doi": "10.1145/3580000.3580001"
+   }
+  },
+  {
+   "name": "intake without authors: same title and page text",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Imaging protein dynamics at high temporal resolution",
+    "text": "trajectory computational trajectory scalable organoid tissue scalable method tissue differentiation trajectory tumor marker progenitor atlas mechanism trajectory pathway neurons regulatory gene transcriptomic organoid define development computational variant state model framework identify patient accuracy cells lineage inference cohort microscopy lineage single response identify scalable sample development regulatory sequencing imaging sequencing patient function regulatory mechanism cells dataset analysis expression method mutation mechanism resolution network model profile assembly progenitor immune genome neurons microscopy accessibility cluster characterize differentiation neurons gene computational performance adult organoid trajectory scalable organoid spatial resolution function chromatin mechanism resolution dataset cells profile tumor cortex analysis tissue mechanism differentiation atlas marker dataset state nucleus neurons genome patient function network network progenitor analysis characterize neurons domain domain inference spatial benchmark cluster function tumor signaling immune identify characterize organoid pathway model function benchmark lineage resolution expression sequencing sequencing transcriptomic scalable single define mechanism single resolution performance patient framework adult regulatory spatial identify benchmark network cohort dataset analysis cortex regulatory profile microscopy trajectory characterize gene atlas adult sample domain spatial progenitor binding cluster trajectory genome framework cluster transcriptomic cortex method structure immune transcriptomic cortex network benchmark regulatory immune response cluster network network trajectory domain atlas spatial assembly structure lineage method network resolution development accuracy neurons mutation mutation neurons network lineage progenitor chromatin single resolution genome function inference state computational lineage framework scalable development immune progenitor benchmark cortex identify chromatin accuracy performance single neurons domain tumor marker model framework embryonic assembly state accuracy define variant imaging single model temporal model dataset function reveal response analysis cluster cluster accuracy protein atlas regulatory cohort embryonic chromatin trajectory"
+   },
+   "existing": {
+    "title": "Imaging protein dynamics at high temporal resolution",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025,
+    "doi": "10.1038/s41592-025-00003-3",
+    "text": "trajectory computational trajectory scalable organoid tissue scalable method tissue differentiation trajectory tumor marker progenitor atlas mechanism trajectory pathway neurons regulatory gene transcriptomic organoid define development computational variant state model framework identify patient accuracy cells lineage inference cohort microscopy lineage single response identify scalable sample development regulatory sequencing imaging sequencing patient function regulatory cortex cells dataset analysis expression method mutation mechanism resolution network model profile assembly progenitor immune genome neurons microscopy accessibility cluster characterize differentiation neurons gene computational performance adult organoid trajectory scalable organoid spatial resolution function chromatin mechanism resolution dataset cells profile tumor cortex analysis tissue mechanism differentiation atlas marker dataset state nucleus neurons genome patient function network network progenitor analysis characterize neurons domain domain inference spatial benchmark cluster function tissue signaling immune identify characterize organoid pathway model function benchmark lineage resolution expression sequencing sequencing transcriptomic scalable single define mechanism single resolution performance patient framework adult regulatory spatial identify benchmark network cohort dataset analysis cortex regulatory profile microscopy trajectory characterize gene atlas adult sample domain spatial progenitor binding cluster trajectory genome framework cluster transcriptomic cortex method structure immune transcriptomic cortex network benchmark regulatory immune response cluster network network trajectory domain atlas spatial assembly structure lineage method network resolution development accuracy neurons mutation mutation neurons network lineage progenitor chromatin single resolution genome function inference state computational lineage framework scalable development immune progenitor benchmark cortex identify chromatin accuracy performance single neurons domain tumor marker model framework embryonic assembly state accuracy define variant imaging single model temporal model dataset function reveal response analysis cluster cluster accuracy protein atlas regulatory cohort embryonic chromatin trajectory"
+   }
+  },
+  {
+   "name": "CJK title, same paper",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "人类大脑皮层发育的单细胞图谱",
+    "authors": [
+     "王丽",
+     "李明"
+    ],
+    "year": 2024
+   },
+   "existing": {
+    "title": "人类大脑皮层发育的单细胞图谱",
+    "authors": [
+     "王丽",
+     "张伟"
+    ],
+    "year": 2024,
+    "doi": "10.1360/ssv-2024-0001"
+   }
+  },
+  {
+   "name": "consortium first author",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "A cross-tissue atlas of the human immune system",
+    "authors": [
+     "The Tabula Sapiens Consortium",
+     "Robert Jones",
+     "Stephen Quake"
+    ],
+    "year": 2022
+   },
+   "existing": {
+    "title": "A cross-tissue atlas of the human immune system",
+    "authors": [
+     "Robert Jones",
+     "Stephen Quake",
+     "Tabula Sapiens Consortium"
+    ],
+    "year": 2022,
+    "doi": "10.1126/science.abl0001"
+   }
+  },
+  {
+   "name": "punctuation and case differences",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Single-Cell RNA-seq reveals neuronal diversity in the mouse hypothalamus.",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023
+   },
+   "existing": {
+    "title": "Single-cell RNA-seq reveals neuronal diversity in the mouse hypothalamus",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023,
+    "doi": "10.7554/eLife.80001"
+   }
+  },
+  {
+   "name": "subtitle added on publication",
+   "truth": "same",
+   "expect": {
+    "band": "possible"
+   },
+   "new": {
+    "title": "A single-cell atlas of the human retina: insights into photoreceptor degeneration",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025,
+    "doi": "10.1016/j.neuron.2025.01.001",
+    "abstract": "gene analysis lineage binding embryonic immune single dataset transcriptomic pathway temporal mechanism scalable pathway state robust profile transcriptomic cluster binding computational response mutation dynamic embryonic adult define identify domain adult variant adult cluster cells scalable binding scalable tissue trajectory resolution binding structure patient trajectory pathway imaging model characterize performance cohort accuracy robust scalable structure inference embryonic protein inference performance reveal variant embryonic profile neurons immune structure robust framework robust microscopy immune tissue performance scalable binding network assembly neurons organoid sequencing model expression profile identify sequencing framework cluster profile characterize analysis gene dynamic transcriptomic gene binding binding adult sequencing development pathway chromatin regulatory development atlas cortex domain single spatial pathway tissue framework cells function spatial characterize signaling transcriptomic cells protein characterize characterize assembly performance development immune trajectory atlas nucleus imaging signaling method reveal progenitor response sequencing development trajectory spatial analysis mechanism"
+   },
+   "existing": {
+    "title": "A single-cell atlas of the human retina",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "doi": "10.1101/2024.05.05.592000",
+    "venue": "bioRxiv",
+    "abstract": "gene progenitor lineage binding embryonic immune single dataset transcriptomic pathway temporal mechanism scalable domain state robust profile transcriptomic development binding computational response mutation dynamic embryonic adult define identify development adult variant adult cluster scalable scalable binding scalable tissue trajectory resolution binding structure binding trajectory pathway imaging computational characterize performance cohort accuracy robust scalable structure inference computational protein inference performance reveal variant embryonic profile benchmark immune tumor robust framework robust microscopy immune analysis performance scalable binding network assembly neurons organoid sequencing gene expression profile identify sequencing framework cluster profile characterize analysis gene dynamic transcriptomic gene binding binding adult characterize development lineage chromatin regulatory development atlas cortex domain single spatial pathway tissue framework cells function atlas characterize signaling transcriptomic cells protein chromatin sample assembly performance development immune trajectory atlas nucleus imaging signaling method reveal progenitor response sequencing development trajectory spatial framework mechanism"
+   }
+  },
+  {
+   "name": "first author swapped (co-first), same abstract",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Neuronal lineage inference from spatial transcriptomics",
+    "authors": [
+     "Ada Lovelace",
+     "Li Wang",
+     "Grace Hopper"
+    ],
+    "year": 2024,
+    "doi": "10.1038/s41587-024-00004-4",
+    "abstract": "marker regulatory single accessibility accuracy trajectory method mutation analysis differentiation performance development function temporal cells trajectory profile identify sequencing response performance cortex dynamic neurons mutation dataset dynamic development reveal state accuracy identify protein identify reveal inference patient cortex resolution differentiation tissue patient accessibility genome robust dynamic robust organoid tumor nucleus microscopy robust mechanism transcriptomic benchmark characterize imaging resolution adult binding domain progenitor state scalable sequencing pathway transcriptomic mechanism domain performance development method atlas immune mechanism embryonic embryonic robust identify neurons model cortex imaging scalable protein structure inference profile cells function scalable spatial framework analysis dynamic gene benchmark binding model robust microscopy performance structure resolution protein cells genome inference development identify adult tissue progenitor single transcriptomic network lineage cortex trajectory neurons domain characterize profile chromatin tissue protein patient regulatory embryonic pathway single embryonic profile patient inference variant accuracy differentiation chromatin development"
+   },
+   "existing": {
+    "title": "Neuronal lineage inference from spatial transcriptomics",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper"
+    ],
+    "year": 2023,
+    "doi": "10.1101/2023.09.09.556000",
+    "venue": "bioRxiv",
+    "abstract": "cluster regulatory single accessibility accuracy trajectory method mutation analysis differentiation performance development function temporal cells trajectory profile identify sequencing response development cortex development neurons mutation dataset dynamic development reveal state accuracy identify protein identify reveal inference patient cortex resolution differentiation tissue patient accessibility genome robust dynamic robust organoid tumor sample accuracy robust mechanism transcriptomic benchmark characterize imaging resolution adult binding domain progenitor state scalable sequencing pathway framework mechanism domain performance development method atlas immune mechanism embryonic embryonic robust identify neurons model identify imaging scalable protein structure inference profile cells function scalable spatial framework analysis dynamic gene benchmark binding model robust microscopy performance structure resolution protein cells genome inference development identify adult tissue progenitor single transcriptomic network lineage cortex trajectory neurons cohort characterize profile chromatin tissue protein patient regulatory embryonic pathway single embryonic profile patient inference variant accuracy method chromatin development"
+   }
+  },
+  {
+   "name": "same title, preprint two years earlier",
+   "truth": "same",
+   "expect": {
+    "band": "likely"
+   },
+   "new": {
+    "title": "Protein structure prediction for every variant in the genome",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2025,
+    "doi": "10.1126/science.adg0002"
+   },
+   "existing": {
+    "title": "Protein structure prediction for every variant in the genome",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023,
+    "arxiv": "2305.11111",
+    "venue": "arXiv"
+   }
+  },
+  {
+   "name": "BRCA1 vs BRCA2",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Functional assessment of BRCA1 variants by saturation genome editing",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2018
+   },
+   "existing": {
+    "title": "Functional assessment of BRCA2 variants by saturation genome editing",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2022
+   }
+  },
+  {
+   "name": "Part I vs Part II",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Computational methods for spatial omics, part II",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024
+   },
+   "existing": {
+    "title": "Computational methods for spatial omics, part I",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024
+   }
+  },
+  {
+   "name": "Global cancer statistics 2018 vs 2020",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Global cancer statistics 2020",
+    "authors": [
+     "Hyuna Sung",
+     "Jacques Ferlay"
+    ],
+    "year": 2021
+   },
+   "existing": {
+    "title": "Global cancer statistics 2018",
+    "authors": [
+     "Freddie Bray",
+     "Jacques Ferlay"
+    ],
+    "year": 2018
+   }
+  },
+  {
+   "name": "Hsp70 vs Hsp90",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Structural basis of Hsp70 client recognition",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2020
+   },
+   "existing": {
+    "title": "Structural basis of Hsp90 client recognition",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2021
+   }
+  },
+  {
+   "name": "same generic title, different groups",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Deep learning for single-cell analysis",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2019
+   },
+   "existing": {
+    "title": "Deep learning for single-cell analysis",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2022
+   }
+  },
+  {
+   "name": "Introduction vs Introduction",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Introduction",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2020
+   },
+   "existing": {
+    "title": "Introduction",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2021
+   }
+  },
+  {
+   "name": "Reply to X vs X",
+   "truth": "related",
+   "expect": {
+    "band": "possible",
+    "relation": "comment"
+   },
+   "new": {
+    "title": "Reply to: Molecular dynamics of the developing neocortex",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2025
+   },
+   "existing": {
+    "title": "Molecular dynamics of the developing neocortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025
+   }
+  },
+  {
+   "name": "Correction: X vs X (no shared id)",
+   "truth": "related",
+   "expect": {
+    "band": "possible",
+    "relation": "correction"
+   },
+   "new": {
+    "title": "Correction: Lineage tracing in human organoids at scale",
+    "year": 2024
+   },
+   "existing": {
+    "title": "Lineage tracing in human organoids at scale",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2024
+   }
+  },
+  {
+   "name": "mouse vs human",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Single-cell atlas of the mouse retina",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2023
+   },
+   "existing": {
+    "title": "Single-cell atlas of the human retina",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024
+   }
+  },
+  {
+   "name": "thesis vs paper",
+   "truth": "related",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Gene regulatory networks of the adult retina",
+    "authors": [
+     "Li Wang"
+    ],
+    "year": 2024,
+    "pages": 180
+   },
+   "existing": {
+    "title": "Gene regulatory networks of the adult retina",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2023,
+    "pages": 14
+   }
+  },
+  {
+   "name": "same group, different paper",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Spatial transcriptomics of the developing spinal cord",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "abstract": "gene progenitor lineage binding embryonic immune single dataset transcriptomic pathway temporal mechanism scalable domain state robust profile transcriptomic development binding computational response mutation dynamic embryonic adult define identify development adult variant adult cluster scalable scalable binding scalable tissue trajectory resolution binding structure binding trajectory pathway imaging computational characterize performance cohort accuracy robust scalable structure inference computational protein inference performance reveal variant embryonic profile benchmark immune tumor robust framework robust microscopy immune analysis performance scalable binding network assembly neurons organoid sequencing gene expression profile identify sequencing framework cluster profile characterize analysis gene dynamic transcriptomic gene binding binding adult characterize development lineage chromatin regulatory development atlas cortex domain single spatial pathway tissue framework cells function atlas characterize signaling transcriptomic cells protein chromatin sample assembly performance development immune trajectory atlas nucleus imaging signaling method reveal progenitor response sequencing development trajectory spatial framework mechanism"
+   },
+   "existing": {
+    "title": "Spatial transcriptomics of the adult hippocampus",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2024,
+    "abstract": "cluster regulatory single accessibility accuracy trajectory method mutation analysis differentiation performance development function temporal cells trajectory profile identify sequencing response development cortex development neurons mutation dataset dynamic development reveal state accuracy identify protein identify reveal inference patient cortex resolution differentiation tissue patient accessibility genome robust dynamic robust organoid tumor sample accuracy robust mechanism transcriptomic benchmark characterize imaging resolution adult binding domain progenitor state scalable sequencing pathway framework mechanism domain performance development method atlas immune mechanism embryonic embryonic robust identify neurons model identify imaging scalable protein structure inference profile cells function scalable spatial framework analysis dynamic gene benchmark binding model robust microscopy performance structure resolution protein cells genome inference development identify adult tissue progenitor single transcriptomic network lineage cortex trajectory neurons cohort characterize profile chromatin tissue protein patient regulatory embryonic pathway single embryonic profile patient inference variant accuracy method chromatin development"
+   }
+  },
+  {
+   "name": "in vivo vs in vitro",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "CRISPR screening in vivo identifies regulators of neuronal migration",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023
+   },
+   "existing": {
+    "title": "CRISPR screening in vitro identifies regulators of neuronal migration",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2023
+   }
+  },
+  {
+   "name": "same title, twelve years apart",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Annual review of developmental neuroscience methods",
+    "authors": [
+     "Li Wang"
+    ],
+    "year": 2022
+   },
+   "existing": {
+    "title": "Annual review of developmental neuroscience methods",
+    "authors": [
+     "Li Wang"
+    ],
+    "year": 2010
+   }
+  },
+  {
+   "name": "peer review file vs paper",
+   "truth": "related",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Peer review file",
+    "doi": null
+   },
+   "existing": {
+    "title": "Molecular dynamics of the developing neocortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2025
+   }
+  },
+  {
+   "name": "supplementary information without ids",
+   "truth": "related",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Supplementary information for spatial atlas",
+    "fileName": "supp.pdf"
+   },
+   "existing": {
+    "title": "Spatial atlas of the developing human cortex",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2026
+   }
+  },
+  {
+   "name": "attention is (not) all you need",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Attention is not all you need: pure attention loses rank",
+    "authors": [
+     "Yihe Dong",
+     "Jean-Baptiste Cordonnier"
+    ],
+    "year": 2021
+   },
+   "existing": {
+    "title": "Attention is all you need",
+    "authors": [
+     "Ashish Vaswani",
+     "Noam Shazeer"
+    ],
+    "year": 2017
+   }
+  },
+  {
+   "name": "two journals, same short title, different authors",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Neural stem cells in the adult brain",
+    "authors": [
+     "Maria Garcia",
+     "Kenji Sato",
+     "Priya Patel"
+    ],
+    "year": 2015,
+    "doi": "10.1016/j.cell.2015.01.001"
+   },
+   "existing": {
+    "title": "Neural stem cells in the adult brain",
+    "authors": [
+     "Li Wang",
+     "Ada Lovelace",
+     "Grace Hopper",
+     "Alan Turing",
+     "Barbara McClintock"
+    ],
+    "year": 2016,
+    "doi": "10.1038/nrn.2016.1"
+   }
+  },
+  {
+   "name": "different arXiv ids, related titles",
+   "truth": "different",
+   "expect": {
+    "band": null
+   },
+   "new": {
+    "title": "Diffusion models for protein structure generation",
+    "authors": [
+     "Jason Yim"
+    ],
+    "year": 2023,
+    "arxiv": "2302.00203"
+   },
+   "existing": {
+    "title": "Diffusion models for protein sequence generation",
+    "authors": [
+     "Sarah Alamdari"
+    ],
+    "year": 2023,
+    "arxiv": "2306.11111"
+   }
+  }
+ ]
+}

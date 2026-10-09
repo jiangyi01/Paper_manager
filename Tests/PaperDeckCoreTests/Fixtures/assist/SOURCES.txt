@@ -1,0 +1,28 @@
+Reading-assist stream fixtures — ALL SYNTHETIC (hand-written; no claude or codex was run to make them).
+
+Shapes follow the documented event names: `claude -p --input-format stream-json --output-format
+stream-json --verbose --include-partial-messages` (system/init, stream_event wrapping Anthropic SSE
+events, assistant, result — the result line has the same fields as the card envelope) and
+`codex exec --json` 0.153.4 (thread.started, turn.started, item.started/updated/completed,
+turn.completed, turn.failed, error). Whether `item.updated` exists for agent messages, the exact
+init fields and the per-turn usage/cost semantics of a multi-turn stream-json session are
+UNVERIFIED until the lead's consented spike (READING_ASSIST_PLAN §9.2 Q1–Q4) records real lines
+(`--assist-smoke --yes --record DIR`); replace or extend these then.
+
+claude-turn-success.jsonl              init, message_start, 4 text deltas, assistant (full), result success
+claude-turn-retry.jsonl                text, then a second message_start (API retry restarts the stream)
+claude-turn-missed-delta.jsonl         one delta missing; the assistant line repairs the text
+claude-turn-assistant-prefix.jsonl     every delta, then an assistant snapshot repeating only the START of the text (no replace)
+claude-turn-thinking-noise.jsonl       thinking/signature deltas, rate_limit_event, control_request, a non-JSON line
+claude-turn-model-mentions-limits.jsonl  success whose TEXT mentions usage limits / login / 429 (must stay success)
+claude-turn-429.jsonl                  result is_error, api_error_status 429, "usage limit reached … resets 3pm"
+claude-turn-not-logged-in.jsonl        result is_error "Invalid API key · Please run /login"
+claude-turn-overloaded.jsonl           a delta, then result is_error api_error_status 529
+claude-turn-max-turns.jsonl            result subtype error_max_turns
+claude-turn-tools-on.jsonl             init reports tools (the session must stop)
+claude-turn-followup.jsonl             a second turn on the same process (cache-read usage)
+codex-assist-success.jsonl             reasoning item, agent_message, turn.completed usage
+codex-assist-updated.jsonl             agent_message as item.started / item.updated snapshots, then completed
+codex-assist-usage-limit.jsonl         error + turn.failed "hit your usage limit … try again at 3:45 PM"
+codex-assist-401.jsonl                 unexpected status 401 Unauthorized
+codex-assist-message-mentions-limits.jsonl  agent message TEXT mentions limits / 401 (must stay success)

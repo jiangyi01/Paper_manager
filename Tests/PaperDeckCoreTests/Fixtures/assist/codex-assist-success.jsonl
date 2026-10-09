@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"019a0000-0000-7000-8000-000000000001"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"reasoning","text":""}}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"**Reading the figure** hidden"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"**Three bars, B tallest.** The chart compares A, B and C."}}
+{"type":"turn.completed","usage":{"input_tokens":1800,"cached_input_tokens":0,"output_tokens":60,"reasoning_output_tokens":20}}

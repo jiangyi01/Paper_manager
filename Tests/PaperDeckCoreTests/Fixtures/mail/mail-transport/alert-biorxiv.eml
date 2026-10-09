@@ -1,0 +1,13 @@
+Return-Path: <alerts@biorxiv.org>
+Authentication-Results: mx.google.com; dkim=pass header.i=@biorxiv.org; spf=pass smtp.mailfrom=biorxiv.org; dmarc=pass (p=NONE) header.from=biorxiv.org
+From: bioRxiv <alerts@biorxiv.org>
+To: me@gmail.com
+Subject: New results in Neuroscience
+Date: Tue, 29 Sep 2026 14:04:31 +0000
+Message-ID: <alert-2026-09-29@biorxiv.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+New this week in Neuroscience:
+Cortical dynamics of attention {5} (not a literal)
+https://www.biorxiv.org/content/10.1101/2026.09.01.673319v1

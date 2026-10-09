@@ -1,0 +1,39 @@
+* OK [CAPABILITY IMAP4rev1 SASL-IR LOGIN-REFERRALS ID ENABLE IDLE LITERAL+ AUTH=PLAIN] Dovecot ready.
+a1 OK [CAPABILITY IMAP4rev1 SASL-IR LOGIN-REFERRALS ID ENABLE IDLE SORT THREAD=REFERENCES MULTIAPPEND UNSELECT CHILDREN NAMESPACE UIDPLUS LIST-EXTENDED CONDSTORE QRESYNC ESEARCH BINARY MOVE LITERAL+ SPECIAL-USE] Logged in
+* FLAGS (\Answered \Flagged \Deleted \Seen \Draft)
+* OK [PERMANENTFLAGS ()] Read-only mailbox.
+* 3 EXISTS
+* 0 RECENT
+* OK [UIDVALIDITY 1601234567] UIDs valid
+* OK [UIDNEXT 43] Predicted next UID
+a2 OK [READ-ONLY] Examine completed (0.001 + 0.000 secs).
+* SEARCH 40 41 42
+a3 OK Search completed (0.001 + 0.000 secs).
+* 1 FETCH (UID 40 RFC822.SIZE 570 INTERNALDATE "30-Sep-2026 08:00:01 +0200" BODY[HEADER.FIELDS (FROM SENDER SUBJECT DATE MESSAGE-ID AUTHENTICATION-RESULTS CONTENT-TYPE)] {353}
+Authentication-Results: mx.google.com; dkim=pass header.i=@biorxiv.org; spf=pass smtp.mailfrom=biorxiv.org; dmarc=pass (p=NONE) header.from=biorxiv.org
+From: bioRxiv <alerts@biorxiv.org>
+Subject: New results in Neuroscience
+Date: Tue, 29 Sep 2026 14:04:31 +0000
+Message-ID: <alert-2026-09-29@biorxiv.org>
+Content-Type: text/plain; charset=utf-8
+
+)
+* 2 FETCH (UID 41 FLAGS (\Seen) RFC822.SIZE 360 BODY[HEADER.FIELDS (FROM SUBJECT)] {78}
+From: "Prof. X" <x@wustl.edu>
+Subject: Papers for Thursday's journal club
+
+ BODY[TEXT]<0> {114}
+Hi, please read these two papers before Thursday's journal club:
+https://arxiv.org/abs/2606.24530
+)
+Thanks, X
+ MODSEQ (12345))
+* 3 FETCH (FLAGS (\Seen \Flagged))
+* 42 EXPUNGE
+* ID ("name" "Dovecot")
+a4 OK Fetch completed (0.002 + 0.000 secs).
+a5 NO [AUTHENTICATIONFAILED] Authentication failed.
+a6 BAD Error in IMAP command UID FETCH: Invalid uidset
++ OK
+* BYE Logging out
+a7 OK Logout completed (0.001 + 0.000 secs).

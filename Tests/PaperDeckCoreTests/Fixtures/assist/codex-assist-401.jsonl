@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"019a0000-0000-7000-8000-000000000001"}
+{"type":"turn.started"}
+{"type":"error","message":"unexpected status 401 Unauthorized: Provided authentication token is expired."}
+{"type":"turn.failed","error":{"message":"unexpected status 401 Unauthorized"}}

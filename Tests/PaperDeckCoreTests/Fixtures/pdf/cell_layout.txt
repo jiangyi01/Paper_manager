@@ -1,0 +1,25 @@
+Leading Edge
+Perspective
+How to build a synthetic virtual cell with artificial intelligence
+Ada Lovelace1 and Grace Hopper2
+SUMMARY
+Cells are essential to understanding health and disease, yet traditional models fall short of
+simulating their full complexity.
+INTRODUCTION
+Advances in machine learning create an opportunity to model cells directly (Figure 1).RESULTS
+Virtual cells reproduce perturbation responses across cell types (Figures 2 and 3).
+DISCUSSION
+Limitations include the scarcity of paired perturbation data.
+STAR★METHODS
+Detailed methods are provided in the online version of this paper.ACKNOWLEDGMENTS
+We thank the members of both laboratories for discussions.
+AUTHOR CONTRIBUTIONS
+A.L. and G.H. wrote the manuscript.
+DECLARATION OF INTERESTS
+The authors declare no competing interests.
+SUPPLEMENTAL INFORMATION
+Supplemental information can be found online.
+REFERENCES
+1. Slepchenko, B.M., Schaff, J.C., Macara, I., and Loew, L.M. (2003). Quantitative cell biology
+with the Virtual Cell. Trends Cell Biol. 13, 570–576.
+2. Marx, V. (2023). How to build a virtual embryo. Nat. Methods 20, 1838–1843.

@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/nAeLB3cKZk6WHp612EfSPUeqbAM</id>
+  <title>arXiv Query: search_query=&amp;id_list=2606.24530&amp;start=0&amp;max_results=10</title>
+  <updated>2026-09-30T05:55:35Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=&amp;start=0&amp;max_results=10&amp;id_list=2606.24530" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>10</opensearch:itemsPerPage>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2606.24530v2</id>
+    <title>NatureBench: Can Coding Agents Match the Published SOTA of Nature-Family Papers?</title>
+    <updated>2026-07-06T16:56:53Z</updated>
+    <link href="https://arxiv.org/abs/2606.24530v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2606.24530v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We introduce NatureBench, a cross-discipline benchmark of 90 tasks distilled from peer-reviewed Nature-family publications, designed to evaluate whether AI coding agents can move beyond reproduction toward discovery on real scientific problems. NatureBench is built on NatureGym, an automated pipeline that constructs a standardized, per-task containerized environment from a source paper, addressing the environment-fragmentation problem that has limited the credibility of prior agent-on-research benchmarks. Evaluating ten frontier agent configurations under a strict web-search-disabled protocol, we find that the strongest model surpasses SOTA on only 17.8% of tasks under the g&gt;0.1 criterion. Analysis of method pathways reveals that agents succeed primarily through methodological translation, converting scientific tasks into familiar supervised prediction problems, rather than through genuine scientific invention. Failures are dominated by wrong method choice and insufficient compute budget, not by task misunderstanding. We release the benchmark, the NatureGym pipeline, and a public leaderboard with maintainer-side reproduction. Code: https://github.com/FrontisAI/NatureBench</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-06-23T12:58:23Z</published>
+    <arxiv:comment>Add results of GLM-5.2 and MinMax-M3</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Yuru Wang</name>
+    </author>
+    <author>
+      <name>Lejun Cheng</name>
+    </author>
+    <author>
+      <name>Yuxin Zuo</name>
+    </author>
+    <author>
+      <name>Sihang Zeng</name>
+    </author>
+    <author>
+      <name>Bingxiang He</name>
+    </author>
+    <author>
+      <name>Che Jiang</name>
+    </author>
+    <author>
+      <name>Junlin Yang</name>
+    </author>
+    <author>
+      <name>Yuchong Wang</name>
+    </author>
+    <author>
+      <name>Kaikai Zhao</name>
+    </author>
+    <author>
+      <name>Weifeng Huang</name>
+    </author>
+    <author>
+      <name>Kai Tian</name>
+    </author>
+    <author>
+      <name>Zhenzhao Yuan</name>
+    </author>
+    <author>
+      <name>Jincheng Zhong</name>
+    </author>
+    <author>
+      <name>Weizhi Wang</name>
+    </author>
+    <author>
+      <name>Ning Ding</name>
+    </author>
+    <author>
+      <name>Bowen Zhou</name>
+    </author>
+    <author>
+      <name>Kaiyan Zhang</name>
+    </author>
+  </entry>
+</feed>

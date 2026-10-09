@@ -1,0 +1,50 @@
+{
+ "note": "prose read with low confidence",
+ "imageSize": [
+  1000,
+  150
+ ],
+ "expect": "mixed",
+ "lines": [
+  {
+   "t": "We regularize the attention weights by penalizing their entropy across",
+   "b": [
+    20,
+    20,
+    960,
+    24
+   ],
+   "c": 0.38
+  },
+  {
+   "t": "heads, which keeps each head focused on a small set of tokens. In con-",
+   "b": [
+    20,
+    52,
+    960,
+    24
+   ],
+   "c": 0.38
+  },
+  {
+   "t": "trast to dropout, the penalty acts on the distribution itself and needs",
+   "b": [
+    20,
+    84,
+    960,
+    24
+   ],
+   "c": 0.38
+  },
+  {
+   "t": "no extra parameters. We find that a modest weight is enough to stabilize",
+   "b": [
+    20,
+    116,
+    960,
+    24
+   ],
+   "c": 0.38
+  }
+ ]
+}

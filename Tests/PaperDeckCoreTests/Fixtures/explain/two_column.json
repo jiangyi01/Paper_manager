@@ -1,0 +1,180 @@
+{
+ "note": "two columns + spanning title; paragraph gaps; line-end hyphens incl. a compound",
+ "imageSize": [
+  1200,
+  400
+ ],
+ "expect": "text",
+ "lines": [
+  {
+   "t": "Results of the differentiation experiment",
+   "b": [
+    300,
+    10,
+    600,
+    30
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "Cells were grown in standard medium and",
+   "b": [
+    20,
+    60,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "harvested after two days. Each sample was",
+   "b": [
+    20,
+    92,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "split into three replicates for single-",
+   "b": [
+    20,
+    124,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "cell sequencing, and libraries were pre-",
+   "b": [
+    20,
+    156,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "pared with the vendor kit.",
+   "b": [
+    20,
+    188,
+    300,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "Reads were aligned to the reference and",
+   "b": [
+    20,
+    244,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "counted per gene; cells with fewer than",
+   "b": [
+    20,
+    276,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "two hundred genes were removed.",
+   "b": [
+    20,
+    308,
+    300,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "Clustering recovered the expected cell",
+   "b": [
+    630,
+    60,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "types, including a small population of",
+   "b": [
+    630,
+    92,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "progenitors that expressed both marker",
+   "b": [
+    630,
+    124,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "genes. This population was absent from",
+   "b": [
+    630,
+    156,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "the untreated controls.",
+   "b": [
+    630,
+    188,
+    300,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "Trajectory analysis placed the progeni-",
+   "b": [
+    630,
+    244,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "tors between the two mature types, con-",
+   "b": [
+    630,
+    276,
+    550,
+    24
+   ],
+   "c": 0.62
+  },
+  {
+   "t": "sistent with a branching model.",
+   "b": [
+    630,
+    308,
+    300,
+    24
+   ],
+   "c": 0.62
+  }
+ ]
+}

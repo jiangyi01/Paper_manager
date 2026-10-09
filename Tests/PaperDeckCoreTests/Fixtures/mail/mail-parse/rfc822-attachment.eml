@@ -1,0 +1,41 @@
+From: Wei Chen <wei.chen@wustl.edu>
+To: Yi Jiang <yi.jiang@wustl.edu>
+Subject: FW: Preprint for our meeting
+Date: Tue, 29 Sep 2026 08:00:00 -0500
+Message-ID: <outer-001@wustl.edu>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="OUTER"
+
+--OUTER
+Content-Type: text/plain; charset=utf-8
+
+Forwarding this - see the attached message.
+
+--OUTER
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="Preprint for our meeting.eml"
+
+From: "Prof. Jane Smith" <jsmith@wustl.edu>
+To: Wei Chen <wei.chen@wustl.edu>
+Subject: Preprint for our meeting
+Date: Mon, 28 Sep 2026 11:00:00 -0500
+Message-ID: <inner-001@wustl.edu>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="INNER"
+
+--INNER
+Content-Type: text/plain; charset=utf-8
+
+Please read the attached preprint before our meeting next Tuesday.
+
+--INNER
+Content-Type: application/octet-stream; name="preprint.pdf"
+Content-Disposition: attachment; filename="preprint.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4gZW5kb2Jq
+CjIgMCBvYmogPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFtdIC9Db3VudCAwID4+IGVuZG9iagp0cmFp
+bGVyIDw8IC9Sb290IDEgMCBSID4+CiUlRU9GCg==
+--INNER--
+
+--OUTER--
