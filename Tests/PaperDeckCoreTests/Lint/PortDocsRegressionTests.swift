@@ -81,7 +81,7 @@ struct PortDocsRegressionTests {
                        "1e300", "only after you confirm them"] {
             #expect(user.contains(phrase), "\(phrase) — \(user)")
         }
-        let readme = try Self.doc("README.md")
+        let readme = try Self.doc("README.zh-CN.md")
         let zh = try #require(readme.components(separatedBy: "\n").first { $0.contains("导入设置文件从不悄悄放宽隐私或额度") })
         for phrase in ["保留更严格的设置", "另一家 AI 服务", "处理后删除文件", "更具体的新发件人", "1e300", "给 AI 的说明"] {
             #expect(zh.contains(phrase), "\(phrase) — \(zh)")

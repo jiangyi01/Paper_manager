@@ -8,6 +8,12 @@ import PaperDeckCore
 ///     [可下载]  Eubiota… · bioRxiv 2026                                [自动下载并合并] [打开链接]
 ///     [需要 PDF] Spatial atlas of… · Cell 2025          [打开链接] ┆ 把下载好的 PDF 拖到这里 ┆
 ///     [已在库中] SpatialFormer…                                        [打开卡片]
+///     [附件文档] Lab_manuscript.docx · 附件：Word 稿件 · docx · 7.2 MB   [转换为 PDF 并合并] [打开]
+///     [需导出]  Lab_meeting.pptx                          [打开] ┆ 导出为 PDF 后拖到这里 ┆
+///     [共享链接] 共享的 Word 文档 · SharePoint          [打开链接] ┆ 下载后把 PDF 拖到这里 ┆
+///
+/// Document and share-link rows (`MailDocumentInfo`, `MailDocumentNotes`) add what conversion may
+/// lose, the possibly-unpublished hold, sign-in for share links and 「正在本机转换为 PDF…」.
 ///
 /// Titles, venues and the AI's "why" are untrusted text (plain `Text(verbatim:)`, clipped).
 /// In the inbox the whole row is a drop zone (`DropTargetRegistry`) while it can take a PDF.
@@ -27,11 +33,21 @@ struct MailItemRow: View {
     private var chip: MailInboxRules.ItemChip { MailInboxRules.chip(item) }
     private var actions: MailInboxRules.ItemActions { MailInboxRules.actions(item) }
     private var busy: Bool { state.mailBusy.contains(item.id) || state.mailBusy.contains(card.id) }
+    /// 「转换为 PDF 并合并」 is running for this row (its notes show the progress line).
+    private var converting: Bool { MailDocumentActivity.shared.isConverting(item.id) }
+    /// The row's spinner beside the buttons (a conversion shows its own progress line instead).
+    private var spinning: Bool { (busy || chip == .downloading) && !converting }
+    private var documentRow: Bool { MailDocumentInfo.isDocument(item) || MailDocumentInfo.isShareLink(item) }
     private var zone: DropTargetRegistry.Target? {
         layout == .wide && actions.contains(.acceptsDrop) && card.message.isOpen ? .mailItem(itemID: item.id) : nil
     }
     private var targeted: Bool { zone != nil && state.dropTargets.hovered == zone }
-    private var showsDropBox: Bool { layout == .wide && actions.contains(.dropBox) && card.message.isOpen }
+    private var showsDropBox: Bool { layout == .wide && offersDropBox && card.message.isOpen }
+    /// 「把下载好的 PDF 拖到这里」 — also on a document whose conversion failed (export it yourself).
+    private var offersDropBox: Bool { actions.contains(.dropBox) || conversionFailed }
+    private var conversionFailed: Bool {
+        chip == .convertible && item.status == .pending && !converting && !(item.downloadError ?? "").isEmpty
+    }
 
     var body: some View {
         Group {
@@ -61,7 +77,7 @@ struct MailItemRow: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        MailItemChipView(chip: chip)
+                        MailItemChipView(chip: chip, converting: converting)
                         texts.frame(maxWidth: .infinity, alignment: .leading)
                         if hasButtons { wrappingButtons }
                     }
@@ -69,9 +85,9 @@ struct MailItemRow: View {
             case .stacked:
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
-                        MailItemChipView(chip: chip)
+                        MailItemChipView(chip: chip, converting: converting)
                         Spacer(minLength: 4)
-                        if busy || chip == .downloading { ProgressView().controlSize(.small) }
+                        if spinning { ProgressView().controlSize(.small) }
                     }
                     texts
                     DetailFlowLayout(spacing: 8, lineSpacing: 4) { buttonItems }
@@ -91,7 +107,11 @@ struct MailItemRow: View {
             MailMergePopover(state: state, card: card, items: [item],
                              onConfirm: { options in
                                  showMerge = false
-                                 state.mergeMailItem(item, options: options)
+                                 if actions.contains(.convertAndMerge) {
+                                     state.convertMailDocument(item, options: options)
+                                 } else {
+                                     state.mergeMailItem(item, options: options)
+                                 }
                              },
                              onCancel: { showMerge = false })
         }
@@ -108,21 +128,33 @@ struct MailItemRow: View {
     private var chipWidth: CGFloat { L.lang == .zh ? 76 : 112 }
 
     private var chipColumn: some View {
-        MailItemChipView(chip: chip)
+        MailItemChipView(chip: chip, converting: converting)
             .frame(width: chipWidth, alignment: .leading)
     }
 
     /// Whether the wide row shows any button (or the progress spinner) at all.
     private var hasButtons: Bool {
-        busy || chip == .downloading || actions.contains(.merge) || actions.contains(.downloadAndMerge)
+        spinning || actions.contains(.merge) || actions.contains(.downloadAndMerge)
+            || actions.contains(.convertAndMerge) || actions.contains(.openDocument)
             || actions.contains(.openLink) || (actions.contains(.openCard) && item.paperID != nil)
             || showsDropBox || actions.contains(.skip)
     }
 
     // MARK: Text
 
-    private var texts: some View {
+    /// The title line: the paper's title (or DOI / arXiv id); a document's file name; a share
+    /// link's name or 「共享的 Word 文档 · SharePoint」.
+    private var displayTitle: String {
+        if MailDocumentInfo.isDocument(item) {
+            return MailDocumentInfo.fileName(item) ?? L.Mail.documentKind(.other)
+        }
+        if MailDocumentInfo.isShareLink(item) { return MailDocumentInfo.shareTitle(item) }
         let title = MailInboxRules.line(item.title, limit: 240)
+        return title.isEmpty ? (item.ids.doi ?? item.ids.arxivID ?? L.Mail.untitled) : title
+    }
+
+    private var texts: some View {
+        let title = displayTitle
         return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 if item.relevance == .requested {
@@ -132,7 +164,7 @@ struct MailItemRow: View {
                     Image(systemName: "sparkle").font(.system(size: 9)).foregroundStyle(.tint)
                         .help(L.Mail.highlighted).accessibilityLabel(L.Mail.highlighted)
                 }
-                Text(verbatim: title.isEmpty ? (item.ids.doi ?? item.ids.arxivID ?? L.Mail.untitled) : title)
+                Text(verbatim: title)
                     .font(.system(size: 12.5, weight: .medium))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -156,8 +188,11 @@ struct MailItemRow: View {
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
+            if documentRow {
+                MailDocumentNotes(card: card, item: item, chip: chip, converting: converting)
+            }
             if let error = item.downloadError.map({ MailInboxRules.line($0, limit: 200) }), !error.isEmpty,
-               item.status == .pending {
+               item.status == .pending, !converting {
                 Label { Text(verbatim: error) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
                     .font(.system(size: 11))
                     .foregroundStyle(.orange)
@@ -166,8 +201,11 @@ struct MailItemRow: View {
         }
     }
 
-    /// `Nature · 2024 · Wang, Smith…` (venue, year, first authors, or the host / DOI).
+    /// `Nature · 2024 · Wang, Smith…` (venue, year, first authors, or the host / DOI); a document's
+    /// 「附件：Word 稿件 · docx · 7.2 MB」; a share link's kind and host.
     private var metaLine: String? {
+        if MailDocumentInfo.isDocument(item) { return MailDocumentInfo.documentMeta(item) }
+        if MailDocumentInfo.isShareLink(item) { return MailDocumentInfo.shareMeta(item) }
         var parts: [String] = []
         if let v = item.venue.map({ MailInboxRules.line($0, limit: 60) }), !v.isEmpty { parts.append(v) }
         if let y = item.year { parts.append(String(y)) }
@@ -181,7 +219,7 @@ struct MailItemRow: View {
 
     private var buttons: some View {
         HStack(spacing: 6) {
-            if busy || chip == .downloading {
+            if spinning {
                 ProgressView().controlSize(.small)
             }
             buttonItems
@@ -192,12 +230,25 @@ struct MailItemRow: View {
     /// The row's buttons on as many lines as the width needs (narrow layouts).
     private var wrappingButtons: some View {
         DetailFlowLayout(spacing: 6, lineSpacing: 4) {
-            if busy || chip == .downloading { ProgressView().controlSize(.small) }
+            if spinning { ProgressView().controlSize(.small) }
             buttonItems
         }
     }
 
     @ViewBuilder private var buttonItems: some View {
+            if actions.contains(.convertAndMerge) {
+                Button(L.Mail.convertAndAdd) { showMerge = true }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(busy || converting)
+                    .help(L.Mail.convertHelp)
+            }
+            if actions.contains(.openDocument) {
+                Button(L.Mail.openDocument) { state.openMailDocument(item) }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help(L.Mail.openDocumentHelp)
+            }
             if actions.contains(.merge) || actions.contains(.downloadAndMerge) {
                 Button(mergeTitle) { showMerge = true }
                     .buttonStyle(.bordered)
@@ -216,8 +267,11 @@ struct MailItemRow: View {
                     .controlSize(.small)
             }
             if showsDropBox {
-                MailDropBox(targeted: targeted) { state.choosePDF(for: item, window: NSApp.keyWindow) }
-            } else if layout == .stacked, actions.contains(.dropBox), card.message.isOpen {
+                MailDropBox(targeted: targeted, caption: MailDocumentInfo.dropCaption(item, chip: chip),
+                            detail: MailDocumentInfo.dropDetail(item, chip: chip)) {
+                    state.choosePDF(for: item, window: NSApp.keyWindow)
+                }
+            } else if layout == .stacked, offersDropBox, card.message.isOpen {
                 Button(L.Mail.choosePDF) { state.choosePDF(for: item, window: NSApp.keyWindow) }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -237,6 +291,13 @@ struct MailItemRow: View {
     }
 
     @ViewBuilder private var menu: some View {
+        if actions.contains(.convertAndMerge) {
+            Button(L.Mail.convertAndAdd) { showMerge = true }
+                .disabled(busy || converting)
+        }
+        if actions.contains(.openDocument) {
+            Button(L.Mail.openDocument) { state.openMailDocument(item) }
+        }
         if actions.contains(.merge) || actions.contains(.downloadAndMerge) {
             Button(mergeTitle) { showMerge = true }
         }
@@ -248,6 +309,9 @@ struct MailItemRow: View {
         }
         if actions.contains(.openLink) {
             Button(L.Mail.openLink) { state.openMailLink(item) }
+            if MailDocumentInfo.isShareLink(item), let url = MailInboxRules.linkURL(item) {
+                Button(L.Mail.copyRowLink) { state.copyText(url.absoluteString) }
+            }
         }
         if actions.contains(.openCard), let paperID = item.paperID {
             Button(L.Mail.openCard) { state.router.showPaper(paperID) }

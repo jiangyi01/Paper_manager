@@ -302,8 +302,10 @@ package struct Maintenance: Sendable {
         let handled = try await db.mailMessages(states: handledStates, limit: 100_000)
             .filter { ($0.handledAt ?? $0.updatedAt) < cutoff }
         let root = engine.paths.mailFiles
-        // Only cards that still have something on disk: a row with a copy, or their folder.
-        let withCopies = Set(try await db.mailItems(messagePKs: handled.map(\.pk)).filter { $0.value.contains { $0.pdfPath != nil } }.keys)
+        // Only cards that still have something on disk: a row with a copy (a PDF, or a document's
+        // stored original), or their folder.
+        let withCopies = Set(try await db.mailItems(messagePKs: handled.map(\.pk))
+            .filter { $0.value.contains { $0.pdfPath != nil || $0.documentPath != nil } }.keys)
         let byID = handled.map { (pk: $0.pk, id: $0.id) }
         let pks = await BlockingIO.run {
             byID.filter { m in
@@ -322,10 +324,19 @@ package struct Maintenance: Sendable {
                     let items = try db.mailItems(messagePK: pk)
                     if items.contains(where: { MailMergeInFlight.shared.contains($0.id) }) { continue }
                     for var item in items {
-                        guard let path = item.pdfPath else { continue }
-                        paths.append(path)
-                        item.pdfPath = nil
-                        if item.pdfState == .hasPDF { item.pdfState = .needsPDF }
+                        guard item.pdfPath != nil || item.documentPath != nil else { continue }
+                        if let path = item.pdfPath {
+                            paths.append(path)
+                            item.pdfPath = nil
+                            if item.pdfState == .hasPDF { item.pdfState = .needsPDF }
+                        }
+                        // A document's stored original goes with the folder: a reopened card's row
+                        // waits for the user's PDF (no 「转换」 / 「打开」 on a file that is gone).
+                        if let path = item.documentPath {
+                            paths.append(path)
+                            item.documentPath = nil
+                            if item.pdfState == .convertible || item.pdfState == .openOnly { item.pdfState = .needsPDF }
+                        }
                         try db.upsertMailItem(item, now: now)
                     }
                     folders.append(m.id)

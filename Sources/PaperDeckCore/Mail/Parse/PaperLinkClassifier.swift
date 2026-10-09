@@ -12,12 +12,18 @@ package enum PaperLinkClassifier {
 
     /// A paper candidate (`cand` empty — the extractor numbers them), or nil for non-paper links.
     /// `url` is the unwrapped canonical URL, `urlOriginal` the link as it appeared in the mail.
-    package static func classify(_ url: URL, anchorText: String?) -> MailCandidate? {
+    /// `shareLinks` (a person's / advisor's / dropped email): a link to a shared file
+    /// (`ShareLinks.match`: SharePoint / OneDrive, Box, Google Drive / Docs, Dropbox, iCloud Drive)
+    /// is a `shareLink` candidate — `needsPDF`, never downloadable (it needs the user's sign-in).
+    package static func classify(_ url: URL, anchorText: String?, shareLinks: Bool = false) -> MailCandidate? {
         let u = LinkUnwrapper.unwrap(url)
         guard let scheme = u.scheme?.lowercased(), scheme == "http" || scheme == "https",
               let rawHost = u.host?.lowercased(), !rawHost.isEmpty else { return nil }
         let anchor = anchorText.map(HTMLText.collapse)?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isDenied(u, anchorText: anchor) else { return nil }
+        if shareLinks, let share = ShareLinks.match(u) {
+            return shareCandidate(share, unwrapped: u, original: url, anchor: anchor)
+        }
 
         let host = displayHost(rawHost)
         let path = u.path
@@ -56,11 +62,26 @@ package enum PaperLinkClassifier {
         return c
     }
 
+    /// A `shareLink` candidate: title from a title-like anchor, else the file name the URL carries.
+    private static func shareCandidate(_ share: ShareLinks.Match, unwrapped u: URL, original: URL,
+                                       anchor: String?) -> MailCandidate {
+        var title = anchor.flatMap { isTitleLike($0) ? $0 : nil }
+        if title == nil, let name = share.fileName { title = MailExtractor.documentTitle(name) }
+        var c = MailCandidate(cand: "", origin: .shareLink, title: title, url: u.absoluteString,
+                              urlOriginal: original.absoluteString, host: displayHost(u.host ?? ""),
+                              pdfState: .needsPDF, documentKind: share.documentKind, shareHost: share.provider.rawValue)
+        if let a = anchor, !a.isEmpty, !HTMLText.looksLikeURL(a), a != title { c.snippet = String(a.prefix(200)) }
+        return c
+    }
+
     // MARK: - PDF availability
 
     /// A direct PDF URL the downloader may try: arXiv, direct `.pdf`/`/pdf` links, bioRxiv/medRxiv
     /// full-text PDFs (try once — Cloudflare often blocks them). Nil for landing pages.
     package static func pdfURL(for candidate: MailCandidate) -> URL? {
+        // A shared file needs the user's sign-in, an attached document is no PDF: never downloaded.
+        if candidate.origin == .shareLink || candidate.origin == .document { return nil }
+        if let s = candidate.url, let host = URL(string: s)?.host, ShareLinks.isShareService(host) { return nil }
         if let id = candidate.ids.arxivID {
             return URL(string: "https://arxiv.org/pdf/\(id)" + (candidate.ids.arxivVersion.map { "v\($0)" } ?? ""))
         }

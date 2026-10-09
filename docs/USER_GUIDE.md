@@ -464,7 +464,8 @@ PaperDeck can collect **reading requests** from your email: an advisor's or coll
 read this", journal-club papers, shared papers, and paper alerts (Google Scholar, bioRxiv, arXiv,
 journal tables of contents). Each relevant email becomes a card in **Mail**: who sent it, what they
 asked, any deadline, and every paper in it (attached PDF, downloadable, needs a PDF, already in your
-library). Merge papers one by one or all at once; the card records where each paper came from.
+library — or a [Word manuscript or shared file](#mail-documents)). Merge papers one by one or all at
+once; the card records where each paper came from.
 
 PaperDeck **reads only emails from senders you list**, keeps them on this Mac, and never sends,
 moves, deletes or marks mail as read. Mail stays off until an account passes **Test & Save** and you
@@ -602,6 +603,38 @@ be on your list. Nothing goes to AI until you click **Analyze with AI** on that 
   linked, never imported twice. A clear deadline in the email can become the paper's deadline (you
   confirm). Papers behind a paywall show as **needs PDF**: download it in your browser and drop it on
   that row.
+
+<a id="mail-documents"></a>
+### Manuscripts and shared files
+
+Advisors and colleagues often send a draft as a Word file, or as a link to SharePoint, OneDrive, Box,
+Google Drive or Dropbox, instead of a PDF. These show up as rows of the card too, so such an email
+waits under **Pending** instead of *No Request*:
+
+- **Document** (an attached Word `.docx` / `.doc`, `.rtf` or `.odt`, e.g. *Word manuscript attached
+  · docx · 7.2 MB*): **Convert to PDF & Add** makes a PDF on this Mac — nothing is uploaded or sent
+  to AI — and adds it like an attached PDF, with the email as its source. The original file is kept
+  next to the PDF in the paper's folder. Figures may be moved to the end of the PDF, and some figures
+  or complex layouts may not convert: **Open** shows the original in its app, and if the conversion
+  fails the row says why — export a PDF there and drop it on the row.
+- **Needs export** (attached PowerPoint, Keynote or Pages files): **Open** it, export a PDF from its
+  File menu (Export To ▸ PDF in Keynote and Pages, Export… in PowerPoint), and drop the PDF on the row
+  (**Export as PDF and drop it here**).
+- **Shared link**: PaperDeck never downloads these — they need your sign-in. **Open Link** opens the
+  link as it was in the email (your school's link scan still runs); download the file, export a PDF
+  if it's a Word or PowerPoint file, and drop the PDF on the row (**Download it, then drop the PDF
+  here**). Right-click ▸ **Copy Link** copies it.
+
+Documents from a person, an advisor or a dragged-in email are treated as possibly unpublished: AI
+reading of the converted paper — or of a PDF you drop on a document or shared-link row — is held
+until you confirm it ("Possibly unpublished — confirm before AI reading"), even when its text shows
+a DOI. Attachments over the size limit in Settings ▸ Mail aren't stored; their row says so and
+waits for a PDF. **Add All** never converts — each document is converted by its own button.
+
+Once after updating, PaperDeck looks again at emails from your senders that went to *No Request*
+(and that you haven't touched) for documents and shared links, re-reading the original email where
+it is still available (the `.eml` file, or the message on the IMAP server). It uses local rules
+only — nothing is sent to AI.
 
 ## Moving and sharing
 

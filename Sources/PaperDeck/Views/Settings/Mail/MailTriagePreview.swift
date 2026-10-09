@@ -52,10 +52,13 @@ nonisolated enum MailTriagePreview {
         var items: [MailItem] = []
         var attachments: [MailTriageSchema.Attachment] = []
         for (i, c) in extraction.candidates.enumerated() {
+            // Document and shared-file candidates keep their state (convertible / open-only / needs a
+            // PDF) and file facts; only PDF attachments take the branch below.
             var item = MailItem(pk: Int64(i + 1), ord: i + 1, cand: c.cand, origin: c.origin, foundBy: .local,
                                 title: c.title, authors: c.authors, ids: c.ids, url: c.url, urlOriginal: c.urlOriginal,
                                 host: c.host, relevance: relevance[c.cand] ?? .listed, pdfState: c.pdfState,
-                                createdAt: now, updatedAt: now)
+                                createdAt: now, updatedAt: now, documentFileName: c.documentFileName,
+                                documentKind: c.documentKind, shareHost: c.shareHost)
             if c.origin == .attachment, let index = c.attachmentIndex, content.attachments.indices.contains(index) {
                 let attachment = content.attachments[index]
                 if let why = rejected[index] {
@@ -84,8 +87,9 @@ nonisolated enum MailTriagePreview {
             items.append(item)
         }
 
-        let synced: MailState = heuristic.requestKind == .notPaper || !criteria.keepKinds.contains(heuristic.requestKind)
-            ? .noRequest : .pending
+        // The capture's own rule (a person's / advisor's document or shared-file mail stays pending).
+        let synced = MailSyncActor.capturedState(manual: false, heuristic: heuristic, candidates: extraction.candidates,
+                                                 senderKind: kind, criteria: criteria)
         // As the capture decides it: a failed DMARC / DKIM check never auto-triages, an alert /
         // always rule auto-triages mailing-list mail only, and confidential mail (reviewer
         // invitations, manuscript / submission systems) never (MailSyncActor passes the same facts).

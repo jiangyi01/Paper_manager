@@ -7,6 +7,12 @@ import Foundation
 // linking, skipping, dismissing and snoozing. Every user action marks the message
 // `userTouched` (triage may no longer change its state). Message bodies are never read here
 // except the sanitized summary that goes into the notes prefill.
+//
+// Documents (a person's Word / RTF / ODT attachment): 「转换为 PDF 并合并」 converts the stored
+// original on this Mac (`DocumentConverter`, nothing goes to the network or to an AI) and imports
+// the PDF like an attachment; the original is kept next to the PDF in the paper folder
+// ("<attachment name>.source.docx", named in card.json's provenance). Slides and shared-file
+// links wait for the user's PDF (a drop on the row); shared files are never downloaded.
 
 // MARK: - Options
 
@@ -65,6 +71,10 @@ package enum MailOperationError: Error, Equatable, Sendable {
     case needsPDF(itemID: String)
     /// The attachment copy is gone (retention or 清除所有邮件数据).
     case fileMissing(itemID: String)
+    /// 「打开文档」 / 「转换为 PDF 并合并」 on a row that is not an attached document.
+    case notADocument(itemID: String)
+    /// 「转换为 PDF 并合并」 on a document this Mac can't convert (slides, Pages, a password-protected file).
+    case notConvertible(itemID: String)
 
     package func message(_ lang: UILang) -> String {
         let zh = lang == .zh
@@ -73,6 +83,8 @@ package enum MailOperationError: Error, Equatable, Sendable {
         case .itemNotFound: return zh ? "找不到这篇论文条目" : "Paper entry not found in this email"
         case .needsPDF: return zh ? "还没有 PDF：请下载后拖到这一行" : "No PDF yet — download it and drop it on this row"
         case .fileMissing: return zh ? "附件副本已被清理，请重新拖入 PDF" : "The attachment copy was cleaned up — drop the PDF again"
+        case .notADocument: return zh ? "这一行不是邮件附带的文档" : "This row isn't a document attached to the email"
+        case .notConvertible: return DocumentConversionError.unsupported.message(lang)
         }
     }
 }
@@ -153,8 +165,12 @@ extension Engine {
         case .hasPDF:
             return try await mergeStored([item], message: message, options: options, userAction: userAction,
                                          strict: true)[item.id]
-        case .needsPDF:
+        case .needsPDF, .openOnly:
             throw MailOperationError.needsPDF(itemID: item.id)
+        case .convertible:
+            // A document converts only on the user's click (never by an auto-merge).
+            guard userAction else { throw MailOperationError.needsPDF(itemID: item.id) }
+            return try await convertAndMergeMailItem(itemID: item.id, options: options)
         case .downloadable, .unknown, .downloading, .inLibrary:
             guard let url = Self.mailDownloadURL(item) else {
                 try await markNeedsPDF(item, error: nil, userAction: userAction)
@@ -194,8 +210,8 @@ extension Engine {
             switch item.pdfState {
             case .hasPDF:
                 files.append(item)
-            case .needsPDF:
-                continue
+            case .needsPDF, .convertible, .openOnly:
+                continue                    // a document converts on its own button; slides / shared files need a PDF
             case .downloadable, .unknown, .downloading, .inLibrary:
                 guard allowDownloads, let url = Self.mailDownloadURL(item) else { continue }
                 if !userAction, !DownloadPolicy.mailAutomatic.allows(url) { continue }
@@ -251,6 +267,104 @@ extension Engine {
         let (message, item) = try await mailRow(itemID)
         guard item.status == .pending || item.status == .skipped else { return }
         _ = try await downloadMailItemReturning(item, message: message, userAction: userAction)
+    }
+
+    /// 「转换为 PDF 并合并」 for an attached Word / RTF / ODT document: the stored original is
+    /// converted to a PDF on this Mac (`DocumentConverter`: off the main thread, A4 or Letter by
+    /// the Mac's region; a .docx's figures follow the text, formats it can't draw are lost — the UI
+    /// says so, `MailDocumentText.conversionCaveat`) and imported through
+    /// the normal pipeline with the email's provenance and the user's options — like a person's
+    /// PDF attachment, its AI reading waits for the user's confirmation (held job, also when the
+    /// text carries a DOI). The original is kept next to the PDF (`keptDocumentName`:
+    /// "<attachment name>.source.docx", `PaperProvenance.document` in card.json). The conversion
+    /// sends nothing to the network or to an AI (the import's usual identifier lookup runs only
+    /// when the PDF's text shows a DOI / arXiv id; titles stay held as for any person's mail).
+    /// The same original converted before (another email with these bytes) links to that paper.
+    ///
+    /// Returns the paper id; nil when the conversion or the import failed — the row stays
+    /// `convertible` with `downloadError` saying why (a slide deck or a password-protected file
+    /// throws `.notConvertible`). Throws `.fileMissing` when the stored original is gone (the row
+    /// then waits for a PDF), `.notADocument` for other rows. A user action (the card is touched).
+    @discardableResult
+    package func convertAndMergeMailItem(itemID: String, options: MailMergeOptions) async throws -> String? {
+        let (message, item) = try await mailRow(itemID)
+        if item.status == .merged || item.status == .linked, let id = item.paperID, try await db.paper(id: id) != nil {
+            return id
+        }
+        guard item.origin == .document else { throw MailOperationError.notADocument(itemID: item.id) }
+        if let linked = try await linkIfInLibrary(item, message: message, options: options, userAction: true) {
+            return linked
+        }
+        guard item.pdfState == .convertible, let kind = item.documentKind.flatMap(DocumentKind.init(rawValue:)),
+              kind.isConvertible else {
+            throw MailOperationError.notConvertible(itemID: item.id)
+        }
+        let root = paths.mailFiles
+        guard let rel = item.documentPath, let source = MailAttachmentFiles.url(rel, root: root),
+              await BlockingIO.run({ FileManager.default.fileExists(atPath: source.path) }) else {
+            try await markDocumentMissing(item)
+            throw MailOperationError.fileMissing(itemID: item.id)
+        }
+        // One conversion of a row at a time (a second click while the first runs does nothing).
+        guard MailMergeInFlight.shared.claim(item.id) else { return nil }
+        defer { MailMergeInFlight.shared.remove(item.id) }
+        if let sha = item.documentSHA256, let paper = try await previouslyConverted(sha256: sha, excluding: item.id) {
+            let settings = await ctx.settings()
+            let annotation = mailAnnotation(message: message, item: item, options: options, settings: settings)
+            try await MailItemLinker.link(itemIDs: [item.id], messagePK: message.pk, to: paper, status: .linked,
+                                          annotation: annotation, userAction: true, ctx: ctx)
+            return paper.id
+        }
+        let lang = (await ctx.settings()).lang
+        let output: DocumentConverter.Output
+        do {
+            output = try await DocumentConverter.convert(fileAt: source, kind: kind,
+                                                         options: DocumentConverter.Options(paper: .current,
+                                                                                            figuresHeading: MailDocumentText.figuresHeading(lang)))
+        } catch {
+            let why = (error as? DocumentConversionError) ?? .unreadable
+            Log.importer.info("mail document: conversion failed (\(String(describing: why), privacy: .public))")
+            try await noteConversionFailure(item, why.message(lang))
+            return nil
+        }
+        // The PDF waits in the card's folder for the import (a copy is taken; ours is removed after),
+        // named like the original so the paper's original name says what it was.
+        let relativePDF = "\(message.id)/\(item.id)/\(Self.documentStem(item.documentFileName)).pdf"
+        guard let pdfURL = MailAttachmentFiles.url(relativePDF, root: root) else { return nil }
+        do {
+            try await BlockingIO.run {
+                try FileManager.default.createDirectory(at: pdfURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try output.pdf.write(to: pdfURL, options: [.atomic])
+            }
+        } catch {
+            Log.importer.error("mail document: storing the PDF failed: \(MailSyncActor.logText(error), privacy: .public)")
+            try await noteConversionFailure(item, DocumentConversionError.renderFailed.message(lang))
+            return nil
+        }
+        let entry = MailImportEntry(item: item, intake: .file(pdfURL), key: pdfURL, storedCopy: relativePDF, userFile: false)
+        let produced: [String: String]
+        do {
+            produced = try await mergeFiles([entry], message: message, options: options, userAction: true)
+        } catch {
+            await BlockingIO.run { MailAttachmentFiles.remove([relativePDF], root: root) }
+            throw error
+        }
+        await BlockingIO.run { MailAttachmentFiles.remove([relativePDF], root: root) }
+        return produced[item.id]
+    }
+
+    /// 「打开文档」: the stored original of a document row (open it with NSWorkspace). Throws
+    /// `.fileMissing` when the copy is gone (retention, 清除所有邮件数据) — the row then waits for
+    /// a PDF — and `.notADocument` for other rows. Reads nothing, changes nothing else.
+    package func openMailDocument(itemID: String) async throws -> URL {
+        let (_, item) = try await mailRow(itemID)
+        guard item.origin == .document else { throw MailOperationError.notADocument(itemID: item.id) }
+        guard let rel = item.documentPath, let url = MailAttachmentFiles.url(rel, root: paths.mailFiles),
+              await BlockingIO.run({ FileManager.default.fileExists(atPath: url.path) }) else {
+            if item.status == .pending, item.documentPath != nil { try await markDocumentMissing(item) }
+            throw MailOperationError.fileMissing(itemID: item.id)
+        }
+        return url
     }
 
     /// 「关联」 (a title-only match the user confirmed, or 「这就是这篇」): the row is linked to
@@ -423,11 +537,127 @@ extension Engine {
         let now = ctx.now()
         try await db.transaction { db in
             guard var row = try db.mailItem(id: item.id) else { return }
-            row.pdfState = .needsPDF
+            row.pdfState = Engine.waitingState(row)
             row.downloadError = error
             try db.upsertMailItem(row, now: now)
             if userAction { try db.modifyMailMessage(pk: row.messagePK, now: now) { $0.userTouched = true } }
         }
+    }
+
+    /// The state a row waits in after a failed merge: a document row whose original is still
+    /// stored stays `convertible` / `openOnly`; everything else needs a PDF.
+    static func waitingState(_ row: MailItem) -> MailPDFState {
+        if row.origin == .document, row.documentPath != nil, row.pdfState == .convertible || row.pdfState == .openOnly {
+            return row.pdfState
+        }
+        return .needsPDF
+    }
+
+    /// A document row whose stored original is gone: it waits for the user's PDF.
+    private func markDocumentMissing(_ item: MailItem) async throws {
+        let now = ctx.now()
+        let lang = (await ctx.settings()).lang
+        try await db.transaction { db in
+            guard var row = try db.mailItem(id: item.id), row.status == .pending || row.status == .skipped else { return }
+            row.documentPath = nil
+            row.pdfState = .needsPDF
+            row.downloadError = MailOpsText.documentMissing(lang)
+            try db.upsertMailItem(row, now: now)
+        }
+    }
+
+    /// A failed conversion: the row keeps its original (still `convertible`) and says why; the
+    /// card counts as touched (the user clicked).
+    private func noteConversionFailure(_ item: MailItem, _ why: String) async throws {
+        let now = ctx.now()
+        try await db.transaction { db in
+            guard var row = try db.mailItem(id: item.id) else { return }
+            row.downloadError = why
+            try db.upsertMailItem(row, now: now)
+            try db.modifyMailMessage(pk: row.messagePK, now: now) { $0.userTouched = true }
+        }
+    }
+
+    /// A live paper an earlier conversion of the same original (by SHA-256) produced.
+    private func previouslyConverted(sha256: String, excluding itemID: String) async throws -> Paper? {
+        for row in try await db.mailItems(documentSHA256: sha256) where row.id != itemID.lowercased() {
+            guard row.status == .merged || row.status == .linked, let id = row.paperID,
+                  let paper = try await db.paper(id: id), paper.isLive else { continue }
+            return paper
+        }
+        return nil
+    }
+
+    /// The kept original's file name: the attachment's own name with ".source" before the
+    /// extension ("Lab_manuscript_v3.source.docx") — stable while filing renames the PDF.
+    static func keptDocumentName(fileName: String?, kind: String) -> String {
+        documentStem(fileName) + ".source." + (DocumentKind(rawValue: kind)?.fileExtension ?? "doc")
+    }
+
+    /// A safe file-name stem from an attachment's (untrusted) name: no path separators, control
+    /// or invisible characters, no leading dots, at most 150 characters; "Original" when empty.
+    static func documentStem(_ fileName: String?) -> String {
+        var stem = ((fileName ?? "") as NSString).deletingPathExtension
+        stem = String(stem.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7F && $0 != "/" && $0 != ":"
+            && $0 != "\\" && !MailInertText.isInvisible($0) }.map(Character.init))
+        stem = stem.trimmingCharacters(in: .whitespacesAndNewlines)
+        while stem.hasPrefix(".") { stem.removeFirst() }
+        stem = String(stem.prefix(150)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return stem.isEmpty ? "Original" : stem
+    }
+
+    /// Keeps a document row's original next to its new paper's PDF — `keptDocumentName` in the
+    /// paper folder — and names it in the paper's provenance for this email (card.json). The
+    /// file is staged in `.partial` and renamed into the folder; a folder that moved meanwhile
+    /// (filing) is looked up again. Best effort: a failure is logged, the paper stays.
+    private func keepOriginalDocument(_ original: URL, kind: String, fileName: String?, paperID: String,
+                                      message: MailMessage) async {
+        let ext = DocumentKind(rawValue: kind)?.fileExtension ?? original.pathExtension.lowercased()
+        let wanted = Self.keptDocumentName(fileName: fileName, kind: kind)
+        let staging = paths.partial
+        let staged = staging.appendingPathComponent("mail-original-\(UUID().uuidString.lowercased()).\(ext)")
+        do {
+            try await BlockingIO.run {
+                try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+                try FileManager.default.copyItem(at: original, to: staged)
+            }
+        } catch {
+            Log.importer.error("mail document: the original was not kept (\(MailSyncActor.logText(error), privacy: .public))")
+            return
+        }
+        func discardStaged() async { await BlockingIO.run { try? FileManager.default.removeItem(at: staged) } }
+        for _ in 0..<3 {
+            guard let paper = try? await db.paper(id: paperID), !paper.isDeleted else { await discardStaged(); return }
+            let folder = ctx.folderURL(paper)
+            let kept: String? = await BlockingIO.run {
+                let fm = FileManager.default
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: folder.path, isDirectory: &isDir), isDir.boolValue else { return nil }
+                var name = wanted
+                var n = 2
+                while fm.fileExists(atPath: folder.appendingPathComponent(name).path) {
+                    name = (wanted as NSString).deletingPathExtension + " \(n)." + ext
+                    n += 1
+                }
+                do { try fm.moveItem(at: staged, to: folder.appendingPathComponent(name)) } catch { return nil }
+                return name
+            }
+            guard let name = kept else {
+                try? await Task.sleep(for: .milliseconds(200))       // the folder moved (filing): look again
+                continue
+            }
+            do {
+                var provenance = PaperProvenance.email(message, addedAt: ctx.now())
+                provenance.document = name
+                try await db.insertPaperSource(paperPK: paper.pk, provenance)
+            } catch {
+                Log.importer.error("mail document: the original's record failed (\(String(describing: type(of: error)), privacy: .public))")
+            }
+            await ctx.syncSidecar(pk: paper.pk)
+            return
+        }
+        await discardStaged()
+        Log.importer.error("mail document: the paper folder was not found — the original was not kept")
     }
 
     /// Ingests rows whose PDF sits in the card's attachment folder. A row whose copy is gone goes
@@ -459,6 +689,8 @@ extension Engine {
             annotations[e.key] = mailAnnotation(message: message, item: e.item, options: options, settings: settings,
                                                 leaveDeletedAlone: true)
         }
+        let originals = Dictionary(entries.compactMap { e in e.item.origin == .document ? (e.item.id, e.item) : nil },
+                                   uniquingKeysWith: { a, _ in a })
         let ai: BatchAIPolicy = options.readWithAI
             ? (entries.count > IntakeActor.holdThreshold ? .queueHeld : .queueAll) : .skip
         for e in entries { MailMergeInFlight.shared.insert(e.item.id) }
@@ -503,9 +735,12 @@ extension Engine {
         }
         let now = ctx.now()
         let waiting = waitingDeleted
-        let (produced, removed) = try await db.transaction { db -> ([String: String], [String]) in
+        // Document rows that became a new paper keep their original next to its PDF (below).
+        typealias Kept = (original: String, kind: String, name: String?, paperID: String)
+        let (produced, removed, keep) = try await db.transaction { db -> ([String: String], [String], [Kept]) in
             var produced: [String: String] = [:]
             var removed: [String] = []
+            var keep: [Kept] = []
             for (e, result) in results {
                 guard var row = try db.mailItem(id: e.item.id) else { continue }
                 if let note = waiting[e.item.id] {
@@ -517,16 +752,25 @@ extension Engine {
                     row.downloadError = nil
                     if let copy = row.pdfPath { removed.append(copy) }
                     row.pdfPath = nil
+                    if let original = row.documentPath {
+                        if case .added = result?.outcome, originals[row.id] != nil {
+                            keep.append((original, row.documentKind ?? "", row.documentFileName, paperID))
+                        } else {
+                            removed.append(original)
+                        }
+                        row.documentPath = nil
+                    }
                     produced[row.id] = paperID
                 } else {
-                    // The file was not a usable PDF (or the import failed): the row waits for one.
+                    // The file was not a usable PDF (or the import failed): the row waits for one —
+                    // a document row with its original still stored stays convertible / open-only.
                     let reason = result?.outcome.failureReason ?? MailOpsText.importFailed(lang)
                     if e.storedCopy != nil || row.pdfState == .hasPDF {
                         if let copy = row.pdfPath { removed.append(copy) }
                         row.pdfPath = nil
                         row.pdfSHA256 = nil
-                        row.pdfBytes = nil
-                        row.pdfState = .needsPDF
+                        if row.origin != .document { row.pdfBytes = nil }
+                        row.pdfState = Engine.waitingState(row)
                     }
                     row.downloadError = reason
                 }
@@ -537,10 +781,15 @@ extension Engine {
                 guard userAction || m.isOpen else { return }
                 MailMergeState.settle(&m, items: items, now: now, userAction: userAction)
             }
-            return (produced, removed)
+            return (produced, removed, keep)
         }
         let root = paths.mailFiles
-        if !removed.isEmpty { await BlockingIO.run { MailAttachmentFiles.remove(removed, root: root) } }
+        for k in keep {
+            guard let url = MailAttachmentFiles.url(k.original, root: root) else { continue }
+            await keepOriginalDocument(url, kind: k.kind, fileName: k.name, paperID: k.paperID, message: message)
+        }
+        let gone = removed + keep.map(\.original)
+        if !gone.isEmpty { await BlockingIO.run { MailAttachmentFiles.remove(gone, root: root) } }
         try await linkSiblings(of: message.pk, papers: Set(produced.values), userAction: userAction)
         return produced
     }
@@ -576,17 +825,21 @@ extension Engine {
         // Confidential mail (a manuscript under review…) is held the same way whoever sent it —
         // an editor's invitation from an alert preset's domain (@*.nature.com) included.
         let holdAI = person || MailHeuristics.isConfidential(message)
+        // A document (a converted .docx, a PDF exported from it, a shared file) is someone's
+        // possibly unpublished work: its reading job is created held whatever ids its text shows.
+        let document = item.origin == .document || item.origin == .shareLink
         return ImportAnnotation(
             provenance: .email(message, addedAt: ctx.now()),
             priority: options.priority, pinnedDeadline: options.pinDeadline, category: options.category,
             notesPrefill: loadMailSettings().prefillNotes
                 ? MailOpsText.notesPrefill(message, lang: settings.lang, calendar: ctx.calendar) : nil,
             sameWorkPolicy: .link,
+            aiPolicy: document && options.readWithAI ? .queueHeld : nil,
             aiPriority: options.readWithAI && message.senderKind == .advisor ? 1 : 0,
             // A person's PDF may be unpublished work, however it arrived — attachment,
             // link, a file dropped on the row, an auto-merge download; so may a confidential
             // email's. Identified (DOI / arXiv) papers are released by EnrichActor.
-            holdAIUnlessIdentified: holdAI, leaveDeletedAlone: leaveDeletedAlone,
+            holdAIUnlessIdentified: holdAI || document, leaveDeletedAlone: leaveDeletedAlone,
             // The email's held titles stay held in the library (confidential mail; a person's or
             // an alert domain's non-list mail before 「让 AI 分析」): identifier lookups only.
             identifierLookupsOnly: !MailSyncActor.mayLookUpTitles(message))
@@ -596,7 +849,8 @@ extension Engine {
     /// bioRxiv / medRxiv and direct-PDF links, on the unwrapped target (Safe Links and other
     /// wrappers removed). Whether it may be fetched is `DownloadPolicy`'s call.
     static func mailDownloadURL(_ item: MailItem) -> URL? {
-        guard item.foundBy != .ai else { return nil }
+        // Never an AI-returned URL, never a shared file (it needs the user's sign-in), never a document row.
+        guard item.foundBy != .ai, item.origin != .shareLink, item.origin != .document else { return nil }
         let unwrapped = item.url.flatMap(URL.init(string:)).map { LinkUnwrapper.unwrap($0).absoluteString } ?? item.url
         let candidate = MailCandidate(cand: item.cand, origin: item.origin, title: item.title, authors: item.authors,
                                       ids: item.ids, url: unwrapped, urlOriginal: item.urlOriginal, host: item.host,
@@ -609,6 +863,8 @@ extension Engine {
     /// Download → stored copy (`has_pdf`), an existing paper (`in_library`), or `needs_pdf` + why.
     private func downloadMailItemReturning(_ item: MailItem, message: MailMessage,
                                            userAction: Bool) async throws -> MailItem {
+        // Documents convert, shared files wait for the user's PDF: nothing to download.
+        if item.origin == .document || item.origin == .shareLink { return item }
         let lang = (await ctx.settings()).lang
         guard let url = Self.mailDownloadURL(item) else {
             try await markNeedsPDF(item, error: MailOpsText.noPDFLink(lang), userAction: userAction)
@@ -732,6 +988,10 @@ enum MailOpsText {
         return t(l, "下载失败（\(status)）", "Download failed (\(status))")
     }
     static func importFailed(_ l: UILang) -> String { t(l, "导入失败", "Import failed") }
+    static func documentMissing(_ l: UILang) -> String {
+        t(l, "文档副本已被清理：请在邮件中打开它，导出 PDF 后拖到这里",
+          "The document copy was cleaned up — open it from the email, export a PDF and drop it here")
+    }
     static func privateAddress(_ l: UILang) -> String {
         t(l, "链接指向本地或内网地址，PaperDeck 不会下载", "The link points to a local or private network address — PaperDeck doesn't download it")
     }

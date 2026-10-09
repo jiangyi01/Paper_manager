@@ -150,6 +150,58 @@ extension AppState {
         }
     }
 
+    /// 「转换为 PDF 并合并」 for a document row, with the popover's options: converted on this Mac
+    /// and imported like an attachment (the possibly-unpublished hold applies; nothing goes to AI or
+    /// the network). The row shows 「正在本机转换为 PDF…」 meanwhile (`MailDocumentActivity`); a
+    /// failure leaves the row waiting with its reason (`downloadError`) and a toast. A second
+    /// request while the row converts does nothing (the engine would answer it with nil).
+    func convertMailDocument(_ item: MailItem, options: MailMergeOptions) {
+        let id = item.id
+        let activity = MailDocumentActivity.shared
+        guard !activity.isConverting(id) else { return }
+        let name = MailDocumentInfo.fileName(item) ?? L.Mail.documentKind(.other)
+        activity.begin(id)
+        mailOperation(keys: [id]) {
+            defer { activity.end(id) }
+            if let paperID = try await self.engine.convertAndMergeMailItem(itemID: id, options: options) {
+                self.post(Toast(id: "mail-converted-\(id)", kind: .success, message: L.Mail.converted(name),
+                                buttons: [.init(title: L.Mail.view, action: .openPaper(id: paperID))]))
+            } else {
+                self.post(Toast(id: "mail-convert-failed-\(id)", kind: .warning, message: L.Mail.convertFailed))
+            }
+        }
+    }
+
+    /// 「打开」 on a document row: the stored attachment in its own app (`MailDocumentOpen` —
+    /// document types inside the attachment folder only, marked as downloaded first).
+    func openMailDocument(_ item: MailItem) {
+        let id = item.id
+        let engine = self.engine
+        Task {
+            let url: URL
+            do {
+                url = try await engine.openMailDocument(itemID: id)
+            } catch MailOperationError.fileMissing {
+                self.post(Toast(id: "mail-document-missing-\(id)", kind: .warning, message: L.Mail.documentMissing))
+                return
+            } catch {
+                self.report(error)
+                return
+            }
+            let root = engine.paths.mailFiles
+            let ok = await Task.detached(priority: .userInitiated) { () -> Bool in
+                guard MailDocumentOpen.mayOpen(url, root: root) else { return false }
+                MailDocumentOpen.markDownloaded(url)
+                return true
+            }.value
+            guard ok else {
+                self.post(Toast(id: "mail-document-refused-\(id)", kind: .warning, message: L.Mail.documentRefused))
+                return
+            }
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     /// 「仅下载 PDF」 (the row becomes 已下载, merge later).
     func downloadMailItem(_ item: MailItem) {
         let id = item.id

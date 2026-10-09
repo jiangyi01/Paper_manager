@@ -177,6 +177,15 @@ package actor MailTriageCoordinator {
         }
     }
 
+    /// The capture's floor for documents (`MailHeuristics.keepsDocumentPending`) holds for an AI
+    /// result too: a person's or an advisor's card with an attached document or a shared-file link
+    /// stays in 待处理 whatever kind the model picked (an "other", a low-confidence request, an FYI
+    /// the user doesn't keep) — unless the model found no paper at all (`notPaper`).
+    package nonisolated static func keepsDocumentPending(_ t: MailTriage, items: [MailItem], senderKind: SenderKind) -> Bool {
+        guard senderKind == .advisor || senderKind == .person, t.requestKind != .notPaper else { return false }
+        return items.contains { $0.origin == .document || $0.origin == .shareLink }
+    }
+
     /// Whether an AI result keeps the card in 待处理 (else 「无阅读需求」): a kept kind with a
     /// reading request at ≥ `minConfidence`; an FYI share; an alert digest with papers the model
     /// highlighted for the user (`focusPapers` = requested / highlighted hints).
@@ -744,8 +753,10 @@ package actor MailTriageCoordinator {
                 cur.triageInputTokens = meta.inputTokens
                 cur.triageOutputTokens = meta.outputTokens
                 if !cur.userTouched, cur.state == .pending || cur.state == .noRequest {
-                    let next: MailState = MailTriageCoordinator.keepsPending(triage, criteria: criteria, focusPapers: focus)
-                        ? .pending : .noRequest
+                    let rows = try db.mailItems(messagePK: pk)
+                    let keep = MailTriageCoordinator.keepsPending(triage, criteria: criteria, focusPapers: focus)
+                        || MailTriageCoordinator.keepsDocumentPending(triage, items: rows, senderKind: cur.senderKind)
+                    let next: MailState = keep ? .pending : .noRequest
                     if next != cur.state {
                         cur.state = next
                         cur.handledAt = next == .noRequest ? now : nil

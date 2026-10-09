@@ -4,7 +4,8 @@ import PaperDeckCore
 
 /// `--render … --mail-fixtures DIR`: the Mail inbox pages — inbox, one card with a row targeted by
 /// a drop, a long alert digest (「其余 N 篇」), the detail inspector, 「发送给 AI 的内容」 expanded,
-/// the merge popover, the sidebar and the floating panel's peek line. The `.eml` files of DIR are
+/// the merge popover, the sidebar and the floating panel's peek line — plus the document /
+/// share-link card (`MailDocumentRenders`: synthetic rows). The `.eml` files of DIR are
 /// imported into the isolated `--root` (`MailSyncActor.importEML`); the sync loop never runs,
 /// nothing connects anywhere and no AI is called (the preview only builds the stdin).
 enum MailInboxRenders {
@@ -113,5 +114,6 @@ enum MailInboxRenders {
                                               size: NSSize(width: 250, height: 780), appearance: appearance, png("mail-sidebar"))
         try await PreviewRenderer.captureView(PeekList(state: state, onOpenPaper: { _ in }, onOpenToday: {}).frame(width: 280),
                                               size: nil, appearance: appearance, png("mail-peek"))
+        try await MailDocumentRenders.render(state: state, appearance: appearance, out: out, suffix: suffix)
     }
 }

@@ -95,10 +95,10 @@ package enum MailMatcher {
         }
     }
 
-    /// Pending, waiting for a PDF, and not being merged by an operation right now.
+    /// Pending, waiting for a PDF (also a document or slides the user may export themselves),
+    /// and not being merged by an operation right now.
     static func isWaiting(_ item: MailItem) -> Bool {
-        item.status == .pending && (item.pdfState == .needsPDF || item.pdfState == .downloadable)
-            && !MailMergeInFlight.shared.contains(item.id)
+        item.status == .pending && item.pdfState.waitsForPDF && !MailMergeInFlight.shared.contains(item.id)
     }
 
     /// Worth a toast: something the email asked for / highlighted, or anything a person sent.
@@ -160,7 +160,9 @@ enum MailItemLinker {
     /// error; the paper gets the message's provenance row (when `annotation` is nil — merges
     /// pass the provenance through the import instead and give it here only for links); the
     /// message's state is settled (`MailMergeState.settle`). Then the paper's card.json is
-    /// refreshed and the items' attachment copies are deleted. `onlyWaiting` (the matcher):
+    /// refreshed and the items' attachment copies are deleted — a document row's stored original
+    /// too, except on the matcher's links (`onlyWaiting`: 「撤销」 may give the row back; retention
+    /// removes the copy later). `onlyWaiting` (the matcher):
     /// rows are re-checked inside the transaction — only those of an open card still pending,
     /// waiting for a PDF and not being merged are linked; when none is left nothing is written.
     @discardableResult
@@ -184,6 +186,10 @@ enum MailItemLinker {
                 if onlyWaiting, !message.isOpen || !MailMatcher.isWaiting(item) { continue }
                 prior.append(item)
                 if let path = item.pdfPath { removed.append(path) }
+                if !onlyWaiting, let original = item.documentPath {
+                    removed.append(original)
+                    item.documentPath = nil
+                }
                 item.status = status
                 item.paperID = paper.id
                 item.pdfState = .inLibrary
@@ -233,6 +239,15 @@ final class MailMergeInFlight: @unchecked Sendable {
         }
     }
     func contains(_ id: String) -> Bool { lock.withLock { ids[id.lowercased()] != nil } }
+    /// Marks `id` only when nobody does yet (one conversion of a row at a time); balance with `remove`.
+    func claim(_ id: String) -> Bool {
+        lock.withLock {
+            let key = id.lowercased()
+            guard ids[key] == nil else { return false }
+            ids[key] = 1
+            return true
+        }
+    }
 
     /// By message uuid (pks repeat across libraries, e.g. parallel test engines).
     func insertMessage(_ id: String) { insert("message:" + id) }

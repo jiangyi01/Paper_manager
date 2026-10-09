@@ -57,8 +57,9 @@ package struct MailAccountSyncInfo: Sendable, Equatable, Identifiable {
 ///    logged, its body never requested); allowlisted Message-IDs already stored are skipped;
 /// 4. `fetchMessage` for the rest (read-only transports, size-capped);
 /// 5. `MailExtractor` + `MailHeuristics` (instant local triage with the user's criteria) on
-///    BlockingIO; PDF attachments stored under `mail/files/<message-id>/`, library matches by
-///    SHA-256 and identifiers;
+///    BlockingIO; PDF attachments — and a person's Word / slides documents — stored under
+///    `mail/files/<message-id>/`, library matches by SHA-256 and identifiers; shared-file links
+///    become rows that wait for the user's PDF (never downloaded);
 /// 6. one DB transaction per message (message + rows + its post-processing marker) — the card is
 ///    visible at once; the account's cursor is saved only after the page's messages committed;
 ///    `didCapture`;
@@ -73,7 +74,9 @@ package struct MailAccountSyncInfo: Sendable, Equatable, Identifiable {
 /// a sender rule added, enabled or broadened re-lists the look-back (headers only). An
 /// allowlisted message whose fetch keeps failing stays listable and is retried on a long
 /// backoff; after a day the account's status says so. One a retry-list cap could not keep is
-/// counted (`skipped`) and 「立即同步」 lists the look-back again. Manual `.eml` drops
+/// counted (`skipped`) and 「立即同步」 lists the look-back again. Once per library, after the
+/// upgrade that taught the extractor documents and shared-file links, mail captured before it is
+/// read again from its account and re-classified locally (`reevaluateDocumentsIfNeeded`). Manual `.eml` drops
 /// (`importEML`) always run the same pipeline (explicit user intent) and are serialized with
 /// 「清除所有邮件数据」. Account statuses are worded at display time (`MailLocalizedStatus`): a
 /// language switch never rebuilds a source or signs in again.
@@ -209,6 +212,9 @@ package actor MailSyncActor {
     /// asked for 「让 AI 分析」 (`consentGiven`).
     private var titlesOnly: Set<Int64> = []
     private var postCurrent: Int64?
+
+    /// The one-time documents re-evaluation finished (or gave up) — `reevaluateDocumentsIfNeeded`.
+    private var reevaluationSettled = false
 
     // Manual imports in progress (「清除所有邮件数据」 waits for them).
     private var importsRunning = 0
@@ -527,6 +533,7 @@ package actor MailSyncActor {
             guard force || isDue(st, settings: settings, now: now, activation: activation) else { continue }
             await syncAccount(id, settings: settings, force: force)
         }
+        await reevaluateDocumentsIfNeeded(settings)
     }
 
     private func isDue(_ st: AccountState, settings: MailSettings, now: Date, activation: Bool) -> Bool {
@@ -1107,52 +1114,15 @@ package actor MailSyncActor {
             return (x, t, r)
         }
         let messageID = UUID().uuidString.lowercased()
-        let capMB = max(1, settings.maxAttachmentMB)
         let storeAttachments = manual || (rule?.autoDownload ?? true)
 
-        var items: [MailItem] = []
-        for (i, c) in extraction.candidates.enumerated() {
-            var item = MailItem(ord: i + 1, cand: c.cand, origin: c.origin, foundBy: .local, title: c.title,
-                                authors: c.authors, venue: c.venue, year: c.year, ids: c.ids, url: c.url,
-                                urlOriginal: c.urlOriginal, host: c.host,
-                                relevance: relevance[c.cand] ?? .listed, pdfState: c.pdfState,
-                                createdAt: now, updatedAt: now)
-            if c.origin == .attachment, let index = c.attachmentIndex, content.attachments.indices.contains(index) {
-                let attachment = content.attachments[index]
-                if storeAttachments {
-                    switch await files.save(attachment, index: index, messageID: messageID,
-                                            maxBytes: Self.attachmentCap(settings), truncated: truncated) {
-                    case .success(let saved):
-                        item.pdfState = .hasPDF
-                        item.pdfPath = saved.relativePath
-                        item.pdfSHA256 = saved.sha256
-                        item.pdfBytes = saved.bytes
-                    case .failure(let why):
-                        item.pdfState = .needsPDF
-                        item.pdfBytes = Int64(attachment.sizeBytes)
-                        item.downloadError = why.message(lang, capMB: capMB)
-                    }
-                } else {
-                    item.pdfState = .needsPDF
-                    item.pdfBytes = Int64(attachment.sizeBytes)
-                    item.downloadError = MailSyncText.attachmentNotStored(lang)
-                }
-                if item.title == nil { item.title = Self.attachmentTitle(attachment.filename) }
-            } else if item.pdfState == .unknown {
-                item.pdfState = MailPDFFetcher.availability(ids: item.ids, url: item.url, host: item.host)
-            }
-            items.append(item)
-        }
+        let numbered = extraction.candidates.enumerated().map { (ord: $0.offset + 1, candidate: $0.element) }
+        var items = await makeItems(numbered, content: content, messageID: messageID, relevance: relevance,
+                                    store: storeAttachments, truncated: truncated, settings: settings, lang: lang, now: now)
         await matchLibrary(&items)
 
-        let state: MailState
-        if manual {
-            state = .pending
-        } else if heuristic.requestKind == .notPaper || !criteria.keepKinds.contains(heuristic.requestKind) {
-            state = .noRequest
-        } else {
-            state = .pending
-        }
+        let state = Self.capturedState(manual: manual, heuristic: heuristic, candidates: extraction.candidates,
+                                       senderKind: kind, criteria: criteria)
         let authState = MIMEParser.authState(content.header.authResults ?? content.headers["authentication-results"])
         let bulk = Self.isBulk(content.headers)
         let triageState = MailTriageCoordinator.initialState(
@@ -1193,6 +1163,96 @@ package actor MailSyncActor {
         }
     }
 
+    /// Where a freshly captured card goes: a dropped `.eml` always to 待处理; else 「无阅读需求」 when
+    /// the local triage found no paper-reading need (`notPaper`, or a kind the user doesn't keep) —
+    /// except a person's or an advisor's email with a document or a shared-file link
+    /// (`MailHeuristics.keepsDocumentPending`), which stays in 待处理.
+    package static func capturedState(manual: Bool, heuristic: MailTriage, candidates: [MailCandidate],
+                              senderKind: SenderKind, criteria: ReadingCriteria) -> MailState {
+        if manual { return .pending }
+        if MailHeuristics.keepsDocumentPending(heuristic, candidates: candidates, senderKind: senderKind) { return .pending }
+        if heuristic.requestKind == .notPaper || !criteria.keepKinds.contains(heuristic.requestKind) { return .noRequest }
+        return .pending
+    }
+
+    /// The rows of a message's candidates (`ord`, candidate): PDF attachments and document
+    /// originals stored under `mail/files/<messageID>/` (when `store` — the sender rule's
+    /// 「自动保存附件」 or a manual drop), links' PDF availability by the local rules. Shared-file
+    /// links wait for the user's PDF (they need a sign-in and are never downloaded).
+    private func makeItems(_ numbered: [(ord: Int, candidate: MailCandidate)], content: MailContent, messageID: String,
+                           relevance: [String: MailItemRelevance], store: Bool, truncated: Bool,
+                           settings: MailSettings, lang: UILang, now: Date) async -> [MailItem] {
+        let capMB = max(1, settings.maxAttachmentMB)
+        var items: [MailItem] = []
+        for (ord, c) in numbered {
+            var item = MailItem(ord: ord, cand: c.cand, origin: c.origin, foundBy: .local, title: c.title,
+                                authors: c.authors, venue: c.venue, year: c.year, ids: c.ids, url: c.url,
+                                urlOriginal: c.urlOriginal, host: c.host,
+                                relevance: relevance[c.cand] ?? .listed, pdfState: c.pdfState,
+                                createdAt: now, updatedAt: now, documentFileName: c.documentFileName,
+                                documentKind: c.documentKind, shareHost: c.shareHost)
+            if c.origin == .attachment, let index = c.attachmentIndex, content.attachments.indices.contains(index) {
+                let attachment = content.attachments[index]
+                if store {
+                    switch await files.save(attachment, index: index, messageID: messageID,
+                                            maxBytes: Self.attachmentCap(settings), truncated: truncated) {
+                    case .success(let saved):
+                        item.pdfState = .hasPDF
+                        item.pdfPath = saved.relativePath
+                        item.pdfSHA256 = saved.sha256
+                        item.pdfBytes = saved.bytes
+                    case .failure(let why):
+                        item.pdfState = .needsPDF
+                        item.pdfBytes = Int64(attachment.sizeBytes)
+                        item.downloadError = why.message(lang, capMB: capMB)
+                    }
+                } else {
+                    item.pdfState = .needsPDF
+                    item.pdfBytes = Int64(attachment.sizeBytes)
+                    item.downloadError = MailSyncText.attachmentNotStored(lang)
+                }
+                if item.title == nil { item.title = Self.attachmentTitle(attachment.filename) }
+            } else if c.origin == .document, let index = c.attachmentIndex, content.attachments.indices.contains(index) {
+                await storeDocument(&item, content.attachments[index], index: index, messageID: messageID, store: store,
+                                    truncated: truncated, settings: settings, lang: lang)
+            } else if c.origin == .shareLink || c.origin == .document {
+                item.pdfState = .needsPDF
+            } else if item.pdfState == .unknown {
+                item.pdfState = MailPDFFetcher.availability(ids: item.ids, url: item.url, host: item.host)
+            }
+            items.append(item)
+        }
+        return items
+    }
+
+    /// A document attachment's row: the original stored (`convertible` for Word / RTF / ODT,
+    /// `openOnly` for slides / Pages and password-protected files) or why it was not (`needsPDF`).
+    private func storeDocument(_ item: inout MailItem, _ attachment: MailAttachment, index: Int, messageID: String,
+                               store: Bool, truncated: Bool, settings: MailSettings, lang: UILang) async {
+        item.pdfBytes = Int64(attachment.sizeBytes)
+        guard let kind = item.documentKind.flatMap(DocumentKind.init(rawValue:)) else {
+            item.pdfState = .needsPDF
+            return
+        }
+        guard store else {
+            item.pdfState = .needsPDF
+            item.downloadError = MailSyncText.documentNotStored(lang)
+            return
+        }
+        switch await files.saveDocument(attachment, kind: kind, index: index, messageID: messageID,
+                                        maxBytes: Self.attachmentCap(settings), truncated: truncated) {
+        case .success(let saved):
+            item.documentPath = saved.relativePath
+            item.documentSHA256 = saved.sha256
+            item.pdfBytes = saved.bytes
+            item.pdfState = saved.encrypted ? .openOnly : kind.pdfState
+            item.downloadError = saved.encrypted ? DocumentConversionError.encrypted.message(lang) : nil
+        case .failure(let why):
+            item.pdfState = .needsPDF
+            item.downloadError = why.documentMessage(lang, capMB: max(1, settings.maxAttachmentMB))
+        }
+    }
+
     /// Mailing-list mail (an alert service's digest): `List-Id` or `List-Unsubscribe` present.
     /// An alert sender's AI-always rule triages only such mail automatically. `Precedence` and
     /// `Auto-Submitted` alone no longer count — manuscript systems and submission desks send
@@ -1224,6 +1284,216 @@ package actor MailSyncActor {
                 items[i].paperID = p.id
             }
         }
+    }
+
+    // MARK: - One-time re-evaluation: documents and shared files (kv `mail.reevaluate.documents.v1`)
+
+    /// kv key of the one-time re-evaluation after the upgrade that taught the extractor documents
+    /// and shared-file links: "done", or "tries=<n>" while sources were not reachable.
+    package static let reevaluateDocumentsKey = "mail.reevaluate.documents.v1"
+    /// Passes with unreachable sources before the job gives up.
+    static let reevaluateMaxTries = 5
+    /// Newest eligible messages looked at (one pass).
+    static let reevaluateLimit = 300
+
+    /// What one re-evaluation pass did (counts only — logged, never content).
+    package struct ReevaluationReport: Sendable, Equatable {
+        package var examined = 0        // eligible messages fetched (or tried)
+        package var updated = 0         // gained document / shared-file rows
+        package var unchanged = 0       // nothing new in the original
+        package var gone = 0            // the source no longer has it (skipped for good)
+        package var failed = 0          // the source was not reachable (retried at a later pass)
+        package var notYet = 0          // its account has not been checked since launch (waits, no attempt)
+        package init() {}
+    }
+
+    /// Runs the re-evaluation once per library (after the accounts synced in a pass); a pass whose
+    /// sources were not reachable is retried at the next pass, up to `reevaluateMaxTries`. Messages
+    /// of accounts not checked since launch (manual-only sync, nothing synced yet) wait without
+    /// counting as an attempt.
+    private func reevaluateDocumentsIfNeeded(_ settings: MailSettings) async {
+        guard !reevaluationSettled, !stopping, !clearing else { return }
+        let stored = (try? await ctx.db.kv(Self.reevaluateDocumentsKey)) ?? nil
+        if stored == "done" {
+            reevaluationSettled = true
+            return
+        }
+        let tries = stored.flatMap { $0.hasPrefix("tries=") ? Int($0.dropFirst(6)) : nil } ?? 0
+        let report = await reevaluateDocuments(settings)
+        guard !stopping, !clearing else { return }                   // interrupted: the next pass starts over
+        if report.failed == 0, report.notYet > 0 { return }          // waits for its accounts' first sync
+        let finished = report.failed == 0 || tries + 1 >= Self.reevaluateMaxTries
+        do {
+            try await ctx.db.setKV(Self.reevaluateDocumentsKey, finished ? "done" : "tries=\(tries + 1)")
+        } catch {
+            Self.log.error("mail re-evaluation: state not stored (\(String(describing: type(of: error)), privacy: .public))")
+        }
+        reevaluationSettled = finished
+        Self.log.info("mail re-evaluation (documents): \(report.examined, privacy: .public) examined, \(report.updated, privacy: .public) updated, \(report.unchanged, privacy: .public) unchanged, \(report.gone, privacy: .public) gone, \(report.failed, privacy: .public) unreachable, \(report.notYet, privacy: .public) waiting")
+    }
+
+    /// Whether a stored message is re-evaluated: from a person or an advisor still on the sender
+    /// list, captured from a mail account (a dropped `.eml` has no source to read again), never
+    /// touched by the user, and either in 「无阅读需求」 or in 待处理 without any row — and without
+    /// document / shared-file rows already (the job is idempotent).
+    static func isReevaluationCandidate(_ m: MailMessage, items: [MailItem], settings: MailSettings) -> Bool {
+        guard !m.userTouched, m.senderKind == .advisor || m.senderKind == .person,
+              m.accountID != manualAccountID, let ref = m.sourceRef, !ref.isEmpty,
+              SenderMatcher.match(address: m.fromAddress, rules: settings.senders) != nil else { return false }
+        guard m.state == .noRequest || (m.state == .pending && items.isEmpty) else { return false }
+        return !items.contains { $0.origin == .document || $0.origin == .shareLink }
+    }
+
+    /// One pass: every eligible message (`isReevaluationCandidate`, newest first, at most
+    /// `reevaluateLimit`) is read again from its account — a folder account's `.eml` by its stored
+    /// file name, an IMAP message by its UID (read-only) — when the source still has it, and its
+    /// local extraction runs again. Messages gaining document / shared-file rows get them (originals
+    /// stored like at capture), a fresh local triage (an AI triage stays) and — a person's or an
+    /// advisor's document — go back to 待处理. Nothing is sent to AI (at most 「让 AI 分析」 is
+    /// offered); a card the user touched meanwhile is left alone.
+    package func reevaluateDocuments(_ settings: MailSettings) async -> ReevaluationReport {
+        var report = ReevaluationReport()
+        guard settings.enabled, !stopping, !clearing else { return report }
+        reconcileAccounts(settings)                         // the sources of the current account list
+        let heads: [MailMessage]
+        do {
+            heads = try await ctx.db.mailMessageHeads(states: [.noRequest, .pending], limit: 100_000).map(\.message)
+        } catch {
+            report.failed += 1
+            return report
+        }
+        let pre = heads.filter { !$0.userTouched && ($0.senderKind == .advisor || $0.senderKind == .person)
+            && $0.accountID != Self.manualAccountID && $0.sourceRef != nil }
+        guard !pre.isEmpty else { return report }
+        let rows = (try? await ctx.db.mailItems(messagePKs: pre.map(\.pk))) ?? [:]
+        let eligible = pre.filter { Self.isReevaluationCandidate($0, items: rows[$0.pk] ?? [], settings: settings) }
+            .prefix(Self.reevaluateLimit)
+        for m in eligible {
+            guard !stopping, !clearing else { break }
+            let outcome = await reevaluate(m, settings: settings)
+            if outcome != .notYet { report.examined += 1 }
+            switch outcome {
+            case .updated: report.updated += 1
+            case .unchanged: report.unchanged += 1
+            case .gone: report.gone += 1
+            case .unreachable: report.failed += 1
+            case .notYet: report.notYet += 1
+            }
+        }
+        return report
+    }
+
+    private enum ReevaluationOutcome { case updated, unchanged, gone, unreachable, notYet }
+
+    private func reevaluate(_ m: MailMessage, settings: MailSettings) async -> ReevaluationOutcome {
+        guard let ref = m.sourceRef, let st = accounts[m.accountID] else { return .gone }       // account removed
+        // A disabled account or one waiting for new sign-in details is not asked (never retry a
+        // rejected password); a source that isn't ready is not reachable now.
+        guard st.account.enabled else { return .gone }
+        guard let status = st.status else { return .notYet }
+        guard !st.waitingForSettings, case .ready = status.render(lang) else { return .unreachable }
+        let maxBytes = Self.fetchLimit(settings)
+        let header = MailHeader(ref: ref, internetMessageID: m.internetMessageID, fromAddress: m.fromAddress,
+                                fromName: m.fromName, subject: m.subject, receivedAt: m.receivedAt)
+        let content: MailContent
+        do {
+            content = try await st.source.fetchMessage(header, maxBytes: maxBytes)
+        } catch where Self.isPermanentFetchError(error) {
+            return .gone
+        } catch {
+            return .unreachable
+        }
+        // Still the same, still allowlisted message (a folder file may have been replaced).
+        let parsedID = content.header.internetMessageID?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard parsedID == m.internetMessageID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              SenderMatcher.match(address: content.header.fromAddress, rules: settings.senders) != nil else {
+            return .gone
+        }
+        let uiLang = await ctx.settings().lang
+        let now = ctx.now(), calendar = ctx.calendar
+        let kind = m.senderKind, criteria = settings.criteria, dateOrder = settings.dateOrder
+        let (extraction, heuristic, relevance) = await BlockingIO.run { () -> (MailExtraction, MailTriage, [String: MailItemRelevance]) in
+            let x = MailExtractor.extract(content, senderKind: kind, bodyCap: MailExtractor.defaultBodyCap)
+            let (t, r) = MailHeuristics.triage(content: content, extraction: x, senderKind: kind, criteria: criteria,
+                                               now: now, calendar: calendar, lang: uiLang, dateOrder: dateOrder)
+            return (x, t, r)
+        }
+        let fresh = extraction.candidates.filter { $0.origin == .document || $0.origin == .shareLink }
+        guard !fresh.isEmpty, !stopping, !clearing else { return .unchanged }
+
+        let existing = (try? await ctx.db.mailItems(messagePK: m.pk)) ?? []
+        // A card without rows takes the extraction's numbering (its body markers name them); rows
+        // added to a card that has some continue its numbering.
+        let renumber = existing.isEmpty
+        let lastOrd = existing.map(\.ord).max() ?? 0
+        let numbered: [(ord: Int, candidate: MailCandidate)]
+        if renumber {
+            numbered = extraction.candidates.enumerated().map { (ord: $0.offset + 1, candidate: $0.element) }
+        } else {
+            let used = Set(existing.map { $0.cand.lowercased() })
+            var next = existing.count + 1
+            numbered = fresh.enumerated().map { k, c in
+                var c = c
+                while used.contains("c\(next)") { next += 1 }
+                c.cand = "c\(next)"
+                next += 1
+                return (ord: lastOrd + k + 1, candidate: c)
+            }
+        }
+        let freshRelevance = renumber ? relevance
+            : Dictionary(uniqueKeysWithValues: zip(numbered.map(\.candidate.cand), fresh.map { relevance[$0.cand] ?? .listed }))
+        let rule = settings.rule(id: m.ruleID)
+        // The transports read at most `maxBytes`: a message that filled it may have been cut.
+        let truncated = (content.header.sizeBytes ?? 0) >= maxBytes
+        let items = await makeItems(numbered, content: content, messageID: m.id, relevance: freshRelevance,
+                                    store: rule?.autoDownload ?? true, truncated: truncated, settings: settings,
+                                    lang: uiLang, now: now)
+        let keep = MailHeuristics.keepsDocumentPending(heuristic, candidates: extraction.candidates, senderKind: kind)
+        let confidential = MailHeuristics.isConfidential(content, bodyText: extraction.bodyText)
+        let offer = MailTriageCoordinator.initialState(senderKind: kind, rule: rule, candidates: extraction.candidates.count,
+                                                       settings: settings, authState: m.authState, isBulk: m.isBulk ?? false,
+                                                       confidential: confidential) == .awaitingConsent
+        let stored: Bool
+        do {
+            stored = try await ctx.db.transaction { db -> Bool in
+                // Re-checked on the current rows: the user may have acted meanwhile.
+                guard var cur = try db.mailMessage(pk: m.pk),
+                      MailSyncActor.isReevaluationCandidate(cur, items: try db.mailItems(messagePK: m.pk), settings: settings),
+                      try db.mailItems(messagePK: m.pk).count == existing.count else { return false }
+                for item in items {
+                    var row = item
+                    row.messagePK = m.pk
+                    try db.upsertMailItem(row, now: now)
+                }
+                if cur.triageSource != .ai {
+                    cur.triage = heuristic
+                    cur.triageSource = .heuristic
+                }
+                if renumber, !cur.bodyPurged {
+                    cur.bodyText = extraction.bodyText
+                    cur.snippet = extraction.snippet.isEmpty ? nil : extraction.snippet
+                }
+                if keep, cur.state == .noRequest {
+                    cur.state = .pending
+                    cur.handledAt = nil
+                }
+                // Never queued here: at most the card offers 「让 AI 分析」 now that it has something to analyse.
+                if offer, cur.triageState == .none || cur.triageState == .skipped { cur.triageState = .awaitingConsent }
+                try db.updateMailMessage(cur, now: now)
+                return true
+            }
+        } catch {
+            Self.log.error("mail#\(m.pk, privacy: .public): re-evaluation not stored")
+            stored = false
+        }
+        if !stored {
+            // Rows that were not inserted leave no stored originals behind.
+            let paths = items.compactMap(\.documentPath) + items.compactMap(\.pdfPath)
+            let root = files.root
+            if !paths.isEmpty { await BlockingIO.run { MailAttachmentFiles.remove(paths, root: root) } }
+            return .unchanged
+        }
+        return .updated
     }
 
     // MARK: - Post-processing (step 7)
@@ -1451,7 +1721,8 @@ package actor MailSyncActor {
         var changed = Array(updated.values)
         await matchLibrary(&changed)
         for i in changed.indices where changed[i].pdfState == .needsPDF || changed[i].pdfState == .unknown {
-            guard changed[i].origin != .attachment, changed[i].origin != .citation else { continue }
+            guard changed[i].origin != .attachment, changed[i].origin != .citation, changed[i].origin != .document,
+                  changed[i].origin != .shareLink else { continue }
             changed[i].pdfState = MailPDFFetcher.availability(ids: changed[i].ids, url: changed[i].url, host: changed[i].host)
         }
         if !changed.isEmpty { await storeEnrichment(changed, messagePK: pk) }
@@ -1478,10 +1749,12 @@ package actor MailSyncActor {
 
     /// Which rows get a metadata lookup: rows with identifiers first, then (a few) title-only
     /// rows that matter (attachments, requested / highlighted entries) — only when `titles`
-    /// (`mayLookUpTitles`).
+    /// (`mayLookUpTitles`). Documents and shared-file links never: their "titles" are file names
+    /// or link texts of possibly unpublished work.
     static func lookupTargets(_ items: [MailItem], titles: Bool = true) -> [MailItem] {
         let open = items.filter { $0.status == .pending && $0.metaSource != .crossref && $0.metaSource != .arxiv
-            && $0.metaSource != .biorxiv && $0.metaSource != .openalex }
+            && $0.metaSource != .biorxiv && $0.metaSource != .openalex
+            && $0.origin != .document && $0.origin != .shareLink }
         let withIDs = open.filter { !$0.ids.isEmpty }
         let titleOnly = !titles ? [] : open.filter {
             $0.ids.isEmpty && ($0.title?.count ?? 0) >= 12
@@ -1788,6 +2061,10 @@ package enum MailSyncText {
     package static func attachmentNotStored(_ lang: UILang) -> String {
         lang == .zh ? "此发件人设置为不自动保存附件，请从邮件中下载后拖到这里"
                     : "Attachments from this sender aren't saved automatically. Download the PDF from the email and drop it here."
+    }
+    package static func documentNotStored(_ lang: UILang) -> String {
+        lang == .zh ? "此发件人设置为不自动保存附件：请在邮件中打开文档，导出 PDF 后拖到这里"
+                    : "Attachments from this sender aren't saved automatically. Open the document from the email, export a PDF and drop it here."
     }
     package static func bodyPurged(_ lang: UILang) -> String {
         lang == .zh ? "邮件正文已清除，未发送给 AI" : "The email text was removed; nothing was sent to AI"

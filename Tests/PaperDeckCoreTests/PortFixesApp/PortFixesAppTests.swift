@@ -72,7 +72,7 @@ struct CallbackAPICheckTests {
 @Suite("Docs match the setup window and the move guide")
 struct PortFixesDocsTests {
     static func doc(_ path: String) -> String? { try? String(contentsOf: LintRepo.url(path), encoding: .utf8) }
-    static var present: Bool { doc("docs/USER_GUIDE.md") != nil && doc("README.md") != nil && doc("docs/guides/MOVE_TO_ANOTHER_MAC.md") != nil }
+    static var present: Bool { doc("docs/USER_GUIDE.md") != nil && doc("README.zh-CN.md") != nil && doc("docs/guides/MOVE_TO_ANOTHER_MAC.md") != nil }
 
     /// The line(s) of `doc` from the first line containing `start` up to (not including) the next
     /// numbered or bulleted item.
@@ -104,7 +104,7 @@ struct PortFixesDocsTests {
         let en = try #require(Self.item(Self.doc("docs/USER_GUIDE.md")!, startingWith: "**Library.**"))
         #expect(en.contains("~/PaperDeck when Documents is in iCloud"), "\(en)")
         #expect(!en.contains("home folder (~/PaperDeck)"))
-        let zh = try #require(Self.item(Self.doc("README.md")!, startingWith: "**论文库**"))
+        let zh = try #require(Self.item(Self.doc("README.zh-CN.md")!, startingWith: "**论文库**"))
         #expect(zh.contains("iCloud") && zh.contains("~/PaperDeck"), "\(zh)")
         #expect(!zh.contains("个人文件夹（~/PaperDeck）、"))
     }
@@ -117,7 +117,7 @@ struct PortFixesDocsTests {
         #expect(Self.inOrder(old, ["Export your settings", "Quit PaperDeck", "Copy the library folder"]), "\(old)")
         let user = try #require(Self.item(Self.doc("docs/USER_GUIDE.md")!, startingWith: "**Old Mac:**"))
         #expect(Self.inOrder(user, ["Export Settings", "quit PaperDeck", "copy the library folder"]), "\(user)")
-        let readme = try #require(Self.doc("README.md")!.components(separatedBy: "\n").first { $0.contains("**换一台 Mac**") })
+        let readme = try #require(Self.doc("README.zh-CN.md")!.components(separatedBy: "\n").first { $0.contains("**换一台 Mac**") })
         #expect(Self.inOrder(readme, ["导出设置", "退出 PaperDeck", "复制"]), "\(readme)")
     }
 

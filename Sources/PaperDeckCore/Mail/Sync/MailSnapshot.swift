@@ -78,8 +78,10 @@ package struct MailCard: Sendable, Equatable, Identifiable {
         self.rule = rule
         self.account = account
         let relevant = items.filter { $0.isOpen && $0.relevance != .listed }
-        self.needsPDFCount = relevant.filter { $0.pdfState == .needsPDF }.count
-        self.readyCount = relevant.filter { [.hasPDF, .downloadable, .inLibrary].contains($0.pdfState) }.count
+        // Slides to export and shared files wait for the user's PDF too; a stored Word document is
+        // ready (it converts on its row's button).
+        self.needsPDFCount = relevant.filter { $0.pdfState == .needsPDF || $0.pdfState == .openOnly }.count
+        self.readyCount = relevant.filter { [.hasPDF, .downloadable, .inLibrary, .convertible].contains($0.pdfState) }.count
         if runningTriagePK == message.pk, [.queued, .limited, .needsLogin].contains(message.triageState) {
             self.displayTriageState = .running
         } else {
@@ -272,6 +274,14 @@ package enum MailMachineText {
             { MailPDFFetcher.Rejection.notPDF.message($0, capMB: 1) },
             { MailPDFFetcher.Rejection.incomplete.message($0, capMB: 1) },
             { MailPDFFetcher.Rejection.writeFailed.message($0, capMB: 1) },
+            // Documents (Word / slides) and their conversion.
+            { MailSyncText.documentNotStored($0) },
+            { MailPDFFetcher.Rejection.notPDF.documentMessage($0, capMB: 1) },
+            { MailPDFFetcher.Rejection.incomplete.documentMessage($0, capMB: 1) },
+            { DocumentConversionError.unsupported.message($0) }, { DocumentConversionError.encrypted.message($0) },
+            { DocumentConversionError.unreadable.message($0) }, { DocumentConversionError.empty.message($0) },
+            { DocumentConversionError.tooLarge.message($0) }, { DocumentConversionError.renderFailed.message($0) },
+            { MailOpsText.documentMissing($0) },
             { MailOpsText.noPDFLink($0) }, { MailOpsText.notPDF($0) }, { MailOpsText.biorxivBlocked($0) },
             { MailOpsText.downloadFailed(status: nil, $0) }, { MailOpsText.importFailed($0) },
             { MailOpsText.privateAddress($0) }, { MailOpsText.notAutomatic($0) },
@@ -354,6 +364,9 @@ package enum MailMachineText {
         Template(arity: 2) { MailSyncText.dailyCapReached(used: $1[0], limit: $1[1], $0) },
         Template(arity: 1) { IntakeText.downloadFailed(status: $1[0], $0) },
         Template(arity: 2) { MailPDFFetcher.Rejection.tooLarge(sizeBytes: $1[0] * 1_048_576).message($0, capMB: $1[1]) },
+        Template(arity: 2) {
+            MailPDFFetcher.Rejection.tooLarge(sizeBytes: $1[0] * 1_048_576).documentMessage($0, capMB: $1[1])
+        },
         Template(arity: 1) { MailOpsText.downloadFailed(status: $1[0], $0) },
         Template(arity: 1) { MailHeuristics.containsPapersSummary($1[0], $0) },
         // Alert digests: "1 paper" is worded apart from "N papers".

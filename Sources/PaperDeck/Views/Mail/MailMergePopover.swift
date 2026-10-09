@@ -12,6 +12,11 @@ import PaperDeckCore
 /// as a separate paper (`MailDupChoice`) — the suggested one preselected; the confirm button
 /// applies the chosen one (`DedupeUIModel.resolveMail`). "Merge All" lists how many rows look
 /// like library papers (identical ids are linked; the rest can be reviewed under Duplicates).
+///
+/// 「转换为 PDF 并合并」 (one document row, `convertMode`): the same options, titled for the
+/// conversion, with what it does — converted on this Mac (nothing uploaded or sent to AI), figures
+/// may not convert, the original is kept next to the PDF, and the possibly-unpublished hold.
+/// No duplicate lookup before converting: the engine's import dedupes the PDF it makes.
 struct MailMergePopover: View {
     let state: AppState
     let card: MailCard
@@ -35,6 +40,12 @@ struct MailMergePopover: View {
 
     /// The add-options (priority, category, AI reading) apply: no match, or "add separately".
     private var addsPaper: Bool { match == nil || dupChoice == .addSeparately }
+
+    /// One document row converted on this Mac, then added.
+    static func convertMode(_ items: [MailItem]) -> Bool {
+        items.count == 1 && items.allSatisfy { MailInboxRules.actions($0).contains(.convertAndMerge) }
+    }
+    private var convertMode: Bool { Self.convertMode(items) }
 
     private var today: LocalDate { state.snapshot?.today.today ?? LocalDate.today() }
     private var due: MailInboxRules.DueHint? { card.dueHint(today: today) }
@@ -113,16 +124,18 @@ struct MailMergePopover: View {
     }
 
     private var confirmTitle: String {
+        if convertMode { return L.Mail.convertConfirm }
         if match != nil { return L.Dedupe.mailConfirm(dupChoice) }
         return items.count > 1 ? L.Mail.confirmMany(items.count) : L.Mail.confirmOne
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(items.count > 1 ? L.Mail.mergeTitleMany(items.count) : L.Mail.mergeTitleOne)
+            Text(convertMode ? L.Mail.convertTitle : items.count > 1 ? L.Mail.mergeTitleMany(items.count) : L.Mail.mergeTitleOne)
                 .font(.headline)
             if items.count == 1, let item = items.first {
-                let title = MailInboxRules.line(item.title, limit: 120)
+                let title = MailDocumentInfo.isDocument(item)
+                    ? (MailDocumentInfo.fileName(item) ?? "") : MailInboxRules.line(item.title, limit: 120)
                 Text(verbatim: title.isEmpty ? L.Mail.untitled : title)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -161,7 +174,19 @@ struct MailMergePopover: View {
 
     @ViewBuilder private var notes: some View {
         let linking = items.contains { MailInboxRules.chip($0) == .inLibrary }
-        if (readWithAI && items.count > IntakeActor.holdThreshold) || linking {
+        if convertMode {
+            VStack(alignment: .leading, spacing: 3) {
+                Label(L.Mail.convertLocalNote, systemImage: "desktopcomputer")
+                Label(L.Mail.figuresPlacementNote, systemImage: "photo.badge.exclamationmark")
+                Label(L.Mail.keepOriginalNote, systemImage: "doc.on.doc")
+                if MailDocumentInfo.possiblyUnpublished(card.message) {
+                    Label(ImportAnnotation.unpublishedHoldText(L.lang), systemImage: "lock.shield")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        } else if (readWithAI && items.count > IntakeActor.holdThreshold) || linking {
             VStack(alignment: .leading, spacing: 3) {
                 if readWithAI && items.count > IntakeActor.holdThreshold {
                     Label(L.Mail.heldBatchNote, systemImage: "hand.raised")
@@ -201,9 +226,12 @@ struct MailMergePopover: View {
             loaded = true
             return
         }
-        // One row: its question decides what the button does, so it comes first.
+        // One row: its question decides what the button does, so it comes first. A document is
+        // converted first; the import dedupes the PDF it makes.
         if let fixtureMatch {
             match = fixtureMatch
+        } else if convertMode {
+            match = nil
         } else if items.count == 1, let item = items.first {
             match = await state.engine.mailDuplicateMatch(itemID: item.id)
         }

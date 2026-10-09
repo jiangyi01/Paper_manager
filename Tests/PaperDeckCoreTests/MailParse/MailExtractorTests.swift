@@ -167,7 +167,8 @@ import Testing
         <div>A Author, B Author - bioRxiv, 2026</div>
         """
         let content = MailContent(header: F.header(), plainText: nil, html: html, attachments: [
-            MailAttachment(filename: "notes.docx", contentType: "application/octet-stream", isInline: false, data: Data([1]), sizeBytes: 1),
+            // Not a paper candidate (a .docx from a person is one — MailDocuments/DocumentExtractionTests).
+            MailAttachment(filename: "notes.xlsx", contentType: "application/octet-stream", isInline: false, data: Data([1]), sizeBytes: 1),
             MailAttachment(filename: "paper.pdf", contentType: "application/pdf", isInline: false, data: Self.pdfBytes, sizeBytes: 15),
             MailAttachment(filename: "figure.pdf", contentType: "application/pdf", isInline: true, data: Self.pdfBytes, sizeBytes: 15),
         ])

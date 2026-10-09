@@ -2,7 +2,8 @@ import Foundation
 import PaperDeckShared
 
 /// Local PDF handling for captured mail (MAIL_DESIGN Part A §2 steps 7 + 9): stores PDF
-/// attachments under `AppPaths.mailFiles/<message-id>/<n>.pdf`, reads their first page for
+/// attachments under `AppPaths.mailFiles/<message-id>/<n>.pdf` — and a person's document
+/// attachments (Word, RTF, ODT, slides) as `<n>.<ext>` —, reads their first page for
 /// title / identifiers, and decides whether a candidate's PDF is `downloadable` by the rules.
 ///
 /// Nothing here goes to the network. Attachment bytes come from the already-fetched message;
@@ -43,6 +44,35 @@ package struct MailPDFFetcher: Sendable {
                 return zh ? "无法保存附件" : "Couldn't save the attachment"
             }
         }
+
+        /// The wording for a document attachment (Word / slides): the user opens it in the email,
+        /// exports a PDF and drops it on the row.
+        package func documentMessage(_ lang: UILang, capMB: Int) -> String {
+            let zh = lang == .zh
+            switch self {
+            case .notFetched(let size), .tooLarge(let size):
+                let mb = max(1, Int((Double(size) / 1_048_576).rounded(.up)))
+                return zh ? "文档 \(mb) MB，超过 \(capMB) MB 上限：请在邮件中打开它，导出 PDF 后拖到这里"
+                          : "The document is \(mb) MB (limit \(capMB) MB). Open it from the email, export a PDF and drop it here."
+            case .notPDF:
+                return zh ? "附件不是有效的文档文件" : "The attachment isn't a valid document file"
+            case .incomplete:
+                return zh ? "邮件过大，文档未完整下载：请在邮件中打开它，导出 PDF 后拖到这里"
+                          : "The email was too large to fetch completely. Open the document from the email, export a PDF and drop it here."
+            case .writeFailed:
+                return zh ? "无法保存附件" : "Couldn't save the attachment"
+            }
+        }
+    }
+
+    /// A stored document original (`<message-id>/<n>.<ext>`).
+    package struct SavedDocument: Sendable, Equatable {
+        package var relativePath: String
+        package var sha256: String
+        package var bytes: Int64
+        /// Office's password-protected package (a docx / pptx that is an OLE2 file): opened in Word /
+        /// PowerPoint with its password, never converted here.
+        package var encrypted: Bool
     }
 
     /// A stored attachment.
@@ -80,6 +110,17 @@ package struct MailPDFFetcher: Sendable {
         return root.appendingPathComponent(String(parts[0]), isDirectory: true).appendingPathComponent(name)
     }
 
+    /// Absolute URL of a stored document original; nil for anything that is not
+    /// `<uuid>/<name>.<document extension>`.
+    package func documentURL(forRelative path: String) -> URL? {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2, Self.isSafeID(String(parts[0])) else { return nil }
+        let name = String(parts[1])
+        guard !name.isEmpty, !name.hasPrefix("."), !name.contains("\0"), !name.contains("\\"),
+              DocumentKind(rawValue: (name as NSString).pathExtension.lowercased()) != nil else { return nil }
+        return root.appendingPathComponent(String(parts[0]), isDirectory: true).appendingPathComponent(name)
+    }
+
     static func isSafeID(_ s: String) -> Bool {
         s.count == 36 && s.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) || $0 == "-" }
     }
@@ -112,6 +153,56 @@ package struct MailPDFFetcher: Sendable {
                 return .failure(.writeFailed)
             }
         }
+    }
+
+    /// Validates a document attachment: bytes present, within the cap, the format's signature
+    /// (`DocumentKind.hasValidSignature`), and — for a truncated message — a complete zip package
+    /// (formats that can't be checked are refused then).
+    package static func validateDocument(_ attachment: MailAttachment, kind: DocumentKind, maxBytes: Int,
+                                         truncated: Bool) -> Rejection? {
+        guard let data = attachment.data else { return .notFetched(sizeBytes: attachment.sizeBytes) }
+        guard data.count <= maxBytes else { return .tooLarge(sizeBytes: data.count) }
+        guard kind.hasValidSignature(data) else { return .notPDF }
+        if truncated {
+            let zip = [UInt8](data.prefix(4)) == [0x50, 0x4B, 0x03, 0x04]
+            guard zip, kind.isComplete(data) else { return .incomplete }
+        }
+        return nil
+    }
+
+    /// Stores a document attachment as `<message-id>/<index + 1>.<ext>` (atomic write, marked as
+    /// downloaded from an email — macOS's quarantine attribute — like Mail's own attachments).
+    package func saveDocument(_ attachment: MailAttachment, kind: DocumentKind, index: Int, messageID: String,
+                              maxBytes: Int, truncated: Bool) async -> Result<SavedDocument, Rejection> {
+        if let r = Self.validateDocument(attachment, kind: kind, maxBytes: maxBytes, truncated: truncated) {
+            return .failure(r)
+        }
+        guard let dir = directory(messageID: messageID), let data = attachment.data else { return .failure(.writeFailed) }
+        let name = "\(index + 1).\(kind.fileExtension)"
+        let relative = messageID + "/" + name
+        let encrypted = kind.isEncryptedPackage(data)
+        return await BlockingIO.run { () -> Result<SavedDocument, Rejection> in
+            do {
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                var url = dir.appendingPathComponent(name)
+                try data.write(to: url, options: [.atomic])
+                Self.markQuarantined(&url)
+                return .success(SavedDocument(relativePath: relative, sha256: FileOps.sha256(of: data),
+                                              bytes: Int64(data.count), encrypted: encrypted))
+            } catch {
+                Log.storage.error("mail attachment write failed: \(MailSyncActor.logText(error), privacy: .public)")
+                return .failure(.writeFailed)
+            }
+        }
+    }
+
+    /// Best effort: the quarantine attribute a browser or Mail sets on downloaded files, so the
+    /// system treats the stored attachment as coming from the internet when it is opened.
+    static func markQuarantined(_ url: inout URL) {
+        var values = URLResourceValues()
+        values.quarantineProperties = ["LSQuarantineAgentName": "PaperDeck",
+                                       "LSQuarantineType": "LSQuarantineTypeOtherAttachment"]
+        try? url.setResourceValues(values)
     }
 
     /// Removes every file of one message (failed insert, clear-all). Idempotent.

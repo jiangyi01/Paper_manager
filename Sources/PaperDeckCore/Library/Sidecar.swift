@@ -162,12 +162,15 @@ package struct CardSidecar: Codable, Sendable, Equatable {
         package var summary: String?
         package var dueHint: LocalDate?
         package var addedAt: Date?
+        /// The email's original document kept in the paper folder (a converted .docx), by file
+        /// name; the key is written only when set, so other cards keep their exact bytes.
+        package var document: String?
 
         package init(_ p: PaperProvenance) {
             kind = p.kind; mailMessageID = p.mailMessageID; internetMessageID = p.internetMessageID
             fromAddress = p.fromAddress; fromName = p.fromName; subject = p.subject; receivedAt = p.receivedAt
             webLink = p.webLink; requestKind = p.requestKind?.rawValue; summary = p.summary; dueHint = p.dueHint
-            addedAt = p.addedAt
+            addedAt = p.addedAt; document = p.document
         }
 
         package var model: PaperProvenance {
@@ -175,7 +178,8 @@ package struct CardSidecar: Codable, Sendable, Equatable {
                             internetMessageID: internetMessageID, fromAddress: fromAddress, fromName: fromName,
                             subject: subject, receivedAt: receivedAt, webLink: webLink,
                             requestKind: requestKind.flatMap(MailRequestKind.init(rawValue:)), summary: summary,
-                            dueHint: dueHint, addedAt: addedAt ?? receivedAt ?? Date(timeIntervalSince1970: 0))
+                            dueHint: dueHint, addedAt: addedAt ?? receivedAt ?? Date(timeIntervalSince1970: 0),
+                            document: CardSidecar.safeDocumentName(document))
         }
     }
 
@@ -408,6 +412,14 @@ package struct CardSidecar: Codable, Sendable, Equatable {
                       distinctFrom: distinctFrom.map { $0.lowercased() }.filter { !$0.isEmpty && $0 != id.lowercased() },
                       relatedTo: relatedTo.map { RelatedEntry(id: $0.id.lowercased(), relation: $0.relation) }
                           .filter { !$0.id.isEmpty && $0.id != id.lowercased() })
+    }
+
+    /// A kept original's file name as card.json may name it: one plain file name inside the paper
+    /// folder (no path, not hidden, no control characters); anything else reads as nil.
+    package static func safeDocumentName(_ name: String?) -> String? {
+        guard let n = name, !n.isEmpty, n.count <= 255, !n.hasPrefix("."), !n.contains("/"), !n.contains("\\"),
+              !n.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) else { return nil }
+        return n
     }
 
     private var displayTitle: String {
@@ -715,7 +727,7 @@ extension CardSidecar.AI {
 extension CardSidecar.ProvenanceEntry {
     private enum Keys: String, CodingKey {
         case kind, mailMessageID, internetMessageID, fromAddress, fromName, subject, receivedAt, webLink
-        case requestKind, summary, dueHint, addedAt
+        case requestKind, summary, dueHint, addedAt, document
     }
 
     package init(from decoder: any Decoder) throws {
@@ -732,6 +744,7 @@ extension CardSidecar.ProvenanceEntry {
         summary = c.lenient(String.self, .summary)
         dueHint = c.lenientLocalDate(.dueHint)
         addedAt = c.lenientDate(.addedAt)
+        document = c.lenient(String.self, .document)
     }
 
     package func encode(to encoder: any Encoder) throws {
@@ -741,6 +754,7 @@ extension CardSidecar.ProvenanceEntry {
         try c.put(fromName, .fromName); try c.put(subject, .subject); try c.putDate(receivedAt, .receivedAt)
         try c.put(webLink, .webLink); try c.put(requestKind, .requestKind); try c.put(summary, .summary)
         try c.put(dueHint?.iso, .dueHint); try c.putDate(addedAt, .addedAt)
+        if let document { try c.encode(document, forKey: .document) }
     }
 }
 

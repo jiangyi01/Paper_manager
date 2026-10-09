@@ -6,8 +6,10 @@ import Foundation
 /// 1. Body: text/plain when it is meaningful, else the HTML rendered by `HTMLText`.
 /// 2. Quoted reply history is cut (en/zh markers); a forwarded message is kept as a capped
 ///    `[forwarded]` section ("FYI, see #3" depends on it). Signatures and "Sent from my…" go.
-/// 3. Candidates, numbered `c1…cN` in this order: PDF attachments, classified links (deduped by
-///    identifiers / URL), bare DOIs / arXiv ids in the text, alert entries.
+/// 3. Candidates, numbered `c1…cN` in this order: attachments (PDFs, and — from a person, an
+///    advisor or a dropped email — Word / RTF / ODT / slides documents), classified links (deduped
+///    by identifiers / URL; from those senders, links to shared files too), bare DOIs / arXiv ids
+///    in the text, alert entries.
 /// 4. Every URL in the text becomes `[cN host]` (or `[link host]` for non-paper links) — wrapped
 ///    or tracking URLs never reach the stored body or the AI. Phone numbers become `[phone]`,
 ///    email addresses other than the sender's `[email]`. The text is capped at `bodyCap`.
@@ -41,12 +43,22 @@ package enum MailExtractor {
 
         // 3. Candidates
         var b = Builder()
-        for (i, a) in content.attachments.enumerated() where a.looksLikePDF && !a.isInline {
-            let ids = a.filename.map {
-                Identifiers.detect(fileName: $0, firstPagesText: "", attributeTitle: nil, xmpHead: nil)
-            } ?? PaperIDs()
-            b.add(.attachments, MailCandidate(cand: "", origin: .attachment, ids: ids, attachmentIndex: i,
-                                              pdfState: a.data != nil ? .hasPDF : .needsPDF, snippet: a.filename))
+        // Documents and shared-file links come from people (a lab manuscript as a .docx, a draft on
+        // SharePoint), never from alert services.
+        let personal = senderKind != .alert
+        for (i, a) in content.attachments.enumerated() where !a.isInline {
+            if a.looksLikePDF {
+                let ids = a.filename.map {
+                    Identifiers.detect(fileName: $0, firstPagesText: "", attributeTitle: nil, xmpHead: nil)
+                } ?? PaperIDs()
+                b.add(.attachments, MailCandidate(cand: "", origin: .attachment, ids: ids, attachmentIndex: i,
+                                                  pdfState: a.data != nil ? .hasPDF : .needsPDF, snippet: a.filename))
+            } else if personal, let kind = DocumentKind.detect(fileName: a.filename, contentType: a.contentType) {
+                b.add(.attachments, MailCandidate(cand: "", origin: .document, title: documentTitle(a.filename),
+                                                  attachmentIndex: i, pdfState: a.data != nil ? kind.pdfState : .needsPDF,
+                                                  snippet: a.filename, documentKind: kind.rawValue,
+                                                  documentFileName: a.filename))
+            }
         }
         let entries = AlertParsers.parse(html: content.html, plainText: content.plainText,
                                          generic: senderKind == .alert || isForwarded)
@@ -57,7 +69,7 @@ package enum MailExtractor {
                 let a = out.anchors[idx]
                 guard let url = LinkUnwrapper.url(from: a.href) else { continue }
                 if let ref = b.entryByHref[url.absoluteString] { b.anchorRef[idx] = ref; continue }
-                guard let c = PaperLinkClassifier.classify(url, anchorText: a.text) else { continue }
+                guard let c = PaperLinkClassifier.classify(url, anchorText: a.text, shareLinks: personal) else { continue }
                 b.anchorRef[idx] = b.add(.links, c)
             }
         }
@@ -66,7 +78,7 @@ package enum MailExtractor {
             guard let url = LinkUnwrapper.url(from: found.raw) else { continue }
             if b.urlRef[found.raw] != nil { continue }
             if let ref = b.entryByHref[url.absoluteString] { b.urlRef[found.raw] = ref; continue }
-            guard let c = PaperLinkClassifier.classify(url, anchorText: found.context) else { continue }
+            guard let c = PaperLinkClassifier.classify(url, anchorText: found.context, shareLinks: personal) else { continue }
             b.urlRef[found.raw] = b.add(.links, c)
         }
         for c in identifierCandidates(in: stripURLsAndMarkers(keptSource)) { b.add(.identifiers, c) }
@@ -144,7 +156,8 @@ package enum MailExtractor {
                 for (i, original) in lists[bucket.rawValue].enumerated() where out.count < limit {
                     var c = original
                     c.cand = "c\(out.count + 1)"
-                    names[Ref(bucket: bucket, index: i)] = (c.cand, c.host ?? (c.origin == .attachment ? "attachment" : "link"))
+                    let fallback = c.origin == .attachment || c.origin == .document ? "attachment" : "link"
+                    names[Ref(bucket: bucket, index: i)] = (c.cand, c.host ?? fallback)
                     out.append(c)
                 }
             }
@@ -181,12 +194,23 @@ package enum MailExtractor {
         if e.year == nil { e.year = n.year }
         e.ids = e.ids.merged(with: n.ids)
         if e.urlOriginal == nil { e.urlOriginal = n.urlOriginal }
-        if e.snippet == nil, e.origin != .attachment { e.snippet = n.snippet }
+        if e.snippet == nil, e.origin != .attachment, e.origin != .document { e.snippet = n.snippet }
         if e.url == nil { e.url = n.url; e.host = e.host ?? n.host }
         if e.pdfState == .needsPDF || e.pdfState == .unknown, n.pdfState == .downloadable {
             e.pdfState = .downloadable
             if let u = n.url, PaperLinkClassifier.pdfURL(for: e) == nil { e.url = u; e.host = n.host ?? e.host }
         }
+    }
+
+    /// "Lab_manuscript_v3.docx" → "Lab manuscript v3" — a document row's title until something
+    /// better is known (a PDF / document extension is dropped, underscores become spaces).
+    package static func documentTitle(_ filename: String?) -> String? {
+        guard var name = filename?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+        let ext = (name as NSString).pathExtension.lowercased()
+        if ext == "pdf" || DocumentKind(rawValue: ext) != nil { name = (name as NSString).deletingPathExtension }
+        name = name.replacingOccurrences(of: "_", with: " ")
+        name = CardSanitizer.clean(name)
+        return name.isEmpty ? nil : String(name.prefix(200))
     }
 
     // MARK: - Body selection

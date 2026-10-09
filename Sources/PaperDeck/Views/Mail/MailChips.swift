@@ -39,13 +39,28 @@ struct MailChip: View {
     }
 }
 
-/// The state chip of a paper row: 附件 PDF · 可下载 · 需要 PDF · 下载中 · 已在库中 · 已合并 · 已跳过.
+/// The state chip of a paper row: 附件 PDF · 可下载 · 需要 PDF · 下载中 · 已在库中 · 已合并 · 已跳过 ·
+/// 附件文档 · 需导出 · 共享链接 — or 转换中 while 「转换为 PDF 并合并」 runs (`converting`).
+/// Rows the user must bring a PDF to are dashed orange (需要 PDF · 需导出 · 共享链接).
 struct MailItemChipView: View {
     let chip: MailInboxRules.ItemChip
+    var converting = false
 
     var body: some View {
-        MailChip(text: L.Mail.chip(chip), symbol: Self.symbol(chip), hue: Self.hue(chip), dashed: chip == .needsPDF)
+        if converting {
+            MailChip(text: L.Mail.chipConverting, symbol: Self.convertingSymbol, hue: Self.convertingHue)
+        } else {
+            MailChip(text: L.Mail.chip(chip), symbol: Self.symbol(chip), hue: Self.hue(chip), dashed: Self.dashed(chip))
+        }
     }
+
+    /// The user brings the PDF (dashed, like 需要 PDF).
+    static func dashed(_ c: MailInboxRules.ItemChip) -> Bool {
+        c == .needsPDF || c == .openOnly || c == .shareLink
+    }
+
+    static let convertingSymbol = "arrow.triangle.2.circlepath"
+    static let convertingHue = 6                // indigo, like 下载中
 
     static func symbol(_ c: MailInboxRules.ItemChip) -> String {
         switch c {
@@ -57,6 +72,9 @@ struct MailItemChipView: View {
         case .inLibrary: return "books.vertical"
         case .merged: return "checkmark.circle.fill"
         case .skipped: return "minus.circle"
+        case .convertible: return "doc.richtext"
+        case .openOnly: return "square.and.arrow.up"
+        case .shareLink: return "link"
         }
     }
 
@@ -70,6 +88,9 @@ struct MailItemChipView: View {
         case .inLibrary: return 2           // purple
         case .merged: return 1              // green
         case .skipped: return nil
+        case .convertible: return 0         // blue, like 附件 PDF (attached; PaperDeck makes the PDF)
+        case .openOnly: return 3            // orange, like 需要 PDF (the user exports it)
+        case .shareLink: return 3           // orange, like 需要 PDF (the user downloads it)
         }
     }
 }

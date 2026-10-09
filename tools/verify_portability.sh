@@ -60,7 +60,7 @@ step_clean() {   # name command…
 
 # ---- the grep allowlist ------------------------------------------------------------------
 greps() {
-  local USER_DOCS="README.md docs/USER_GUIDE.md docs/TROUBLESHOOTING.md docs/guides docs/BUILDING.md docs/INSTALL_RECIPIENT.md docs/ARCHITECTURE-CONFIG.md"
+  local USER_DOCS="README.md README.zh-CN.md docs/USER_GUIDE.md docs/TROUBLESHOOTING.md docs/guides docs/BUILDING.md docs/INSTALL_RECIPIENT.md docs/ARCHITECTURE-CONFIG.md"
   local CODE="Sources Resources Package.swift build_app.sh test.sh tools"
   local existing="" p
   for p in $CODE $USER_DOCS; do [ -e "$p" ] && existing="$existing $p"; done
@@ -109,9 +109,9 @@ greps() {
   # shellcheck disable=SC2086
   out=$(grep -rnI 'PaperDeck Local'' Signing' $existing)
   local unexpected
-  unexpected=$(grep -vE '^(Sources/PaperDeckShared/BuildIdentity\.swift|build_app\.sh|docs/BUILDING\.md|README\.md):' <<< "$out" | grep -v '^$')
+  unexpected=$(grep -vE '^(Sources/PaperDeckShared/BuildIdentity\.swift|build_app\.sh|docs/BUILDING\.md|README\.md|README\.zh-CN\.md):' <<< "$out" | grep -v '^$')
   echo "$out" | sed 's/^/    /'
-  if [ -n "$unexpected" ]; then echo "  ! outside the allowed files (BuildIdentity.swift, build_app.sh, docs/BUILDING.md, README.md):"; echo "$unexpected" | sed 's/^/      /'; fi
+  if [ -n "$unexpected" ]; then echo "  ! outside the allowed files (BuildIdentity.swift, build_app.sh, docs/BUILDING.md, README.md, README.zh-CN.md):"; echo "$unexpected" | sed 's/^/      /'; fi
 }
 
 if [ "$GREPS" = 1 ]; then

@@ -312,6 +312,7 @@ extension Database {
         "doi", "published_doi", "arxiv_id", "arxiv_version", "pii", "url", "url_original", "host", "meta_source",
         "relevance", "why", "confidence", "pdf_state", "pdf_path", "pdf_sha256", "pdf_bytes", "download_error",
         "paper_id", "status", "created_at", "updated_at",
+        "origin_ext", "pdf_state_ext", "document_name", "document_kind", "document_path", "document_sha256", "share_host",
     ]
     private static let mailItemSelect = "SELECT pk, " + mailItemColumns.joined(separator: ", ") + " FROM mail_item"
     private static let mailItemInsert = "INSERT INTO mail_item(" + mailItemColumns.joined(separator: ", ") + ") VALUES("
@@ -401,25 +402,43 @@ extension Database {
                             [.text(id)]) { try readMailItem($0) }
     }
 
+    /// The origin / PDF state go to the frozen CHECK columns as their `storedBase` (what an older
+    /// build reads: an attachment / link waiting for a PDF); the exact value of a newer case
+    /// (`document`, `share_link`, `convertible`, `open_only`) goes to `origin_ext` / `pdf_state_ext`.
+    /// Rows (any status) whose stored document original had these bytes (`document_sha256`) —
+    /// a document converted before links to that paper instead of converting again.
+    package func mailItems(documentSHA256 sha: String) throws -> [MailItem] {
+        guard let key = Database.clean(sha)?.lowercased() else { return [] }
+        return try db.query(Database.mailItemSelect + " WHERE lower(document_sha256) = ?" + Database.itemOrder, [.text(key)]) {
+            try readMailItem($0)
+        }
+    }
+
     private func mailItemValues(_ i: MailItem) throws -> [SQLiteValue] {
         let authors = String(decoding: try encoder.encode(i.authors), as: UTF8.self)
+        let originExt = i.origin.storedBase != i.origin ? i.origin.rawValue : nil
+        let pdfStateExt = i.pdfState.storedBase != i.pdfState ? i.pdfState.rawValue : nil
         let values: [SQLiteValue] = [
             .text(i.id.lowercased()), .integer(i.messagePK), .int(i.ord), .text(i.cand),
-            .text(i.origin.rawValue), .text(i.foundBy.rawValue), .string(i.title), .text(authors),
+            .text(i.origin.storedBase.rawValue), .text(i.foundBy.rawValue), .string(i.title), .text(authors),
             .string(i.venue), .int(i.year),
             .string(Database.clean(i.ids.doi)), .string(Database.clean(i.ids.publishedDOI)),
             .string(Database.clean(i.ids.arxivID)), .int(i.ids.arxivVersion), .string(Database.clean(i.ids.pii)),
             .string(i.url), .string(i.urlOriginal), .string(i.host), .text(i.metaSource.rawValue),
             .string(i.relevance?.rawValue), .string(i.why), .double(i.confidence),
-            .text(i.pdfState.rawValue), .string(i.pdfPath), .string(i.pdfSHA256), .int64(i.pdfBytes),
+            .text(i.pdfState.storedBase.rawValue), .string(i.pdfPath), .string(i.pdfSHA256), .int64(i.pdfBytes),
             .string(i.downloadError), .string(i.paperID), .text(i.status.rawValue),
             .text(Database.timestamp(i.createdAt)), .text(Database.timestamp(i.updatedAt)),
+            .string(originExt), .string(pdfStateExt), .string(i.documentFileName), .string(i.documentKind),
+            .string(i.documentPath), .string(i.documentSHA256), .string(i.shareHost),
         ]
         assert(values.count == Database.mailItemColumns.count)
         return values
     }
 
-    /// Column order = `mailItemSelect`.
+    /// Column order = `mailItemSelect`. An `origin_ext` / `pdf_state_ext` value applies only while
+    /// the base column still holds its `storedBase` — an older build that changed the row (a PDF
+    /// dropped on a document row → `has_pdf`) wins over the stale extension.
     private func readMailItem(_ s: SQLiteStatement) throws -> MailItem {
         var c = Columns(s)
         let pk = c.int64()
@@ -437,40 +456,64 @@ extension Database {
         let pdfState = c.raw(MailPDFState.unknown), pdfPath = c.optString(), pdfSHA256 = c.optString()
         let pdfBytes = c.optInt64(), downloadError = c.optString(), paperID = c.optString()
         let status = c.raw(MailItemStatus.pending), createdAt = c.date(), updatedAt = c.date()
+        let originExt = c.optString().flatMap(MailItemOrigin.init(rawValue:))
+        let pdfStateExt = c.optString().flatMap(MailPDFState.init(rawValue:))
+        let documentName = c.optString(), documentKind = c.optString(), documentPath = c.optString()
+        let documentSHA = c.optString(), shareHost = c.optString()
         let ids = PaperIDs(doi: doi, arxivID: arxivID, arxivVersion: arxivVersion, pii: pii, publishedDOI: publishedDOI)
         return MailItem(
-            pk: pk, id: id, messagePK: messagePK, ord: ord, cand: cand, origin: origin, foundBy: foundBy,
+            pk: pk, id: id, messagePK: messagePK, ord: ord, cand: cand,
+            origin: originExt.flatMap { $0.storedBase == origin ? $0 : nil } ?? origin, foundBy: foundBy,
             title: title, authors: authors, venue: venue, year: year, ids: ids, url: url, urlOriginal: urlOriginal,
             host: host, metaSource: metaSource, relevance: relevance, why: why, confidence: confidence,
-            pdfState: pdfState, pdfPath: pdfPath, pdfSHA256: pdfSHA256, pdfBytes: pdfBytes,
+            pdfState: pdfStateExt.flatMap { $0.storedBase == pdfState ? $0 : nil } ?? pdfState,
+            pdfPath: pdfPath, pdfSHA256: pdfSHA256, pdfBytes: pdfBytes,
             downloadError: downloadError, paperID: paperID, status: status, createdAt: createdAt,
-            updatedAt: updatedAt)
+            updatedAt: updatedAt, documentFileName: documentName, documentKind: documentKind, shareHost: shareHost,
+            documentPath: documentPath, documentSHA256: documentSHA)
     }
 
     // MARK: - Provenance (paper_source)
 
     private static let sourceColumns = [
         "kind", "mail_message_id", "internet_message_id", "from_address", "from_name", "subject", "received_at",
-        "web_link", "request_kind", "summary", "due_hint", "added_at",
+        "web_link", "request_kind", "summary", "due_hint", "added_at", "document",
     ]
 
     /// Records that `paperPK` came from (or was linked to) an email. Idempotent per
     /// (paper, Message-ID): repeating it refreshes the stored fields and keeps the first
-    /// `added_at`. Emits `.paper(pk:)`; throws a foreign-key violation for an unknown paper.
+    /// `added_at` — and a kept original `document` unless the new record names one.
+    /// Emits `.paper(pk:)`; throws a foreign-key violation for an unknown paper.
     package func insertPaperSource(paperPK: Int64, _ p: PaperProvenance) throws {
         try write {
             let messageID = Database.clean(p.internetMessageID)
             try db.run("INSERT INTO paper_source(paper_pk, " + Database.sourceColumns.joined(separator: ", ")
-                       + ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                       + ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                        + " ON CONFLICT(paper_pk, internet_message_id) DO UPDATE SET "
                        + Database.sourceColumns.filter { $0 != "internet_message_id" && $0 != "added_at" }
-                        .map { "\($0) = excluded.\($0)" }.joined(separator: ", "), [
+                        .map { $0 == "document" ? "document = COALESCE(excluded.document, paper_source.document)"
+                                                : "\($0) = excluded.\($0)" }.joined(separator: ", "), [
                 .integer(paperPK), .text(p.kind), .string(p.mailMessageID?.lowercased()), .string(messageID),
                 .string(p.fromAddress), .string(p.fromName), .string(p.subject),
                 .string(p.receivedAt.map(Database.timestamp)), .string(p.webLink), .string(p.requestKind?.rawValue),
                 .string(p.summary), .string(p.dueHint?.iso), .text(Database.timestamp(p.addedAt)),
+                .string(p.document),
             ])
             note(.paper(pk: paperPK))
+        }
+    }
+
+    /// Names the original document kept in the paper's folder (`PaperProvenance.document`) on the
+    /// paper's provenance row for that email. False when the paper has no row for the Message-ID.
+    @discardableResult
+    package func setPaperSourceDocument(paperPK: Int64, internetMessageID: String, document: String?) throws -> Bool {
+        try write {
+            guard let messageID = Database.clean(internetMessageID) else { return false }
+            try db.run("UPDATE paper_source SET document = ? WHERE paper_pk = ? AND internet_message_id = ?",
+                       [.string(document), .integer(paperPK), .text(messageID)])
+            let changed = db.changes > 0
+            if changed { note(.paper(pk: paperPK)) }
+            return changed
         }
     }
 
@@ -484,7 +527,7 @@ extension Database {
                 fromAddress: c.optString(), fromName: c.optString(), subject: c.optString(),
                 receivedAt: c.optDate(), webLink: c.optString(),
                 requestKind: c.optString().flatMap(MailRequestKind.init(rawValue:)), summary: c.optString(),
-                dueHint: c.localDate(), addedAt: c.date())
+                dueHint: c.localDate(), addedAt: c.date(), document: c.optString())
         }
     }
 

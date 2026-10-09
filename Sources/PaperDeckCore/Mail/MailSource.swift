@@ -166,14 +166,22 @@ package struct MailCandidate: Sendable, Equatable {
     package var snippet: String?                // alert entry snippet / anchor text context
     package var venue: String?                  // alert byline ("Nature Neuroscience"), when known
     package var year: Int?
+    /// `document` candidates: the attachment's lowercase extension ("docx"…); `shareLink`: when the URL tells.
+    package var documentKind: String?
+    /// `document` candidates: the attachment's (sanitized) file name.
+    package var documentFileName: String?
+    /// `shareLink` candidates: the service (`MailShareProvider` raw value).
+    package var shareHost: String?
 
     package init(cand: String, origin: MailItemOrigin, title: String? = nil, authors: [String] = [],
                  ids: PaperIDs = PaperIDs(), url: String? = nil, urlOriginal: String? = nil, host: String? = nil,
                  attachmentIndex: Int? = nil, pdfState: MailPDFState = .unknown, snippet: String? = nil,
-                 venue: String? = nil, year: Int? = nil) {
+                 venue: String? = nil, year: Int? = nil, documentKind: String? = nil, documentFileName: String? = nil,
+                 shareHost: String? = nil) {
         self.cand = cand; self.origin = origin; self.title = title; self.authors = authors; self.ids = ids
         self.url = url; self.urlOriginal = urlOriginal; self.host = host; self.attachmentIndex = attachmentIndex
         self.pdfState = pdfState; self.snippet = snippet; self.venue = venue; self.year = year
+        self.documentKind = documentKind; self.documentFileName = documentFileName; self.shareHost = shareHost
     }
 }
 

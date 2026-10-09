@@ -217,8 +217,13 @@ extension L {
             case .inLibrary: return zh ? "已在库中" : "In library"
             case .merged: return zh ? "已合并" : "Merged"
             case .skipped: return zh ? "已跳过" : "Skipped"
+            case .convertible: return zh ? "附件文档" : "Document"
+            case .openOnly: return zh ? "需导出" : "Needs export"
+            case .shareLink: return zh ? "共享链接" : "Shared link"
             }
         }
+        /// The chip while 「转换为 PDF 并合并」 runs.
+        static var chipConverting: String { zh ? "转换中" : "Converting" }
         static var requested: String { zh ? "点名要读" : "Requested" }
         static var highlighted: String { zh ? "推荐" : "Highlighted" }
         static var foundByAI: String { zh ? "AI 找到 · 已核实" : "Found by AI · verified" }
@@ -238,6 +243,76 @@ extension L {
         static var cardDropRelease: String { zh ? "松手匹配到这封邮件的论文" : "Release to match this email's papers" }
         static var linkHelp: String {
             zh ? "打开邮件里的原始链接（保留学校的点击安全检查）" : "Opens the link as it appeared in the email (keeps your school's click-time scan)"
+        }
+        static var copyRowLink: String { zh ? "拷贝链接" : "Copy Link" }
+
+        // MARK: Document attachments and share links
+
+        /// 「Word 稿件」 / "Word manuscript" — what kind of file is attached.
+        static func documentKind(_ k: MailDocumentInfo.Kind) -> String {
+            switch k {
+            case .word: return zh ? "Word 稿件" : "Word manuscript"
+            case .richText: return zh ? "RTF 稿件" : "RTF manuscript"
+            case .openDocument: return zh ? "OpenDocument 稿件" : "OpenDocument manuscript"
+            case .pages: return zh ? "Pages 文稿" : "Pages document"
+            case .powerPoint: return zh ? "PowerPoint 幻灯片" : "PowerPoint slides"
+            case .keynote: return zh ? "Keynote 幻灯片" : "Keynote slides"
+            case .excel: return zh ? "Excel 表格" : "Excel spreadsheet"
+            case .numbers: return zh ? "Numbers 表格" : "Numbers spreadsheet"
+            case .other: return zh ? "文档" : "Document"
+            }
+        }
+        /// 「附件：Word 稿件」 / "Word manuscript attached" (the meta line adds the extension and size).
+        static func documentAttached(_ k: MailDocumentInfo.Kind) -> String {
+            zh ? "附件：\(documentKind(k))" : "\(documentKind(k)) attached"
+        }
+        /// 「共享的 Word 文档 · SharePoint」 / "Shared Word document · SharePoint".
+        static func sharedDocument(_ k: MailDocumentInfo.SharedKind, provider: MailDocumentInfo.Provider?) -> String {
+            let what: String
+            switch k {
+            case .word: what = zh ? "共享的 Word 文档" : "Shared Word document"
+            case .powerPoint: what = zh ? "共享的 PowerPoint 幻灯片" : "Shared PowerPoint slides"
+            case .excel: what = zh ? "共享的 Excel 表格" : "Shared Excel spreadsheet"
+            case .pdf: what = zh ? "共享的 PDF" : "Shared PDF"
+            case .folder: what = zh ? "共享文件夹" : "Shared folder"
+            case .googleDoc: what = zh ? "共享的 Google 文档" : "Shared Google Doc"
+            case .googleSlides: what = zh ? "共享的 Google 幻灯片" : "Shared Google Slides"
+            case .googleSheet: what = zh ? "共享的 Google 表格" : "Shared Google Sheet"
+            case .file: what = zh ? "共享文档" : "Shared document"
+            }
+            guard let provider else { return what }
+            return what + " · " + provider.name
+        }
+        static var convertAndAdd: String { zh ? "转换为 PDF 并合并" : "Convert to PDF & Add" }
+        static var convertHelp: String {
+            zh ? "在这台 Mac 上把文档转换为 PDF 并加入论文库；不上传，也不发送给 AI"
+               : "Converts the document to a PDF on this Mac and adds it to the library — nothing is uploaded or sent to AI"
+        }
+        static var openDocument: String { zh ? "打开" : "Open" }
+        static var openDocumentHelp: String {
+            zh ? "用对应的 App（Word、Pages、Keynote…）打开邮件附件" : "Opens the attached file in its app (Word, Pages, Keynote…)"
+        }
+        static var figuresNote: String {
+            zh ? "图片和图表可能转换不全，需要时请打开原文件" : "Figures may not convert — open the original if needed"
+        }
+        static var signInNeeded: String {
+            zh ? "需要登录 · PaperDeck 不会自动下载共享链接" : "Sign-in needed — PaperDeck never downloads it for you"
+        }
+        static var converting: String { zh ? "正在本机转换为 PDF…" : "Converting to PDF on this Mac…" }
+        /// A merged document row whose stored original went into the paper folder: 「原 .docx 文件随论文保存」.
+        static func keptOriginal(_ ext: String?) -> String {
+            guard let ext else { return zh ? "原文件随论文保存" : "The original file is kept with the paper" }
+            return zh ? "原 .\(ext) 文件随论文保存" : "The original .\(ext) is kept with the paper"
+        }
+        static var dropExported: String { zh ? "导出为 PDF 后拖到这里" : "Export as PDF and drop it here" }
+        static var dropShared: String { zh ? "下载后把 PDF 拖到这里" : "Download it, then drop the PDF here" }
+        static var dropSharedHelp: String {
+            zh ? "在浏览器里登录并下载；如果是 Word 或 PowerPoint 文件，先打开它并导出为 PDF"
+               : "Sign in and download it in your browser; for a Word or PowerPoint file, open it and export a PDF first"
+        }
+        static var dropExportedHelp: String {
+            zh ? "点「打开」，在 App 的「文件」菜单里导出 PDF（Keynote / Pages：导出为 ▸ PDF；Word / PowerPoint：导出…），再把 PDF 拖到这里"
+               : "Click Open and export a PDF from its File menu (Export To ▸ PDF in Keynote and Pages, Export… in Word and PowerPoint), then drop the PDF here"
         }
 
         // MARK: Detail inspector
@@ -313,6 +388,18 @@ extension L {
         static var confirmOne: String { zh ? "合并" : "Add" }
         static func confirmMany(_ n: Int) -> String { zh ? "合并（\(n)）" : "Add (\(n))" }
         static var fromRule: String { zh ? "默认值来自发件人规则" : "Defaults come from the sender rule" }
+        static var convertTitle: String { zh ? "转换为 PDF 并合并" : "Convert to PDF & Add" }
+        static var convertConfirm: String { zh ? "转换并合并" : "Convert & Add" }
+        static var convertLocalNote: String {
+            zh ? "在这台 Mac 上转换，不上传，也不发送给 AI" : "Converted on this Mac — nothing is uploaded or sent to AI"
+        }
+        /// The convert popover: what the conversion does with figures (`DocumentConverter`).
+        static var figuresPlacementNote: String {
+            zh ? "图片可能集中放到文末，部分图片和复杂排版可能丢失" : "Figures may be moved to the end; some figures or complex layouts may be lost"
+        }
+        static var keepOriginalNote: String {
+            zh ? "原文件会和 PDF 一起保存在论文文件夹里" : "The original file is kept next to the PDF in the paper's folder"
+        }
 
         // MARK: Toasts
 
@@ -334,6 +421,17 @@ extension L {
             zh ? "没有可以合并的论文：需要 PDF 的请把 PDF 拖到对应的行" : "Nothing to add yet — drop PDFs on the rows that need one"
         }
         static var downloadFailed: String { zh ? "下载没有成功，请在浏览器中下载后拖到这一行" : "The download didn't work — download it in your browser and drop it on the row" }
+        static func converted(_ title: String) -> String { zh ? "已转换为 PDF 并合并：\(title)" : "Converted to PDF and added: \(title)" }
+        static var convertFailed: String {
+            zh ? "无法转换这个文档：请打开它，导出为 PDF 后拖到这一行" : "Couldn't convert this document — open it, export a PDF and drop it on the row"
+        }
+        static var documentMissing: String {
+            zh ? "附件已不在这台 Mac 上（可能已按保留期限清除），请从邮件里重新打开"
+               : "The attachment is no longer on this Mac (the retention setting may have removed it) — open it from the email"
+        }
+        static var documentRefused: String {
+            zh ? "PaperDeck 不会打开这种文件" : "PaperDeck doesn't open this kind of file"
+        }
         static var dismissedToast: String { zh ? "已忽略这封邮件" : "Email dismissed" }
         static func snoozedToast(_ when: String) -> String { zh ? "稍后提醒：\(when)" : "Snoozed until \(when)" }
         static var syncStarted: String { zh ? "正在同步邮件…" : "Syncing mail…" }

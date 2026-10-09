@@ -19,6 +19,9 @@ package enum MailInboxRules {
         case inLibrary          // 已在库中 · In library (pending: the paper exists; linked rows)
         case merged             // 已合并 · Merged
         case skipped            // 已跳过 · Skipped
+        case convertible        // Word / RTF / ODT original stored: 「转换为 PDF 并合并」 converts it on this Mac
+        case openOnly           // slides / Pages original stored: open it, export a PDF, drop it on the row
+        case shareLink          // link to a shared file (SharePoint, Box, Google Drive…): sign in, download, drop
     }
 
     /// The chip of one row. Merged / linked / skipped rows show their outcome; pending rows
@@ -36,12 +39,22 @@ package enum MailInboxRules {
     /// The chip for the row's PDF state alone (also what a skipped row would offer again).
     static func pdfChip(_ item: MailItem) -> ItemChip {
         switch item.pdfState {
-        case .hasPDF: return item.origin == .attachment ? .attachment : .downloaded
+        case .hasPDF: return item.origin == .attachment || item.origin == .document ? .attachment : .downloaded
         case .downloading: return .downloading
-        case .needsPDF: return .needsPDF
+        case .needsPDF: return item.origin == .shareLink ? .shareLink : .needsPDF
         case .inLibrary: return .inLibrary
-        case .downloadable, .unknown: return hasDownloadSource(item) ? .downloadable : .needsPDF
+        case .downloadable, .unknown:
+            if hasDownloadSource(item) { return .downloadable }
+            return item.origin == .shareLink ? .shareLink : .needsPDF
+        case .convertible: return item.documentPath != nil ? .convertible : .needsPDF
+        case .openOnly: return .openOnly
         }
+    }
+
+    /// A row waiting for the user's PDF: 「把下载好的 PDF 拖到这里」 applies (needs a PDF, a shared
+    /// file, slides to export — and, as a sole-row fallback, a convertible document).
+    static func waitsForUserPDF(_ chip: ItemChip) -> Bool {
+        chip == .needsPDF || chip == .shareLink || chip == .openOnly
     }
 
     /// The merge would find a locally extracted PDF link (arXiv, bioRxiv / medRxiv, direct `.pdf`)
@@ -63,6 +76,8 @@ package enum MailInboxRules {
         package static let skip = ItemActions(rawValue: 1 << 5)             // 跳过
         package static let acceptsDrop = ItemActions(rawValue: 1 << 6)      // a dropped PDF becomes this row's paper
         package static let dropBox = ItemActions(rawValue: 1 << 7)          // show 「把下载好的 PDF 拖到这里」
+        package static let convertAndMerge = ItemActions(rawValue: 1 << 8)  // 转换为 PDF 并合并 (Engine.convertAndMergeMailItem)
+        package static let openDocument = ItemActions(rawValue: 1 << 9)     // 打开文档 (Engine.openMailDocument → NSWorkspace)
     }
 
     package static func actions(_ item: MailItem) -> ItemActions {
@@ -85,12 +100,15 @@ package enum MailInboxRules {
         case .inLibrary:
             a.insert(.merge)
             if item.paperID != nil { a.insert(.openCard) }
-        case .downloading, .needsPDF, .merged, .skipped:
+        case .convertible:
+            a.insert(.convertAndMerge)
+        case .downloading, .needsPDF, .merged, .skipped, .openOnly, .shareLink:
             break
         }
+        if item.origin == .document, item.documentPath != nil { a.insert(.openDocument) }
         if item.status == .pending { a.insert(.skip) }
         if chip != .inLibrary && chip != .downloading { a.insert(.acceptsDrop) }
-        if item.status == .pending && chip == .needsPDF { a.insert(.dropBox) }
+        if item.status == .pending && waitsForUserPDF(chip) { a.insert(.dropBox) }
         return a
     }
 
@@ -127,7 +145,9 @@ package enum MailInboxRules {
             switch pdfChip(item) {
             case .attachment, .downloaded, .downloadable: return true
             case .inLibrary: return item.paperID != nil
-            case .downloading, .needsPDF, .merged, .skipped: return false
+            // A document converts on its own button (the user sees the caveat); a shared file or
+            // slides need the user's PDF.
+            case .downloading, .needsPDF, .merged, .skipped, .convertible, .openOnly, .shareLink: return false
             }
         }.sorted { ($0.ord, $0.pk) < ($1.ord, $1.pk) }
     }
@@ -253,7 +273,7 @@ package enum MailInboxRules {
             if let best = scored.max(by: { $0.1 < $1.1 }) { return best.0 }
         }
         guard soleFallback else { return nil }
-        let waiting = open.filter { pdfChip($0) == .needsPDF }
+        let waiting = open.filter { waitsForUserPDF(pdfChip($0)) || pdfChip($0) == .convertible }
         guard waiting.count == 1, let only = waiting.first, !conflicts(only) else { return nil }
         return only
     }

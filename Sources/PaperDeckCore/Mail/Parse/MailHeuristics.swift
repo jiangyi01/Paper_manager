@@ -10,6 +10,10 @@ import Foundation
 ///   [received − 1 day, received + 180 days], with the verbatim evidence (≤ 80 chars).
 /// - `ReadingCriteria`: exclude keywords → not relevant / 「无阅读需求」; include keywords and
 ///   research-interest overlap → highlighted; alert digests highlight at most `maxAlertPapers`.
+/// - Documents and shared files: a person's or an advisor's email carrying a Word / slides
+///   attachment or a link to a shared file (`MailItemOrigin.document` / `.shareLink`) is a reading
+///   candidate — kind by the same phrase rules (request / journal club, else FYI), kept in 待处理
+///   (`keepsDocumentPending`), with a slightly higher confidence for an FYI.
 /// Mail text is untrusted: an alert that says "urgent, deadline tomorrow" gets neither.
 package enum MailHeuristics {
 
@@ -78,7 +82,7 @@ package enum MailHeuristics {
         case .advisorRequest, .journalClub:
             confidence = 0.7 + (cands.isEmpty ? 0 : 0.15) + (due != nil ? 0.05 : 0) + (senderKind == .advisor ? 0.05 : 0)
         case .alertDigest: confidence = highlighted > 0 ? 0.8 : 0.65
-        case .fyi: confidence = highlighted > 0 ? 0.6 : 0.5
+        case .fyi: confidence = highlighted > 0 || (isPerson && hasDocuments(cands)) ? 0.6 : 0.5
         case .other: confidence = 0.4
         case .notPaper: confidence = 0.15
         }
@@ -96,6 +100,20 @@ package enum MailHeuristics {
             confidence: confidence
         )
         return (triage, relevance)
+    }
+
+    /// The candidates include an attached document or a link to a shared file.
+    package static func hasDocuments(_ cands: [MailCandidate]) -> Bool {
+        cands.contains { $0.origin == .document || $0.origin == .shareLink }
+    }
+
+    /// A person's or an advisor's email with an attached document or a shared-file link stays in
+    /// 待处理 whatever the 「作为阅读需求保留」 kinds say — the manuscript must not vanish into
+    /// 「无阅读需求」 — unless the user's exclude keywords made it `notPaper`.
+    package static func keepsDocumentPending(_ triage: MailTriage, candidates: [MailCandidate],
+                                             senderKind: SenderKind) -> Bool {
+        guard senderKind == .advisor || senderKind == .person, triage.requestKind != .notPaper else { return false }
+        return hasDocuments(candidates)
     }
 
     // MARK: - Body parts
@@ -168,7 +186,7 @@ package enum MailHeuristics {
             : body.range(of: "\n" + MailExtractor.forwardedLabel + "\n")?.lowerBound
 
         func inUnique(_ c: MailCandidate) -> Bool {
-            if c.origin == .attachment { return true }
+            if c.origin == .attachment || c.origin == .document { return true }
             var pos = body.range(of: "[\(c.cand) ")?.lowerBound
             if pos == nil, c.origin == .identifier, let key = c.ids.doi ?? c.ids.arxivID {
                 pos = body.range(of: key, options: .caseInsensitive)?.lowerBound
@@ -182,7 +200,7 @@ package enum MailHeuristics {
         let listed = cands.filter { !inUnique($0) }
         let refs = references(in: unique)
         // "#N" counts entries of the forwarded list, else the listed links (attachments are not numbered).
-        let linked = cands.filter { $0.origin != .attachment }
+        let linked = cands.filter { $0.origin != .attachment && $0.origin != .document }
         let pool = !listed.isEmpty ? listed : (linked.isEmpty ? cands : linked)
         let referenced = Set(refs.compactMap { $0 <= pool.count ? pool[$0 - 1].cand : nil })
 
@@ -198,7 +216,7 @@ package enum MailHeuristics {
         }
 
         // "see #3" narrows the choice to the referenced entries (attachments always count as chosen).
-        let attachments = Set(cands.filter { $0.origin == .attachment }.map(\.cand))
+        let attachments = Set(cands.filter { $0.origin == .attachment || $0.origin == .document }.map(\.cand))
         let uniqueCands = Set(cands.filter(inUnique).map(\.cand))
         let chosen = referenced.isEmpty ? uniqueCands : referenced.union(attachments)
 

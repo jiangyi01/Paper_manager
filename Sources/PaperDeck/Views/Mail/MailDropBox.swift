@@ -5,8 +5,12 @@ import PaperDeckCore
 /// the row's buttons), 「松手作为这篇的 PDF」 while a single PDF hovers the row. The drop itself is
 /// received by the window's `DropHostingView` (file promises need AppKit) through
 /// `DropTargetRegistry`; clicking the box is 「选择 PDF…」 (the keyboard / accessibility path).
+/// Document rows say what to do first: 「导出为 PDF 后拖到这里」 (slides, Pages) or
+/// 「下载后把 PDF 拖到这里」 (a cloud share link) — `caption`, with `detail` as the tooltip.
 struct MailDropBox: View {
     let targeted: Bool
+    var caption: String = L.Mail.dropHere
+    var detail: String?
     let onChoose: () -> Void
 
     var body: some View {
@@ -15,7 +19,7 @@ struct MailDropBox: View {
                 Image(systemName: targeted ? "arrow.down.doc.fill" : "arrow.down.doc")
                     .font(.system(size: 11, weight: .medium))
                     .symbolEffect(.bounce, value: targeted)
-                Text(targeted ? L.Mail.dropRelease : L.Mail.dropHere)
+                Text(targeted ? L.Mail.dropRelease : caption)
                     .font(.system(size: 11, weight: targeted ? .semibold : .regular))
                     .lineLimit(1)
             }
@@ -34,9 +38,9 @@ struct MailDropBox: View {
         // (the row's flow layout offers it the line's width) instead of overflowing the row.
         .fixedSize(horizontal: false, vertical: true)
         .animation(.easeOut(duration: 0.12), value: targeted)
-        .help(L.Mail.dropHere + " · " + L.Mail.choosePDF)
+        .help((detail ?? caption) + " · " + L.Mail.choosePDF)
         .accessibilityLabel(L.Mail.choosePDF)
-        .accessibilityHint(L.Mail.dropHere)
+        .accessibilityHint(caption)
     }
 }
 

@@ -1,262 +1,144 @@
 # PaperDeck
 
-macOS 论文阅读管理工具：把论文 PDF 拖进来，它会入库、生成阅读清单和 DDL，按每天的阅读量排好计划，每天提醒一次（默认 11:00，可修改）。可选：用你自己的 **Claude 订阅**（官方 Claude Code CLI）或 **ChatGPT 订阅**（官方 Codex CLI）阅读论文、生成英文卡片（TL;DR、总结、贡献、方法、结果、局限、关键术语、分类、标签、阅读清单）——两种都走订阅登录，不用 API key；也可以从邮件里收集阅读请求。
+**English** · [简体中文](README.zh-CN.md)
 
-英文用户指南见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md)；应用内的帮助中心（**帮助 ▸ PaperDeck 帮助**，⌘?）内容相同，并会实时检查你这台 Mac 的状态。
+PaperDeck is a macOS app for managing the papers you need to read. Drop a PDF on it and it files the paper into a tidy library, writes a reading checklist, schedules a reading deadline that fits your daily reading budget, and reminds you once a day what is left. Optionally it reads papers for you with **your own Claude or ChatGPT subscription** — through the official Claude Code CLI or Codex CLI, never an API key — and turns them into cards (TL;DR, summary, contributions, methods, results, limitations, key terms, category, tags, checklist). It can also collect reading requests from your email, answer questions about a paper with page citations, and explain any passage, figure or equation you point at, in any app.
 
-## 快速开始
+The full user guide is in [docs/USER_GUIDE.md](docs/USER_GUIDE.md). The same content is available in the app (**Help ▸ PaperDeck Help**, ⌘?), where every step checks your Mac's real state.
 
-1. **获取应用**
-   - **别人发给你的**：解压后，第一次打开**之前**先把 PaperDeck.app 移到「应用程序」文件夹；macOS 提示无法检查时，打开「系统设置 ▸ 隐私与安全性」点「仍要打开」。详见 [docs/INSTALL_RECIPIENT.md](docs/INSTALL_RECIPIENT.md)。
-   - **自己构建**：只需 Command Line Tools，见下文「构建」和 [docs/BUILDING.md](docs/BUILDING.md)。
-2. **首次启动向导**（8 步，可跳过邮件和导入；之后可从「帮助 ▸ 设置助手…」重新打开）：
-   - **欢迎**：可切换中文；「快速开始」用推荐设置（论文库在「文稿/PaperDeck」、暂不用 AI、邮件关闭）；也可以选「我从另一台 Mac 迁移过来…」或「使用实验室或 IT 给的配置文件…」。
-   - **关于你**：研究领域（11 个）、阶段、「AI 怎样理解你」、研究兴趣、机构 AI 规定。
-   - **AI 解读**：自动检测 Claude Code 与 Codex CLI 是否已安装、已登录（不消耗额度）。可以「暂不使用」；只有点「开启」才会开始用订阅额度。
-   - **论文库**：在创建之前先选位置——「文稿」（「文稿」同步到 iCloud 时改用个人文件夹 ~/PaperDeck）、其他文件夹，或「使用已有的 PaperDeck 论文库…」。第一次会弹「访问文稿文件夹」，点允许。
-   - **每日计划与提醒**、**邮件**（可选）、**导入已有论文**（可选：例如「下载」文件夹或你存放 PDF 的文件夹；复制导入，APFS 克隆几乎不占额外空间，原文件不动）、**完成**（可以看 1 分钟功能导览）。
-3. **拖入论文**：之后直接往屏幕边缘的竖条拖 PDF 即可。「今天」页上的**入门清单**会列出剩下值得做的几件事，并在 PaperDeck 看到完成时自动打勾。
+## Features
 
-> 界面默认是 **English**；设置 ▸ General ▸ Language 可随时切换为中文（通知、小组件跟随界面语言）。AI 生成的卡片内容始终为英文。
+- **Drop anywhere** — a slim panel at the screen edge expands when you start dragging a PDF, folder or PDF link; also the menu-bar icon, Finder *Open With*, the main window and the Dock.
+- **Library cards** — Today / To Read / Reading / Read / categories / Recently Deleted, with a card grid and a detail inspector (⌘I). Papers are stored as readable folders (`2025_Author_Title/…pdf`, `card.json`, `notes.md`); the database can always be rebuilt from those files.
+- **Checklist, deadlines and a daily reminder** — deadlines are placed against your daily reading budget; one notification per day (11:00 by default) lists what to read, with *Skip today* and *Remind me in 1 hour*.
+- **AI reading cards** (optional) — Claude Code CLI or Codex CLI, using your subscription login only. Off until you turn it on.
+- **Duplicate check** — SHA-256, DOI/arXiv (incl. both bioRxiv prefixes), preprint ↔ published links, and title/text similarity; a decision sheet offers *Keep the new one / Re-read the earlier one / Keep both / Skip*. Nothing is replaced, merged or deleted without your click.
+- **Multi-select and batch actions** — status, priority, category, tags, deadline, delete (with undo), export (BibTeX / RIS / CSV / Markdown), re-read with AI, duplicate check.
+- **Ask** — questions about one paper (or up to 10 selected papers) with streamed answers and `p. N` citations that open the built-in reader at the cited sentence.
+- **Explain** — press ⌃⌥E in any app (Preview, a browser, Acrobat, Skim, the PaperDeck reader…), drag a box or use the magnifier, and get an explanation next to the text; copy-then-⌃⌥E and the Services menu work without any permission.
+- **Minimal PDF reader** — thumbnails, page labels, find, page memory, *Copy as citation*, region capture; Preview stays the default PDF opener.
+- **Mail** — capture reading requests from allowlisted senders (advisors, collaborators, paper alerts) via a Microsoft 365 Power Automate folder, IMAP with an app password, or by dragging emails in; PDF attachments, Word manuscripts and paper or share links become rows you can merge into the library.
+- **Desktop widget** (display only) and a menu-bar summary.
+- **Portable configuration** — institution and field presets, settings export/import (never passwords), "use an existing library" for moving to another Mac, an 8-step first-run guide and an in-app Help Center.
 
-## 入口
+## Requirements
 
-- **悬浮投递窗**：屏幕边缘的竖条。在任何地方开始拖 PDF、文件夹或 PDF 链接时自动展开；松手即导入。悬停显示今日清单。
-- **菜单栏图标**：今日数量、今日清单、AI 解读状态（Claude / ChatGPT）；图标本身也能拖入。菜单里的「帮助与设置」可以打开帮助中心和设置助手。
-- **Finder「打开方式 → PaperDeck」**、`open -a PaperDeck x.pdf`、主窗口拖入、Dock 拖入（主窗口打开时）。
-- **主窗口（卡片库）**：今天 / 待读 / 在读 / 已读 / 分类 / 最近删除，卡片网格 + 详情 inspector（⌘I）。
-- **桌面小组件**（只展示）：桌面右键 → 编辑小组件 → 搜索 PaperDeck →「今日待读」「最近添加」。
-- **每日提醒**：每天一条（默认 11:00，可在 设置 ▸ 阅读计划与提醒 中修改），列出今天要读的论文，末行是待读总数；可「今天跳过」「1 小时后提醒」。
-- **邮件**：侧栏「邮件」（Mail）收集导师 / 同事 / 论文提醒邮件里的阅读请求，见下文「邮件」。
-- **讲解**：任何 App 里按 ⌃⌥E（或右键 ›「服务」›「Explain with PaperDeck」，或先 ⌘C 再按 ⌃⌥E），在原文旁边讲解一段文字、一张图或一个公式，见下文「讲解」。菜单栏里有「讲解…」「讲解已复制的文字」「讲解记录」。
+- macOS 26 or later (Apple silicon tested).
+- To build: Xcode **Command Line Tools** only (`xcode-select --install`); Xcode itself is not needed.
+- Optional AI: the [Claude Code CLI](https://claude.ai/install.sh) signed in with a Claude subscription, and/or the Codex CLI signed in with ChatGPT (bundled with the ChatGPT desktop app, or `brew install --cask codex`).
 
-## 帮助中心（⌘?）
-
-**帮助 ▸ PaperDeck 帮助**（菜单栏「帮助与设置」里也有）：
-
-- **入门清单**：论文库、第一篇论文、AI 选择、提醒、登录时打开、小组件、邮件、设置备份——每一项都实时检查并自动打勾。
-- **功能导览**：7 页，每页都有「演示给我看」按钮，直接指向真实界面。
-- **分步教程**：各种邮件路线、AI 设置与切换账号、论文库位置、换 Mac、查重、多选、提问、阅读器、讲解、为「讲解」开启屏幕录制、你的领域与机构、分享给同事、从源代码构建。
-- **故障排查**：当前适用的条目排在最前（同样的内容见 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)）。
-- **诊断信息**：版本、签名、论文库、AI 状态（不耗额度）、通知、小组件、邮件账户和配置；「复制诊断信息…」会先预览，个人文件夹显示为 `~`、邮箱地址遮盖，从不包含论文标题、邮件主题或密码。
-
-设置页旁的「?」按钮和 `paperdeck://help/<主题>` 链接打开对应的主题。
-
-## AI 解读（Claude / ChatGPT / 不使用 AI）
-
-两种服务都只用你自己的订阅登录，**不用 API key**，并且在你打开之前不发送任何内容、不消耗额度。只需要其中一个。
-
-| | Claude | ChatGPT（Codex） |
-|---|---|---|
-| 安装 | `curl -fsSL https://claude.ai/install.sh \| bash` | ChatGPT 桌面版已内置（PaperDeck 会自动找到），或 `brew install --cask codex` |
-| 登录 | 终端运行 `claude`，输入 `/login`，选 Claude 订阅账号（claude.ai） | `codex login`，选 **Sign in with ChatGPT**；`codex login status` 应显示 `Logged in using ChatGPT` |
-
-然后在 设置 ▸ AI 解读 点「我已登录」，选择解读服务并打开「AI 解读」总开关。一次拖入超过 3 篇时会先询问是否全部解读。可以先点「测试连接」试一次（占用少量额度）。
-
-- **切换服务**：设置 ▸ AI 解读 顶部的「解读服务」随时可以在 Claude 和 ChatGPT 之间切换：正在解读的那篇用原来的服务读完，排队中的用新的服务。两个服务的额度分开计算。
-- **切换账号**：Claude 在 `claude` 里 `/logout` 再 `/login`；ChatGPT `codex logout` 再 `codex login`；然后点「我已登录」。见 [docs/guides/DIFFERENT_ACCOUNT.md](docs/guides/DIFFERENT_ACCOUNT.md)。
-- **模型**：ChatGPT 默认 GPT-5.6-Terra（均衡）；GPT-5.6-Sol 更深入、消耗更多额度；GPT-5.6-Luna 更快更省。列表来自 Codex CLI 的本机缓存，可用模型取决于你的套餐。
-- **额度**：用量达到上限时，该服务自动暂停到重置时间再继续（Claude 与 ChatGPT 分别暂停）；运行日志（设置 ▸ AI 解读）记录每次的服务、模型、用时，以及 Claude 的估算成本或 ChatGPT 的 token 数。
-- **安全**：每次调用前都确认仍是订阅登录（Claude `authMethod == claude.ai`；Codex 必须是 ChatGPT 登录，API key 或 access token 登录会被拒绝，所以不会产生 API 计费）。子进程环境变量是白名单，`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`CODEX_API_KEY` 之类永远传不进去；Codex 以 `--sandbox read-only`、`--ignore-user-config` 运行并关闭所有工具类功能；论文文本作为不可信数据发送，模型没有任何工具权限。检测（`--version`、登录状态）不耗额度。
-- **不使用 AI**：仍然有本机生成的阅读清单、标题 / DOI / arXiv 查询、DDL、每日计划和提醒、搜索、小组件，以及按本机规则分拣的邮件；没有 TL;DR、总结、AI 分类和 AI 邮件分拣。以后打开 AI 时，设置 ▸ AI 解读 可以为期间加入的论文排队解读。
-- **你的领域**：设置 ▸ 个人资料 的研究领域和阶段决定新论文库的起始分类、解读卡片的读者设定和示例；「AI 怎样理解你」是随每篇论文发给 AI 的一行文字（最多 200 字符），「显示随每篇论文发送的说明」可以看到完整内容。
-
-## 讲解（Explain）
-
-在「预览」、浏览器、Acrobat、Skim、PaperDeck 阅读器等任何显示论文的 App 里，把一段文字、图、表或公式的简短讲解放在它旁边，用的是你自己的 Claude / ChatGPT 订阅。和「提问」共用 **设置 ▸ 讲解与问答** 的开关：**默认关闭**，打开本身不发送任何内容；每次讲解都要你在 PaperDeck 里亲手触发（拖框、点击、回车或面板上的按钮）——快捷键本身和服务菜单的请求都不会发送任何内容，每次计一次额度。
-
-- **入口**：快捷键 **⌃⌥E**（只在「讲解与问答」打开时生效；可在 设置 ▸ 讲解与问答 ▸ 讲解 ▸ 快捷键 修改，被其他 App 占用时会提示）或菜单栏「讲解…」会让所有显示器变暗；菜单栏和主窗口的「讲解」菜单里还有「讲解已复制的文字」「讲解记录」。快捷键不响应时（别处的密码框会拦截快捷键）用菜单栏。
-- **不需要任何权限的方式**：
-  - **先复制再按快捷键**：选中文字按 ⌘C，再按 ⌃⌥E，遮罩上出现「讲解已复制的文字 ⏎」，按回车（或点它）即可；连按两次 ⌃⌥E 会把这个提示再显示出来（即使这段文字讲解过），仍要按回车才发送。按回车之前 PaperDeck 只知道剪贴板有没有新内容，不读取内容本身。
-  - **服务菜单**：选中文字右键 ›「服务」›「Explain with PaperDeck」：面板带着这段文字和「发送」按钮打开，按回车或点「发送」之前不会发出任何内容（别的 App 调用这个服务也发不出去）；「Ask PaperDeck…」打开带提问框的面板，提问前不发送任何内容。大多数 App 都可以用，也可以在 系统设置 ▸ 键盘 ▸ 键盘快捷键 ▸ 服务 里给它指定快捷键。
-  - **截图**：⌃⇧⌘4 把一块屏幕截图拷到剪贴板，再按 ⌃⌥E 和回车。
-  - **拖入图片**：把截图缩略图或 PNG / JPEG 拖到屏幕边缘的竖条、菜单栏图标、主窗口或讲解面板上；拖进来的东西里只要有 PDF、文件夹或邮件，就和以前一样导入。
-- **开启「屏幕录制」后**：在变暗的屏幕上**拖一个框**讲解框里的内容，或**点一下**讲解鼠标下的那一段（点在图表上只发送那张图或点击处附近的一小块，绝不多发；什么都看不清时遮罩会提示，不发送）；按**空格**切换到**放大镜**（跟着鼠标走，滚动缩放 1.5×–6×），点一下讲解这一段，⇧ 点击讲解一个术语。松开或点击时按住 **⌥** 当作图片发送（框选发送这个框，点击发送鼠标下按边缘找出的那张图）；**Tab** 切换这次的回答语言；**Esc** 或右键取消；切换空间、显示器变化或睡眠时遮罩自动关闭，不发送。
-- **屏幕录制**（只有框选和放大镜需要）：按 ⌃⌥E 后在卡片上点「开启屏幕截取…」，先看清会截取、发送和保留什么，再点「继续」由 macOS 询问一次；之前点过「不允许」的话，到 系统设置 ▸ 隐私与安全性 ▸ 录屏与系统录音 打开 PaperDeck（卡片上和 设置 ▸ 讲解与问答 ▸ 讲解 ▸ 屏幕录制 都有「打开系统设置」）。macOS 会要求退出并重新打开 PaperDeck。打开遮罩时 PaperDeck 给每个显示器定格一张画面（不含它自己的窗口），你就在这张画面上框选，所以讲解的正是你看到的内容；移动鼠标或放大镜不会再截取，关闭遮罩后这张画面随即丢弃。macOS 之后可能不时再次确认是否允许继续录屏。
-- **讲解面板**在旁边打开，浮在所有 App 和空间（包括全屏）之上，不抢走 PDF App 的焦点：「EN | 中」（默认中文并保留英文术语），「更浅显 · 更专业 · 解释术语 · 翻译」，图片还有「讲解这张图」（⌘1–⌘5；按住 ⌥ 点击用「深入」模型），追问框（Claude 的追问约 1 秒就开始回答：对话保持打开），拷贝、钉住（最多 3 个面板，钉住的讲解会保留）、存进笔记（库里的论文：连同页码追加到笔记）、讲解记录、停止 / 重新讲解和「今天 N 次」；Esc 关闭。标题显示匹配到的论文和页码（根据窗口标题或文字在本机匹配，窗口标题从不发送），找不到时显示「不在你的论文库中」；匹配错了可以点「更换…」选另一篇或点「不是这篇」，两者都会把同一块内容重新讲解一次（新的一轮），并在本机记住这个窗口两小时。面板正在请你确认发送、或因隐私拒绝发送时不提供这两个按钮：先确认，或修改那篇论文的 AI 设置。
-- **发送的内容**：你标出的文字（框选时是 macOS 在本机识别出的文字），只有图、公式、表格、图表或你打开「以图片发送」时才发图片；库里的论文再加上标题、作者、章节和这段附近的原文。全部标记为不可信数据，模型没有任何工具。默认「快速」（Haiku / GPT-5.6-Luna），「深入」（Sonnet / GPT-5.6-Terra）用量更多。
-- **额度与隐私**：讲解和提问合计每天超过 50 次会先问你，150 次为上限。标为「不对这篇论文使用 AI」的论文永不发送；标为未发表或保密的论文、来自个人邮件且没有 DOI / arXiv 编号的论文，发送前一定先问你（「仍然发送」需要再点一次）。任何显示**邮件或聊天窗口**的内容也一样：邮件或聊天 App、浏览器里的网页邮箱或网页聊天（Gmail、Outlook、Slack、Teams、WhatsApp 等，在本机根据窗口标题识别）、通知横幅、框住了这类窗口任何一部分的框、在这类 App 里复制的文字，或从这类 App 发起的服务菜单请求，PaperDeck 自己的「邮件」收件箱也算。在 **PaperDeck 自己的阅读器或论文库**上框选或点击时，按那里显示的论文各自的设置处理：讲解的就是阅读器里的那篇论文，屏幕上有「不对这篇论文使用 AI」的论文就不发送，有保密论文就先问你。打开「每次发送前都先问我」可逐次确认。同一个按钮快速按两次只算一次。「讲解模式打开时让 Claude 预先就绪」会在遮罩打开时先启动 Claude，第一次回答更快；空闲进程不消耗额度，回答过程中绝不会被关掉，空闲 3 分钟后自动关闭（导入的或旧的设置也不能把时间拉长）。
-- **讲解记录**：完成的讲解保留 90 天（设置 ▸ 讲解 ▸ 讲解记录保留），钉住和存进笔记的一直保留。详情 inspector 的「讲解」部分列出这篇论文的讲解，「讲解记录」窗口列出全部，「在阅读器中打开 p. N」回到原处。
-- **在 PaperDeck 阅读器里**：选中文字点选区工具条的「讲解」「术语」「翻译」，或 ⌘-拖移画框后讲解：用的是原文和页码（框选部分直接从 PDF 渲染，比截图清晰），不需要任何权限，讲解记录会在阅读器中回到那里。
-
-## 提问（Ask）与阅读器
-
-- **提问**：详情 inspector 顶部分「概览 | 提问」两栏，「提问」就当前论文回答问题，同样只用你自己的 Claude / ChatGPT 订阅登录。**默认关闭**，在 设置 ▸ 讲解与问答 打开（或在「提问」栏里点「使用 Claude / 使用 ChatGPT」）；与「AI 解读」互相独立，打开本身不发送任何内容。同一个开关也打开「讲解」（见上文）。
-- **每个问题计一次额度**，只有按「提问」（⌘↩）才发送；「停止」（Esc）保留已收到的部分。输入框下方显示估算（大小、发送几页、模型、预计用时、今天第几次）；每天超过 50 个问题会先问你，150 个为上限。默认「快速」（Haiku / GPT-5.6-Luna，省额度），「深入」（Sonnet / GPT-5.6-Terra）更细、用量更多；回答语言「自动 / EN / 中」（自动 = 和问题相同）。
-- **发送的内容**：论文元数据和卡片、带页码标记的正文（长论文发第一页加与问题最相关的页，上限见 设置 ▸ 讲解与问答 ▸ 每次提问发送的论文文字，默认 8 万字符）、之前的对话和问题；正文作为不可信数据标记，模型没有任何工具。
-- **引用**：回答里的「p. 3（印刷页码 1203）」等页码芯片，点按后在阅读器中打开到该页并高亮依据句；页码不存在时变灰，该页找不到依据时为虚线框（请自己核对）。回答可「拷贝」「存入笔记」（附问题、时间、模型；重复保存只存一次）、「深入回答」「用中文 / 英文回答」「删除」；每篇论文的问答按对话保存。
-- **隐私**：标为「不对这篇论文使用 AI」的论文永不发送；标为「未发表 / 保密」、来自保密或可能未发表邮件、或来自个人邮件且没有 DOI / arXiv 编号的论文会先问你，「仍然发送」需要再点一次。问答存在本机数据库；单篇且不属于上述情况的论文还会在论文文件夹写 `qa.json`（「从文件夹重建索引」时恢复），标为私密后即删除。
-- **跨多篇提问**：选中 2 篇以上，点选择栏（或右键菜单、多选 inspector）里的「提问」，打开提问窗口：论文标为 P1…Pn（最多 10 篇，可移除），上下文可选「卡片」（最省）、「摘录」（按问题挑页）或「全文」（最多 3 篇）；引用写作「P2 · p. 5」，存入笔记可选一篇或全部。
-- **阅读器**：简单的内置 PDF 阅读器。**打开 PDF 默认仍用「预览」**；点按引用或清单里的「p. N」会在阅读器中打开到该页，右键菜单「在 PaperDeck 阅读器中打开」，或在 设置 ▸ 通用 ▸ 打开 PDF 使用 选「PaperDeck 阅读器」。有缩略图、页码框（也接受印刷页码）、缩放（⌘= / ⌘- / ⌘0 / ⌘9）、查找（⌘F，⌘G / ⇧⌘G）、「在「预览」中打开」；选中文字可「拷贝」「拷贝为引文」「提问」，⌘-拖移（或「框选区域」）可拷贝清晰图像或文字；每篇记住上次的页码；高亮只是临时的，从不修改 PDF 文件。
-
-## 论文库与多台 Mac
-
-```
-<论文库>/Papers/2025_Author_Title-of-the-paper/
-    <同名>.pdf   card.json   notes.md   qa.json（有提问记录时）
-~/Library/Application Support/PaperDeck/   library.sqlite（索引）、文本缓存、每日备份
-~/Library/Caches/PaperDeck/                缩略图、临时文件
-```
-
-- 论文库默认在 `~/Documents/PaperDeck`，可以放在任何文件夹、云同步文件夹或外置磁盘上。云文件夹（iCloud 云盘、Dropbox、Google 云端硬盘、OneDrive）**同一时间只在一台 Mac 上使用**，并保持文件已下载；外置磁盘连接时才能用，没连接时 PaperDeck 会请你连接，绝不自行改用别的文件夹。
-- **更换论文库**（设置 ▸ 资料库与存储 ▸ 更改…）：先检查所选文件夹——是你自己的论文库（移动过）、另一个 PaperDeck 论文库（切换过去，原来的保持不动，先备份索引），还是空文件夹（新建）；重启后生效。要移动论文库：退出 PaperDeck，在 Finder 中移动文件夹，再用「更改…」选择新位置。
-- 导入用 APFS 克隆：同一磁盘上几乎不占额外空间；原文件永不修改（「移动」模式才会把原文件移到废纸篓）。
-- **查重**：按内容 SHA-256、DOI/arXiv（含 bioRxiv 10.1101/10.64898 两种前缀）、预印本 ↔ 正式发表版本、以及标题和正文判断。相同文件或编号时新文件先等待并弹出决定面板（保留新的 / 重读旧的 / 两篇都留 / 跳过）；很可能是同一篇时新论文加入但先等待（卡片上有「重复？」标记，决定前不排 DDL、不做 AI 解读）；可能是同一篇时只在检查器里提示。侧栏「可能重复」列出待处理的问题，「资料库 ▸ 检查重复…」检查整个库或选中的论文；每个决定 30 秒内可撤销，未经点按不会替换、合并或删除任何内容。设置 ▸ 资料库与存储 ▸ 重复检查 可关闭（关闭后与以前一样只对相同 DOI/arXiv 询问「替换 / 忽略」）、调灵敏度、选择是否记住已删除的论文（只留标题、编号和阅读时间）。查重在本机进行，不发送给 AI。多个问题一起出现时（一次导入、一次检查或「可能重复 ▸ 逐个处理」）用一个批量面板：每行先选好建议的处理，「全部设为」一次改所有可行的行，可逐行修改或打开「详情…」，应用后 30 秒内一次撤销全部。可选的「问 AI」（默认关闭；在 设置 ▸ 资料库与存储 ▸ 重复检查 打开，并需要打开「讲解与问答」）：只在你点按时运行，每天最多 10 次，用快速模型，只发送书目信息、摘要和首页摘录（不发笔记和清单），私密或可能未发表的论文永不发送；AI 只在「很可能」和「可能」之间调整，从不替换、合并或删除。从邮件合并单篇论文时先显示它像库里的哪一篇：「关联到这篇」「关联并重读」「使用邮件中的版本」（DOI / arXiv 一致时用邮件的 PDF 替换库里的文件）或「作为另一篇添加」（匹配较弱时的默认）。
-- **多选**：⌘-点按 / ⇧-点按，论文列表有焦点时方向键（⇧ 扩展）、⌘A 全选、Esc 取消；工具栏「选择 ▾」可选全部、最近添加的、最早到期的待读、最近打开的。选择栏和右键菜单一次修改状态、优先级、分类、标签、DDL，移到「最近删除」或恢复，检查重复，导出 BibTeX / RIS / CSV / Markdown（只有题录信息）；每次批量修改 30 秒内可一步撤销（之后改动过的论文不受影响）。用 AI 解读所选论文会先确认，只在 AI 解读打开时排队。
-- 删除进「最近删除」，30 天后才真正移到废纸篓。
-- 索引损坏或丢失时可从每篇的 `card.json` 完整重建（设置 ▸ 资料库与存储 ▸ 从文件夹重建索引）；「重建全文索引」会在本机重新读取 PDF，让搜索能找到正文（换 Mac 后有用，不耗额度）。
-- 启动时数据库打不开（磁盘已满、升级失败、已被更新版本的 PaperDeck 升级），或 PaperDeck 自己的数据文件夹无法创建时，会说明原因（不删除任何内容），按钮为「退出」「重试」等；论文库所在的磁盘没连接时提供「重试」「选择其他文件夹…」「退出」。
-- 元数据（标题、作者、期刊、年份）来自免费公开库 Crossref / arXiv / bioRxiv / OpenAlex，可在设置里关闭。
-- **换一台 Mac**：旧 Mac 上先「设置 ▸ 通用 ▸ 导出设置…」（不含任何密码），再退出 PaperDeck，把论文库文件夹复制过去；新 Mac 上「使用已有的 PaperDeck 论文库…」，再「导入设置…」（AI 解读和邮件保持关闭；IMAP 账户需要重新输入应用专用密码；发件人和账户按 id 合并，这台 Mac 已有的会保留；在隐私或 AI 额度上这台 Mac 更严格的设置保持不变，除非你逐项勾选），最后「重建全文索引」。见 [docs/guides/MOVE_TO_ANOTHER_MAC.md](docs/guides/MOVE_TO_ANOTHER_MAC.md)。
-- **两台 Mac 共用**：一次只在一台上用；换到另一台后在那台上「从文件夹重建索引」。邮件卡片、AI 记录和暂停状态留在各自的 Mac 上。
-
-## 邮件
-
-PaperDeck 可以从邮件里收集**阅读请求**：导师或同事请你读 / 汇报的论文、组会论文、分享的论文，以及 Google Scholar、bioRxiv、arXiv、期刊目录等论文提醒。每封相关邮件在侧栏「邮件」里变成一张卡片：谁发的、要做什么、邮件里的截止日期，以及其中的每一篇论文（附件 PDF / 可下载 / 需要 PDF / 已在库中），可以逐篇或一键合并进论文库，并记下来源。
-
-> 界面默认 English：设置 ▸ Mail（中文界面为 设置 ▸ 邮件）。下面按中文界面描述。
-
-**它做什么**
-
-- 只打开**发件人列表**中的邮件（只读）；其他邮件连正文都不会读取，也不会存下任何内容。从不发信、不标记已读、不移动或删除邮件。
-- 邮件到达后先用**本机规则**立即分拣：是不是阅读请求、请求类型、截止日期（「before Thursday」「10月3日前」；「3/10」这类日期按月 / 日还是日 / 月读，可在「什么算阅读需求」里设置）、邮件里的论文（附件、arXiv / bioRxiv / DOI / 出版社链接、提醒里的条目；Safe Links / Proofpoint 包装的链接会先还原用于识别）。
-- 论文提醒可以自动交给 AI 细分（从一封提醒里挑出和你研究相关的几篇）；导师 / 同事的邮件默认**不发给 AI**，要你在卡片上点「让 AI 分析」才会发送。机密邮件永远不会被自动发出去（见下文「隐私与机构 AI 规定」）。
-- 合并时导师的请求默认高优先级；邮件中明确的截止日期可以固定为 DDL（合并时你确认）；新论文的笔记里写一行「来自邮件：…」；card.json 里记录来源（provenance）。
-- 每日提醒会多一行「邮件待处理 3 封（1 封导师请求）」（可关闭）；可选「有新的阅读请求时通知我」（默认关闭，只显示发件人名字和主题）。
-
-**添加账户（设置 ▸ 邮件 ▸ 账户 ▸ 添加账户…）**——按你的邮件所在选择路线；任何时候都可以**直接把 Outlook 或「邮件」里的邮件（或 `.eml` 文件）拖到 PaperDeck 上**，不需要任何账户：
-
-| 你的邮件 | 路线 |
-|---|---|
-| 工作或学校的 Microsoft 365（Outlook） | **Power Automate**：你自己的流把白名单发件人的新邮件存成 `.eml` 放进 OneDrive，OneDrive 同步到本机，PaperDeck 监视这个文件夹。不需要注册应用或 IT 审批（前提是机构允许 Power Automate）。详细步骤见 [docs/guides/POWER_AUTOMATE.md](docs/guides/POWER_AUTOMATE.md) |
-| 机构禁止 Power Automate 的 Microsoft 365 | 拖入邮件；Apple「邮件」规则存到文件夹（Beta）；或把论文提醒转发到 Gmail / iCloud |
-| Gmail（个人） | 应用专用密码（需要两步验证，在 https://myaccount.google.com/apppasswords 创建），IMAP 只读 |
-| Google Workspace（工作 / 学校 Gmail） | 先试 Gmail；不允许应用专用密码时，用你自己账号里的 Apps Script 把提醒存进同步到本机的云端硬盘文件夹（Beta） |
-| iCloud 邮件 | 在 https://account.apple.com 创建 App 专用密码（需要双重认证） |
-| Outlook.com / Hotmail | 微软已不支持应用密码登录：Apple「邮件」规则、转发提醒或拖入 |
-| Yahoo、Fastmail、学校 IMAP 等 | 应用专用密码 + IMAP（TLS 993） |
-| 已经会收到 `.eml` 的文件夹 | 「.eml 文件夹」账户（Apple 邮件规则、脚本、Dropbox / iCloud 云盘） |
-
-- 账户先「测试并保存」：PaperDeck 只读登录（EXAMINE + BODY.PEEK）成功后才保存。密码只保存在这台 Mac 的**登录钥匙串**里，不写进设置文件、不写进日志。密码被撤销或输错时账户会停在「需要处理」，不会反复重试；改好后点「测试并保存」（只重试这一个账户）或「立即同步」（重试所有账户）。
-- 每个账户都可以暂停 / 恢复、设置「首次检查回溯」天数（默认 14 天，之后只读新邮件）、编辑、移除（IMAP 账户移除时也会删除钥匙串里的密码）。Power Automate 文件夹里有不是完整邮件的文件时，账户行会提示「此文件夹中有 N 个文件不是完整的邮件」。
-- 各机构的具体情况（OneDrive 文件夹名、是否允许 Power Automate、获批准的 AI 工具）见 **[docs/institutions/](docs/institutions/)** 目录。
-
-**发件人列表与「什么算阅读需求」**
-
-- **发件人**：`name@university.edu`（一个地址）、`@biorxiv.org`（该域名）、`@*.nature.com`（任意子域）。只比较地址本身，显示名称永远不算。「添加提醒预设」先列出与你的领域相关的建议（默认不勾选），「更多预设」里还有其他（使用前请对照真实提醒核对发件人地址）。
-- 每个发件人可以设：类型（导师 / 同事 / 论文提醒）、**AI 策略**（每次询问 / 总是 / 从不；个人默认「每次询问」，提醒默认「总是」）、合并论文的优先级和分类、「把邮件中的截止日期设为 DDL」、「有 PDF 的论文自动合并」、「自动保存附件」。
-- **什么算阅读需求**：保留哪些类型、关注关键词、排除关键词、研究兴趣（用于从提醒里挑论文）、给 AI 的说明、最低置信度、每封提醒最多几篇、日期顺序。
-
-**投递框与合并**：付费墙或下载受限的论文显示为「需要 PDF」：点「打开链接」在浏览器里下载，再把 PDF 拖到这一行的投递框。每一行「合并到论文库」，或「全部合并」；已经在库里的论文只会关联，不会重复导入。
-
-## 隐私与机构 AI 规定
-
-- **只读白名单**：非白名单发件人的邮件正文从不读取、不存储、不写日志；拖进来的 `.eml` 例外（拖入就是你的明确意图）。
-- **机构 AI 规定**（设置 ▸ 个人资料）：选「无特定规定」、内置的机构预设，或「其他…」（机构名称、简称、获批准的 AI 工具、规定链接、个人邮件「每次询问」或「从不发给 AI」）。它**只改变措辞**——发件人设置和邮件卡片上的提示会写明你所在机构的指引；下面这些安全默认设置对所有人都一样，预设或导入的配置文件都无法放宽：
-  - AI 解读在你打开之前关闭；邮件在账户「测试并保存」通过之前关闭；
-  - 个人邮件默认「每次询问」：导师 / 同事的邮件只用本机规则，直到你在那张卡片上点「让 AI 分析」；也可以把某个发件人设为「从不」，或在 设置 ▸ 邮件 ▸ AI 分拣 选「仅本地规则」；
-  - 来自个人、又识别不出 DOI / arXiv 的 PDF（可能是未发表稿件）在 AI 解读前先暂停，等你确认；
-  - 讲解、提问和 AI 查重在你打开「讲解与问答」之前关闭（设置文件永远不会替你打开），每次都要你亲手点按；可能未发表或保密的论文、邮件或聊天窗口里的内容先问你；讲解只使用你框选或点到的那部分（复制、服务菜单、拖入图片不需要屏幕录制权限），窗口标题只在本机使用；
-  - 导入设置文件从不悄悄放宽隐私或额度：这台 Mac 更严格的设置（仅本地规则、更低的每日上限或发送长度、关闭的通知或自动解读、更短的保留期、发件人更低的 AI 规则、关闭的发件人或账户、发件人关闭的自动合并或自动保存附件、账户更短的回溯、机构的「从不发给 AI」、邮件分拣换成另一家 AI 服务、文件夹账户的「处理后删除文件」、比这里更严格的规则更具体的新发件人等）保持不变，列在「保留更严格的设置」里，逐项勾选才采用文件中的值。超出范围的数值（如每日上限 1e300）不会导入；邮件分拣「给 AI 的说明」和读者描述一样，确认后才导入。
-- **机密邮件保护**：很多机构的 AI 指引都要求机密或未发表的材料不能放进未经批准的 AI 平台，审稿的保密义务也要求审稿中的稿件不外传。所以下面这些邮件**永远不会被自动发给 AI，也不会被自动合并或下载**，无论发件人规则怎么设：
-  - 审稿邀请和审稿请求；
-  - 投稿 / 审稿系统发来的邮件（Editorial Manager、ScholarOne / Manuscript Central、eJournalPress、Elsevier EES / EVISE、Springer Nature SNAPP、Nature 投稿系统）；
-  - 关于你自己投稿的通知：审稿结果、接收函、校样、预印本的筛查 / 审核；
-  - 写明内容保密的邮件。
-
-  拿不准时宁可先拦下，所以偶尔也会有一封论文提醒要你点一下。“Would you be able to review …” 这类较软的（英文）说法，只有提到稿件 / 投稿 / 论文（不算预印本），并且邮件里有审稿人、编辑等字样或来自编辑 / 出版社地址时才算审稿请求；编辑用个人邮箱、又不提审稿或编辑的邀请会当作普通邮件——但个人邮件照样要你点「让 AI 分析」才会发给 AI。你自己合并这类机密邮件时，「用 AI 解读」默认不勾选；勾选后也会作为「可能是未发表稿件」先暂停，等识别出 DOI / arXiv 或你确认。
-- **论文信息查询**：按 DOI / arXiv 号查询用的是邮件里已经公开的编号；按**标题**搜索时，机密邮件从不查询，导师 / 同事的邮件和拖进来的 `.eml` 要等你点了「让 AI 分析」才查询。
-- **发送什么**：AI 分拣只发一封邮件清理后的文本——链接换成 `[c1 biorxiv.org]` 标记，电话号码和他人的邮箱地址换成 `[phone]` / `[email]`，签名截掉，正文按上限截断。设置 ▸ 邮件 ▸ AI 分拣 ▸「显示示例…」可以看到一次请求的完整内容。每封邮件一次小模型调用，每日上限默认 30 次。
-- **保留期限**：卡片处理完 30 天后删除邮件正文（可改为 7–180 天或永久保留）。「清除所有邮件数据…」删除所有邮件卡片、条目、保存的附件和同步位置。
-- **设置文件**（导出设置）从不包含密码或应用专用密码；诊断信息会遮盖个人信息。
-
-## 构建（无需 Xcode，只需 Command Line Tools）
+## Build and install
 
 ```bash
 ./build_app.sh --run
 ```
 
-- 默认安装到 `/Applications/PaperDeck.app`（原地更新），用钥匙串里的自签名证书 **PaperDeck Local Signing** 签名（稳定签名 → 文稿授权、通知、小组件在重建后不失效）。证书只需创建一次：钥匙串访问 ▸ 证书助理 ▸ 创建证书…，类型「代码签名」，有效期 **3650 天**。缺证书时脚本会列出步骤；`--allow-adhoc` 可临时用 ad-hoc 签名。
-- **`build.local.env`**（不进版本库；从 `build.local.env.example` 复制）或环境变量可以改：`PAPERDECK_BUNDLE_ID`、`PAPERDECK_WIDGET_ID`、`PAPERDECK_SIGN_IDENTITY`、`PAPERDECK_INSTALL_DIR`（例如 `~/Applications`）、`PAPERDECK_KEYCHAIN_SERVICE`、`PAPERDECK_CHANNEL`、`PAPERDECK_JOBS`、`PAPERDECK_DEV_DIR`。优先级：脚本默认值 < `build.local.env` < 环境变量 < 命令行参数。`./build_app.sh --print-config` 不构建，只显示结果。更换 bundle id 会得到全新的设置、钥匙串、权限和小组件，原来的设置不会带过去。
-- 常用参数：`--no-install`（只在 `.build/stage` 中构建并校验，不安装、不停止正在运行的应用）、`--package`（生成发给别人的 zip 和 INSTALL.md 到 `dist/`，不在本机安装；绝不要把证书发出去）、`--jobs N`、`--test`。
-- 开发时用 `./build_app.sh --dev`：强制 `agent.mode=off`、`assist.mode=off`、`dedupe.ai.auto=false`，任何 GUI 调试都不会消耗 Claude / ChatGPT 额度。**日常使用的那份不要加 `--dev`。**
-- 测试：`./test.sh -j 8`（Swift Testing）。`tools/check_build_config.sh` 检查构建配置，`tools/verify_portability.sh` 运行全部可移植性检查。
-- 详见 [docs/BUILDING.md](docs/BUILDING.md)。
+- Installs to `/Applications/PaperDeck.app` (updated in place) and signs it with a self-signed code-signing certificate named **PaperDeck Local Signing** from your login keychain, so permissions, notifications and the widget survive rebuilds. Create it once: *Keychain Access ▸ Certificate Assistant ▸ Create a Certificate…*, type *Code Signing*, validity 3650 days. Without it the script explains the steps; `--allow-adhoc` signs ad hoc for a quick try.
+- Your own bundle id, signing identity, install folder etc.: copy `build.local.env.example` to `build.local.env` (not committed) or use environment variables / flags. `./build_app.sh --print-config` shows the result without building. See [docs/BUILDING.md](docs/BUILDING.md).
+- Useful flags: `--no-install`, `--package` (a zip + INSTALL.md for someone else in `dist/`; never share your certificate), `--jobs N`, `--test`, `--dev` (forces every AI switch off for GUI debugging — don't use it for the copy you use every day).
+- Tests: `./test.sh -j 8` (Swift Testing). `tools/verify_portability.sh` runs all portability checks.
 
-## 命令行（诊断与自检，都不碰真实库）
+Received a packaged build from someone? Move PaperDeck.app to Applications **before** the first launch; see [docs/INSTALL_RECIPIENT.md](docs/INSTALL_RECIPIENT.md).
+
+## First run
+
+A short setup guide (skippable steps; reopen it from *Help ▸ Setup Assistant…*):
+
+1. **Welcome** — language; *Quick start*, *I'm moving from another Mac…*, or *Use a setup file from my lab or IT…*.
+2. **About you** — field, career stage, how the AI should think of you, research interests, your institution's AI policy.
+3. **AI** — detects Claude Code / Codex and their sign-in (no quota used). *Not now* is fine; nothing is sent until you turn it on.
+4. **Library** — where your papers live (Documents, another folder, or an existing PaperDeck library).
+5. **Plan & reminder**, **Mail** (optional), **Import existing PDFs** (optional; APFS clones use almost no extra space, originals are never modified), **Done** (a one-minute tour).
+
+The UI is English by default; *Settings ▸ General ▸ Language* switches to Chinese. AI-generated card text is always English.
+
+## AI: Claude, ChatGPT, or none
+
+| | Claude | ChatGPT (Codex) |
+|---|---|---|
+| Install | `curl -fsSL https://claude.ai/install.sh \| bash` | bundled with the ChatGPT desktop app (found automatically) or `brew install --cask codex` |
+| Sign in | run `claude`, type `/login`, choose your Claude subscription (claude.ai) | `codex login` → **Sign in with ChatGPT**; `codex login status` should say *Logged in using ChatGPT* |
+
+Then *Settings ▸ AI Reading ▸ I've signed in*, pick the service and turn AI reading on.
+
+- **Subscription only.** Before every run PaperDeck checks that the CLI uses a subscription login (Claude `authMethod == claude.ai`; Codex must be a ChatGPT login — API-key logins are refused, so nothing is billed to an API account). The child process gets an allowlisted environment (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `CODEX_API_KEY` … never pass through). Codex runs with `--sandbox read-only`, `--ignore-user-config` and every tool feature disabled; paper text is sent as untrusted data to a model with no tools.
+- **Quota-aware.** Usage-limit messages pause that service until it resets; a run log records service, model and timing. Detection (`--version`, login status) costs nothing.
+- **Without AI** you still get local checklists, metadata lookup by DOI/arXiv/title, deadlines, the daily plan and reminder, search, the widget and rule-based mail sorting.
+
+## Explain and Ask
+
+Both share one switch in *Settings ▸ Explain & Ask*, **off by default**; turning it on sends nothing. Every call needs your own click, Return or button press in PaperDeck — the shortcut alone or a Services request never sends anything.
+
+- **Explain** — ⌃⌥E dims the screens: drag a box, click a paragraph, or press Space for a magnifier; ⌥ sends the region as an image (figures, equations, tables). Copy-then-⌃⌥E, the Services menu (*Explain with PaperDeck*) and dropping an image need **no** permission; box/magnifier need *Screen Recording* once (PaperDeck explains first, then macOS asks). The panel floats next to the text: EN | 中 (Chinese with English terms by default), *Simpler · More technical · Define terms · Translate · Explain the figure*, follow-ups, copy, pin, save to notes, history.
+- **Ask** — the detail inspector's *Ask* tab; streamed answers with page citations that open the reader at the supporting sentence; *Quick* (Haiku / GPT-5.6-Luna, default) or *Thorough* (Sonnet / GPT-5.6-Terra); answers in the question's language, English or Chinese; up to 10 selected papers in the *Ask* window.
+- **Limits and privacy** — 50 calls a day ask first, 150 is the cap. Papers marked *Never use AI* are never sent; unpublished/confidential papers, papers from personal email without a DOI/arXiv id, and anything showing a mail or chat window (mail apps, webmail and web chat in a browser, notification banners, PaperDeck's own Mail inbox) always ask before sending. Explanations are kept 90 days (pinned or saved ones are kept).
+
+## Mail
+
+PaperDeck can turn emails into **reading requests**: papers an advisor or colleague asks you to read or present, journal-club papers, papers shared with you, and paper alerts (Google Scholar, bioRxiv, arXiv, journal TOCs). Each relevant email becomes a card in the sidebar's *Mail* inbox — who sent it, what they asked, any due date, and every paper in it (PDF attached, downloadable, needs a PDF, already in library, Word manuscript, shared document) — and you can merge papers into the library one by one or all at once.
+
+- **Read-only allowlist.** Only mail from senders on your list is opened; other mail is never read or stored. Nothing is sent, marked read, moved or deleted.
+- **Sources** (*Settings ▸ Mail ▸ Accounts ▸ Add Account…*):
+
+| Your mail | Route |
+|---|---|
+| Work/school Microsoft 365 (Outlook) | **Power Automate**: your own flow saves allowlisted mail as `.eml` into OneDrive, which syncs to your Mac; PaperDeck watches that folder. No app registration or IT approval needed if your institution allows Power Automate. See [docs/guides/POWER_AUTOMATE.md](docs/guides/POWER_AUTOMATE.md) |
+| Microsoft 365 without Power Automate | drag emails in; an Apple Mail rule saving to a folder; or forward alerts to Gmail/iCloud |
+| Gmail / iCloud / Yahoo / Fastmail / other IMAP | app-specific password, read-only IMAP (EXAMINE + BODY.PEEK) |
+| Any folder that already receives `.eml` files | *.eml folder* account |
+
+  You can always **drag emails from Outlook or Mail (or `.eml` files) onto PaperDeck** with no account at all.
+- **Sorting.** Local rules classify each email immediately (request type, due date, papers, Safe Links/Proofpoint unwrapping). Paper alerts may be refined by AI automatically within a daily cap; **advisor/colleague mail goes to AI only after you click *Analyze with AI*** on that card. Word manuscripts from people can be converted to PDF locally (the original is kept next to it) and are treated as possibly unpublished.
+- **Confidential mail** — review invitations, manuscript-system mail, decisions/proofs about your own submissions, and mail marked confidential — is never sent to AI, merged or downloaded automatically.
+- Passwords live only in your login keychain. Email bodies are deleted 30 days after a card is handled (configurable).
+
+## Library, privacy and moving to another Mac
+
+- Library default: `~/Documents/PaperDeck`; any folder, cloud-synced folder (use it on one Mac at a time) or external disk works. Imports use APFS clones; originals are never modified. Deleted papers stay in *Recently Deleted* for 30 days.
+- Metadata (title, authors, venue, year) comes from free public sources — Crossref, arXiv, bioRxiv, OpenAlex — and can be turned off.
+- **Another Mac:** *Settings ▸ General ▸ Export Settings…* (never includes passwords), copy the library folder, then on the new Mac *Use an existing PaperDeck library…* and *Import Settings…*; settings that are stricter on the new Mac about privacy or AI quota are kept unless you tick them one by one. See [docs/guides/MOVE_TO_ANOTHER_MAC.md](docs/guides/MOVE_TO_ANOTHER_MAC.md) and [docs/guides/DIFFERENT_ACCOUNT.md](docs/guides/DIFFERENT_ACCOUNT.md).
+- **Institution AI policy** (*Settings ▸ Profile*) only changes wording; the safety defaults above are the same for everyone and can't be loosened by a preset or an imported file.
+
+## Command line (diagnostics; never touches your real library)
 
 ```bash
 PD=/Applications/PaperDeck.app/Contents/MacOS/PaperDeck
-$PD --config                                   # 机构、领域、阶段、日期顺序、bundle id、钥匙串服务、渠道（只读，不启动任何程序）
-$PD --config --card-prompt                     # 当前配置发给 AI 的解读卡片说明
-$PD --migrate-dry-run --plist 设置.plist --db-exists yes   # 新版本第一次启动会给这份设置添加哪些键（不写入）
-$PD --export-settings 设置.json                 # 与「导出设置…」相同的设置文件（不含密码）
-$PD --import-settings 设置.json --dry-run       # 导入会改什么（真正导入只能在界面里做）
-$PD --doctor                                   # Claude 与 Codex CLI / 登录（不耗额度）/ 签名 / 数据库 / 小组件 / 邮件
-$PD --doctor --mail-only                       # 只看邮件：各账户的配置状态、IMAP 密码是否已存入钥匙串（只查是否存在，从不读取密码）
-$PD --selftest all --root /tmp/pd-test         # 用测试样本跑全链路（mock AI）
-$PD --render /tmp/pd-shots --root /tmp/pd-test # 离屏渲染界面 PNG（--provider codex 看 ChatGPT 界面）
-$PD --render /tmp/pd-shots --root /tmp/pd-sel --select-only   # 多选界面 PNG（空目录时自动放入样例论文；--probe-gestures 离屏测试点按和按键）
-$PD --dedupe-render /tmp/pd-dup --root /tmp/pd-dup-lib        # 查重界面 PNG（生成样例库；不探测任何 CLI）
-$PD --dedupe-report --root /tmp/pd-test        # 查重会询问哪些论文对（在数据库的临时副本上运行；不联网、不用 AI、不写入该目录）
-$PD --selftest dedupe                          # 查重文字（中英）、提示按钮、决定面板的选项（纯计算）
-$PD --selftest qa                              # 提问的文字（中英）、提示、估算行、引用链接（纯计算）
-$PD --ask-render /tmp/pd-ask --root /tmp/pd-ask-lib          # 提问界面各状态的 PNG（生成样例库；mock AI，不探测任何 CLI；--probe-send 离屏测试发送）
-$PD --explain-render /tmp/pd-ex --root /tmp/pd-ex-lib        # 讲解界面各状态的 PNG（面板、遮罩、框选与放大镜、权限说明、设置、记录；mock AI，不截屏，不注册快捷键和服务）
-$PD --render /tmp/pd-shots --root /tmp/pd-rd --reader-only    # 阅读器 PNG（样例 PDF；--probe-reader 离屏测试；不探测任何 CLI）
-$PD --assist-argv explain --provider claude    # 讲解 / 问答 / 查重判定一轮的参数与环境变量（只构造，不查找、不探测、不执行）
-$PD --agent-argv                               # 查看将要执行的 claude 参数与环境变量（不执行）
-$PD --agent-argv --provider codex              # 同上，codex exec 的参数（不执行，不耗额度）
-$PD --agent-smoke --yes --provider codex       # 真跑一次 codex exec（极短样例，占用少量额度）
-$PD --mail-dry-run 邮件.eml                     # 解析 + 本机分拣 + 将要发给 AI 的完整内容（不调用 AI、不联网、不保存）
-$PD --selftest mail --root /tmp/pd-mail --fixtures ~/eml样本 --agent mock   # 邮件全链路自检（mock AI，不连邮件服务器）
-$PD --selftest mail-notify                     # 「新的阅读请求」通知的规则与文字（合成数据，不发通知）
-$PD --selftest app-rules                       # 启动提示、账户编辑、邮件设置重试等规则（临时目录，假邮件源，不碰论文库）
-$PD --mail-sync --root /tmp/pd-mail --real-accounts   # 用已配置的账户同步一次到隔离库（会连接你的邮箱、读取钥匙串；只读；AI 分拣关闭）
-$PD --mail-flow-package ~/Desktop/PaperDeck-Mail-flow.zip --from-settings   # 生成 Power Automate 导入包
+$PD --doctor                     # CLIs and sign-in (no quota), signing, database, widget, mail
+$PD --doctor --mail-only         # mail accounts and sender list only
+$PD --config                     # institution, field, bundle id, keychain service (read-only)
+$PD --selftest all --root /tmp/pd-test       # full pipeline on sample data with a mock AI
+$PD --mail-dry-run message.eml   # parse + local sorting + the exact text that would go to AI (no AI, no network)
+$PD --export-settings settings.json
 $PD --help
 ```
 
-## 常见问题
+## Troubleshooting
 
-完整的故障排查（中英双语）见 **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**；应用里的「帮助 ▸ 故障排查」会实时检查并把当前适用的条目排在前面。几个最常见的：
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) (English and Chinese); *Help ▸ Troubleshooting* in the app shows the items that apply to your Mac first. Common ones: the widget isn't listed (*Settings ▸ Widget ▸ Repair registration*), no notifications (*System Settings ▸ Notifications ▸ PaperDeck*), Claude/ChatGPT shows *not signed in* (`claude` → `/login`, or `codex login` → Sign in with ChatGPT, then *I've signed in*), no full-text search after moving Macs (*Settings ▸ Library & Storage ▸ Rebuild full-text index*).
 
-- **小组件列表里找不到 PaperDeck**：确认 App 在「应用程序」中且从那里启动过一次，然后 设置 ▸ 小组件 ▸ 修复注册。
-- **通知不弹**：系统设置 → 通知 → PaperDeck；设置 ▸ 阅读计划与提醒 里可「发送测试通知」。
-- **Claude 显示未登录**：终端运行 `claude` 并输入 `/login`，再点「我已登录」。
-- **ChatGPT 显示未登录**：终端运行 `codex login` 并选 Sign in with ChatGPT，再点「我已登录」。显示「只使用订阅登录（当前：API key）」时，重新 `codex login` 选 ChatGPT 即可。
-- **找不到 Codex CLI**：安装或更新 ChatGPT 桌面版，或 `brew install --cask codex`；也可以在 设置 ▸ AI 解读 ▸ 自定义路径 填 `codex` 的位置。
-- **换 Mac 后搜索不到正文**：设置 ▸ 资料库与存储 ▸ 重建全文索引。
-- **开机自启**：设置 ▸ 通用。
+## Documentation
 
-## 文档索引
-
-| 文档 | 内容 |
+| Document | Contents |
 |---|---|
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 英文用户指南（各节锚点即帮助中心的主题 id） |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 故障排查（中英双语，由帮助中心内容生成） |
-| [docs/guides/POWER_AUTOMATE.md](docs/guides/POWER_AUTOMATE.md) | Microsoft 365 + Power Automate（任何工作或学校租户） |
-| [docs/guides/MOVE_TO_ANOTHER_MAC.md](docs/guides/MOVE_TO_ANOTHER_MAC.md) | 迁移到另一台 Mac |
-| [docs/guides/DIFFERENT_ACCOUNT.md](docs/guides/DIFFERENT_ACCOUNT.md) | 换 AI 账号、邮箱、机构或用户 |
-| [docs/institutions/](docs/institutions/) | 各机构的说明与模板 |
-| [docs/INSTALL_RECIPIENT.md](docs/INSTALL_RECIPIENT.md) | 收到安装包的人怎样安装（中英） |
-| [docs/BUILDING.md](docs/BUILDING.md) | 构建、签名、`build.local.env`、打包 |
-| [docs/ARCHITECTURE-CONFIG.md](docs/ARCHITECTURE-CONFIG.md) | 配置层的规则、设置键、迁移、新增预设 |
-| [docs/DESIGN.md](docs/DESIGN.md) · [docs/MAIL_DESIGN.md](docs/MAIL_DESIGN.md) · [docs/RESEARCH.md](docs/RESEARCH.md) | 设计与调研记录（历史文档） |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | User guide (section anchors = Help Center topic ids) |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Troubleshooting (generated from the Help Center) |
+| [docs/guides/](docs/guides/) | Power Automate, moving to another Mac, switching accounts |
+| [docs/institutions/](docs/institutions/) | Institution notes and template |
+| [docs/INSTALL_RECIPIENT.md](docs/INSTALL_RECIPIENT.md) | Installing a build someone sent you |
+| [docs/BUILDING.md](docs/BUILDING.md) | Building, signing, `build.local.env`, packaging |
+| [docs/ARCHITECTURE-CONFIG.md](docs/ARCHITECTURE-CONFIG.md) | Configuration layer, settings keys, migrations, presets |
+| [docs/DESIGN.md](docs/DESIGN.md) · [docs/MAIL_DESIGN.md](docs/MAIL_DESIGN.md) · [docs/RESEARCH.md](docs/RESEARCH.md) · [docs/proposals/](docs/proposals/) | Design notes, research and plans (historical, partly in Chinese) |
 
-## 架构
+## Project layout
 
-| 目录 | 职责 |
+| Directory | Responsibility |
 |---|---|
-| `Sources/PaperDeckShared` | App 与小组件共用：LocalDate、DDL 标签、小组件快照、深链、构建身份（BuildIdentity） |
-| `Sources/PaperDeckObjCSupport` | Objective-C 小垫片：接住框架抛出的异常（标题读取时 PDFKit 的 "nil NSFont"），别无他用 |
-| `Sources/PaperDeckCore/Models`、`DB` | 数据模型、SQLite（FTS5 全文检索） |
-| `Sources/PaperDeckCore/PDF`、`Metadata`、`Library` | PDFKit 抽取与标题/ID 识别、元数据查询、文件与存储、论文库身份检查 |
-| `Sources/PaperDeckCore/Import` | 导入管线（摄取 → 抽取 → 查重 → 入库 → 元数据 → 归档） |
-| `Sources/PaperDeckCore/Plan` | DDL 排期、今日计划、阅读清单生成与合并、提醒内容、分类 |
-| `Sources/PaperDeckCore/Agent` | Claude Code / Codex CLI 调用、解读卡片说明模板、输出校验、作业队列 |
-| `Sources/PaperDeckCore/Mail` | 邮件：账户（文件夹 / IMAP）、MIME 解析、链接识别、本机分拣、AI 分拣、同步、合并匹配 |
-| `Sources/PaperDeckCore/Engine` | 引擎门面、各种操作、界面读模型、维护与重建 |
-| `Sources/PaperDeckConfig` | 机构 / 领域 / 发件人预设、配置解析与迁移、邮件来源与云文件夹识别、设置导出 / 导入、帮助中心模型与内容 |
-| `Sources/PaperDeck` | AppKit + SwiftUI 界面、设置窗口、帮助中心、悬浮窗、菜单栏、提醒服务、命令行 |
-| `Sources/PaperDeckWidget` | WidgetKit 小组件（只展示，点击深链回 App） |
+| `Sources/PaperDeckShared` | Shared by app and widget: dates, deadline labels, widget snapshot, deep links, build identity |
+| `Sources/PaperDeckObjCSupport` | A tiny Objective-C shim that catches framework exceptions (PDFKit's "nil NSFont" during title reads) |
+| `Sources/PaperDeckCore` | Models, SQLite (FTS5), PDF extraction, metadata, import pipeline, planning, AI agents (Claude Code / Codex), mail, dedupe, Q&A, explain, engine |
+| `Sources/PaperDeckConfig` | Institution / field / sender presets, config resolution and migration, mail sources, settings export/import, Help Center content |
+| `Sources/PaperDeck` | AppKit + SwiftUI app: windows, settings, Help Center, floating panel, menu bar, reminders, reader, explain overlay, CLI |
+| `Sources/PaperDeckWidget` | WidgetKit widget (display only; taps deep-link into the app) |
+| `Tests/PaperDeckCoreTests` | Swift Testing suites (`./test.sh`) |
+
+Built with SwiftPM and Swift 6 using only the Command Line Tools.

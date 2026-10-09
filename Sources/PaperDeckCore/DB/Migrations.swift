@@ -221,10 +221,22 @@ package enum Migrations {
     /// names its columns explicitly — keeps reading and writing the file.
     /// - `triage_consented`, `triage_consent_provider`: before the mail schema first shipped.
     /// - `is_bulk` (mail policy round 5): mailing-list mail; NULL for messages captured before.
+    /// - `mail_item.origin_ext`, `pdf_state_ext`, `document_*`, `share_host` (documents & share links):
+    ///   the exact origin / PDF state of a document or share-link row — the frozen CHECK lists keep
+    ///   `attachment` / `link` / `needs_pdf` in the old columns, which an older build reads — and the
+    ///   stored original; `paper_source.document`: the original kept next to a converted paper's PDF.
     package static let prereleaseV2Columns: [(table: String, column: String, definition: String)] = [
         ("mail_message", "triage_consented", "INTEGER NOT NULL DEFAULT 0"),
         ("mail_message", "triage_consent_provider", "TEXT"),
         ("mail_message", "is_bulk", "INTEGER"),
+        ("mail_item", "origin_ext", "TEXT"),
+        ("mail_item", "pdf_state_ext", "TEXT"),
+        ("mail_item", "document_name", "TEXT"),
+        ("mail_item", "document_kind", "TEXT"),
+        ("mail_item", "document_path", "TEXT"),
+        ("mail_item", "document_sha256", "TEXT"),
+        ("mail_item", "share_host", "TEXT"),
+        ("paper_source", "document", "TEXT"),
     ]
 
     private static func repairPrereleaseColumns(_ db: SQLiteConnection) throws {
@@ -372,7 +384,9 @@ package enum Migrations {
         CHECK(pdf_state IN('unknown','has_pdf','downloadable','downloading','needs_pdf','in_library')),
       pdf_path TEXT, pdf_sha256 TEXT, pdf_bytes INTEGER, download_error TEXT, paper_id TEXT,
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','merged','linked','skipped')),
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      origin_ext TEXT, pdf_state_ext TEXT, document_name TEXT, document_kind TEXT, document_path TEXT,
+      document_sha256 TEXT, share_host TEXT);
     CREATE INDEX ix_mail_item_msg ON mail_item(message_pk, ord);
     CREATE INDEX ix_mail_item_doi ON mail_item(doi) WHERE doi IS NOT NULL;
     CREATE INDEX ix_mail_item_arxiv ON mail_item(arxiv_id) WHERE arxiv_id IS NOT NULL;
@@ -380,7 +394,7 @@ package enum Migrations {
     CREATE TABLE paper_source(pk INTEGER PRIMARY KEY, paper_pk INTEGER NOT NULL REFERENCES paper(pk) ON DELETE CASCADE,
       kind TEXT NOT NULL DEFAULT 'email', mail_message_id TEXT, internet_message_id TEXT COLLATE NOCASE,
       from_address TEXT, from_name TEXT, subject TEXT, received_at TEXT, web_link TEXT,
-      request_kind TEXT, summary TEXT, due_hint TEXT, added_at TEXT NOT NULL,
+      request_kind TEXT, summary TEXT, due_hint TEXT, added_at TEXT NOT NULL, document TEXT,
       UNIQUE(paper_pk, internet_message_id));
     """
 }

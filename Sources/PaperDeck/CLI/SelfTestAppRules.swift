@@ -40,6 +40,7 @@ enum SelfTestAppRules {
         await runRound3(scratch: scratch, checker)
         await runRound4(scratch: scratch, checker)
         await runPF2(scratch: scratch, checker)
+        await runDocs(scratch: scratch, checker)
 
         print(checker.ok ? "SELFTEST PASS" : "SELFTEST FAIL")
         return checker.ok ? 0 : 1

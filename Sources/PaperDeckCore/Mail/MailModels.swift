@@ -40,12 +40,33 @@ package enum MailRequestKind: String, Codable, Sendable, CaseIterable {
 }
 
 /// Where a candidate paper was found in the message.
-package enum MailItemOrigin: String, Codable, Sendable {
+///
+/// `document` and `shareLink` came after the mail schema's CHECK list was frozen: the database
+/// stores them as `attachment` / `link` plus the exact value in `mail_item.origin_ext`
+/// (`Database+Mail`), so an older build reads such a row as an attachment / link that needs a PDF.
+/// Decoding is lenient: an unknown value (a newer build's) reads as `link`.
+package enum MailItemOrigin: String, Codable, Sendable, CaseIterable {
     case attachment     // PDF attached to the email
     case link           // URL in the body (arXiv, DOI, publisher, PDF link…)
     case identifier     // bare DOI / arXiv id in the text
     case citation       // title/authors only (e.g. from the AI), no link
     case alertEntry = "alert_entry"   // parsed entry of an alert digest
+    case document       // Word / RTF / ODT / slides attachment (a manuscript, a draft) — `MailItem.documentKind`
+    case shareLink = "share_link"     // SharePoint / OneDrive / Box / Google Drive / Dropbox link (sign-in needed)
+
+    package init(from decoder: any Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MailItemOrigin(rawValue: raw) ?? .link
+    }
+
+    /// The value the frozen `mail_item.origin` CHECK list accepts (the exact one goes to `origin_ext`).
+    package var storedBase: MailItemOrigin {
+        switch self {
+        case .document: return .attachment
+        case .shareLink: return .link
+        default: return self
+        }
+    }
 }
 
 package enum MailItemFoundBy: String, Codable, Sendable {
@@ -53,6 +74,10 @@ package enum MailItemFoundBy: String, Codable, Sendable {
 }
 
 /// Whether we have (or can get) the PDF for a candidate.
+///
+/// `convertible` and `openOnly` are stored as `needs_pdf` plus the exact value in
+/// `mail_item.pdf_state_ext` (the CHECK list is frozen), so an older build shows such a row as
+/// waiting for a PDF. Decoding is lenient: an unknown value reads as `unknown`.
 package enum MailPDFState: String, Codable, Sendable, CaseIterable {
     case unknown
     case hasPDF = "has_pdf"            // attachment or downloaded file is stored locally
@@ -60,6 +85,26 @@ package enum MailPDFState: String, Codable, Sendable, CaseIterable {
     case downloading
     case needsPDF = "needs_pdf"         // user must download it and drop it on the row's drop box
     case inLibrary = "in_library"       // already a paper in the library (paperID set)
+    case convertible                    // stored Word / RTF / ODT original: 「转换为 PDF 并合并」 converts it on this Mac
+    case openOnly = "open_only"         // stored slides / Pages original: open it, export a PDF, drop it on the row
+
+    package init(from decoder: any Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MailPDFState(rawValue: raw) ?? .unknown
+    }
+
+    /// The value the frozen `mail_item.pdf_state` CHECK list accepts (the exact one goes to `pdf_state_ext`).
+    package var storedBase: MailPDFState {
+        switch self {
+        case .convertible, .openOnly: return .needsPDF
+        default: return self
+        }
+    }
+
+    /// Waiting for a PDF the user brings (a drop on the row, or an import the matcher links).
+    package var waitsForPDF: Bool {
+        self == .needsPDF || self == .downloadable || self == .convertible || self == .openOnly
+    }
 }
 
 package enum MailItemStatus: String, Codable, Sendable {
@@ -211,6 +256,18 @@ package struct MailItem: Sendable, Identifiable, Equatable {
     package var status: MailItemStatus
     package var createdAt: Date
     package var updatedAt: Date
+    /// `document` rows: the attachment's original file name (sanitized), e.g. "Lab_manuscript_v3.docx".
+    package var documentFileName: String?
+    /// `document` rows: the lowercase extension ("docx", "doc", "rtf", "odt" → `convertible`; "pptx", "ppt",
+    /// "key", "pages", "odp" → `openOnly`). `shareLink` rows: only when the URL tells ("docx", "pptx", "pdf").
+    package var documentKind: String?
+    /// `shareLink` rows: the file-sharing service (`MailShareProvider` raw value, e.g. "sharepoint.com").
+    package var shareHost: String?
+    /// `document` rows: the stored original, relative to `AppPaths.mailFiles` (`<message-id>/<n>.<ext>`);
+    /// nil when it was not stored (too large, sender rule) or after the merge / retention removed it.
+    package var documentPath: String?
+    /// SHA-256 of the stored original (a document converted before links instead of converting again).
+    package var documentSHA256: String?
 
     package init(pk: Int64 = 0, id: String = UUID().uuidString.lowercased(), messagePK: Int64 = 0, ord: Int,
                  cand: String, origin: MailItemOrigin, foundBy: MailItemFoundBy = .local, title: String? = nil,
@@ -219,7 +276,9 @@ package struct MailItem: Sendable, Identifiable, Equatable {
                  relevance: MailItemRelevance? = nil, why: String? = nil, confidence: Double? = nil,
                  pdfState: MailPDFState = .unknown, pdfPath: String? = nil, pdfSHA256: String? = nil,
                  pdfBytes: Int64? = nil, downloadError: String? = nil, paperID: String? = nil,
-                 status: MailItemStatus = .pending, createdAt: Date = Date(), updatedAt: Date = Date()) {
+                 status: MailItemStatus = .pending, createdAt: Date = Date(), updatedAt: Date = Date(),
+                 documentFileName: String? = nil, documentKind: String? = nil, shareHost: String? = nil,
+                 documentPath: String? = nil, documentSHA256: String? = nil) {
         self.pk = pk; self.id = id; self.messagePK = messagePK; self.ord = ord; self.cand = cand
         self.origin = origin; self.foundBy = foundBy; self.title = title; self.authors = authors
         self.venue = venue; self.year = year; self.ids = ids; self.url = url; self.urlOriginal = urlOriginal
@@ -227,6 +286,8 @@ package struct MailItem: Sendable, Identifiable, Equatable {
         self.confidence = confidence; self.pdfState = pdfState; self.pdfPath = pdfPath
         self.pdfSHA256 = pdfSHA256; self.pdfBytes = pdfBytes; self.downloadError = downloadError
         self.paperID = paperID; self.status = status; self.createdAt = createdAt; self.updatedAt = updatedAt
+        self.documentFileName = documentFileName; self.documentKind = documentKind; self.shareHost = shareHost
+        self.documentPath = documentPath; self.documentSHA256 = documentSHA256
     }
 
     package var isOpen: Bool { status == .pending }
@@ -247,14 +308,17 @@ package struct PaperProvenance: Codable, Sendable, Equatable {
     package var summary: String?
     package var dueHint: LocalDate?
     package var addedAt: Date
+    /// The email's original document (a .docx the paper was converted from), kept next to the PDF in
+    /// the paper folder under this file name ("<pdf stem>.source.docx"); nil for everything else.
+    package var document: String?
 
     package init(kind: String = "email", mailMessageID: String? = nil, internetMessageID: String? = nil,
                  fromAddress: String? = nil, fromName: String? = nil, subject: String? = nil,
                  receivedAt: Date? = nil, webLink: String? = nil, requestKind: MailRequestKind? = nil,
-                 summary: String? = nil, dueHint: LocalDate? = nil, addedAt: Date = Date()) {
+                 summary: String? = nil, dueHint: LocalDate? = nil, addedAt: Date = Date(), document: String? = nil) {
         self.kind = kind; self.mailMessageID = mailMessageID; self.internetMessageID = internetMessageID
         self.fromAddress = fromAddress; self.fromName = fromName; self.subject = subject
         self.receivedAt = receivedAt; self.webLink = webLink; self.requestKind = requestKind
-        self.summary = summary; self.dueHint = dueHint; self.addedAt = addedAt
+        self.summary = summary; self.dueHint = dueHint; self.addedAt = addedAt; self.document = document
     }
 }
