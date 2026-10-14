@@ -65,9 +65,15 @@ package struct MailHeaderPage: Sendable, Equatable {
     /// Files in the source that were read and are not RFC 822 messages (folder source: an
     /// HTML-only Power Automate export, an empty file…); nil when the transport can't tell.
     package var notEmailFiles: Int?
-    package init(headers: [MailHeader], nextCursor: MailCursor?, hasMore: Bool, notEmailFiles: Int? = nil) {
+    /// Which files those are, as the source's hashed names (folder: `FolderLedger.key`), so the
+    /// engine can tell the ones the user chose to ignore from new ones; nil when the transport
+    /// can't tell (then `notEmailFiles` counts them all).
+    package var notEmailKeys: Set<String>?
+    package init(headers: [MailHeader], nextCursor: MailCursor?, hasMore: Bool, notEmailFiles: Int? = nil,
+                 notEmailKeys: Set<String>? = nil) {
         self.headers = headers; self.nextCursor = nextCursor; self.hasMore = hasMore
         self.notEmailFiles = notEmailFiles
+        self.notEmailKeys = notEmailKeys
     }
 }
 

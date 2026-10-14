@@ -88,14 +88,14 @@ struct TodayView: View {
                              minutes: kind == .planned ? items.reduce(0) { $0 + ($1.minutes ?? 0) } : nil)
                 .padding(.top, 10)
             ForEach(items) { entry in
-                todayRow(entry.row, minutes: entry.minutes, today: today)
+                todayRow(entry.row, minutes: entry.minutes, today: today, stepsCollapsed: kind == .upcoming)
             }
         }
     }
 
-    private func todayRow(_ row: PaperRow, minutes: Int?, today: LocalDate) -> some View {
+    private func todayRow(_ row: PaperRow, minutes: Int?, today: LocalDate, stepsCollapsed: Bool) -> some View {
         let id = row.id
-        return TodayRow(row: row, today: today, lang: L.lang, minutesToday: minutes,
+        return TodayRow(row: row, today: today, lang: L.lang, minutesToday: minutes, stepsCollapsed: stepsCollapsed,
                         onToggle: { itemID in state.toggleChecklistItem(paperID: id, itemID: itemID) },
                         onOpen: {
                             state.selectedPaperID = id

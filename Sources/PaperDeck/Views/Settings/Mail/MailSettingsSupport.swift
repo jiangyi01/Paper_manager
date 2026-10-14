@@ -150,12 +150,10 @@ enum MailStatusText {
         let byID = Dictionary(infos.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let live = accounts.compactMap { byID[$0.id] }
         if live.contains(where: \.isSyncing) { return (.working, L.MailPref.summarySyncing(accounts.count)) }
-        let problems = live.filter {
-            switch $0.status {
-            case .needsSetup?, .authFailed?, .unavailable?: return true
-            default: return false
-            }
-        }
+        // As the inbox's status pill counts them (`MailNoticePolicy.needsAttention`): a status that
+        // isn't ready (without the skipped sentence a hidden notice already told), files that aren't
+        // emails and weren't ignored, skipped emails whose notice wasn't hidden.
+        let problems = live.filter(MailNoticePolicy.needsAttention)
         if !problems.isEmpty { return (.warning, L.MailPref.summaryProblems(problems.count)) }
         guard let last = live.compactMap(\.lastSuccessAt).max() else {
             return (.pending, L.MailPref.summaryOK(accounts: accounts.count, last: nil))

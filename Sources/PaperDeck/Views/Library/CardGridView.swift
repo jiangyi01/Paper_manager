@@ -5,6 +5,11 @@ import PaperDeckCore
 /// double click opens the PDF, right click shows `PaperContextMenu`. In 待读 sorted by
 /// DDL (and not searching) the cards are grouped 逾期/今天/本周/下周/以后/未排期.
 ///
+/// The layout follows the content column's width (`CardGridMetrics`): as many columns of at
+/// least 280 pt as fit, all the same width and filling the row exactly; one column of compact
+/// horizontal cards below 620 pt (inspector open, narrow window). Rows are drawn lazily; the cards
+/// of a row share the tallest one's height.
+///
 /// Multi-select (READING_ASSIST_PLAN §6.4 C1, once `SelectionModel.isOn`): ⌘-click toggles a
 /// card, ⇧-click selects the range from the anchor in the order drawn (the groups flattened); with
 /// the grid focused (a click on a card) the arrow keys move (⇧ extends), ⌘A selects every card
@@ -18,7 +23,6 @@ struct CardGridView: View {
     let chromeStyle: PanelChromeStyle
 
     @FocusState private var gridFocused: Bool
-    @State private var columnCount = 3
 
     init(state: AppState, rows: [PaperRow], chromeStyle: PanelChromeStyle = .glass) {
         self.state = state
@@ -26,40 +30,42 @@ struct CardGridView: View {
         self.chromeStyle = chromeStyle
     }
 
-    private let columns = [GridItem(.adaptive(minimum: 260, maximum: 340), spacing: 16, alignment: .top)]
     private var multiSelect: Bool { SelectionModel.isOn }
 
     var body: some View {
         if rows.isEmpty {
             EmptyStateView(state: state, section: state.sidebar)
         } else {
-            grid
+            GeometryReader { proxy in
+                grid(CardGridMetrics(width: Double(proxy.size.width)))
+            }
         }
     }
 
-    private var grid: some View {
+    private func grid(_ metrics: CardGridMetrics) -> some View {
         let today = state.snapshot?.today.today ?? LocalDate.today()
         let lang = L.lang
         let groups = groupsIfNeeded(today: today)
         let sections = groups?.map { $0.rows.map(\.id) } ?? [rows.map(\.id)]
         let order = sections.flatMap { $0 }
         let isMulti = multiSelect && state.selection.isMulti
+        let context = CardContext(today: today, lang: lang, order: order, isMulti: isMulti, metrics: metrics)
         return ScrollViewReader { proxy in
             ScrollView {
-                LazyVGrid(columns: columns, alignment: .center, spacing: 16, pinnedViews: [.sectionHeaders]) {
+                LazyVStack(alignment: .leading, spacing: CardGridMetrics.gutter, pinnedViews: [.sectionHeaders]) {
                     if let groups {
                         ForEach(groups) { group in
                             Section {
-                                cards(group.rows, today: today, lang: lang, order: order, isMulti: isMulti)
+                                cardRows(group.rows, context)
                             } header: {
                                 ToReadGroupHeader(bucket: group.bucket, count: group.rows.count)
                             }
                         }
                     } else {
-                        cards(rows, today: today, lang: lang, order: order, isMulti: isMulti)
+                        cardRows(rows, context)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, CardGridMetrics.margin)
                 .padding(.vertical, 18)
                 .background {
                     // Clicking empty space clears the selection.
@@ -82,18 +88,17 @@ struct CardGridView: View {
             .focusable(multiSelect)
             .focusEffectDisabled()
             .focused($gridFocused)
-            .onGeometryChange(for: Int.self) { GridNav.columns(width: Double($0.size.width)) } action: { columnCount = $0 }
             .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow], phases: [.down, .repeat]) { press in
                 guard multiSelect, let direction = GridDirection(press.key) else { return .ignored }
-                state.selection.move(direction, columns: columnCount, extend: press.modifiers.contains(.shift))
+                state.selection.move(direction, columns: metrics.columns, extend: press.modifiers.contains(.shift))
                 return .handled
             }
             .onCommand(#selector(NSResponder.selectAll(_:)), perform: multiSelect ? { state.selection.selectAllVisible() } : nil)
             .onExitCommand(perform: multiSelect ? { state.selection.clear() } : nil)
             .onChange(of: state.selectedPaperID) { _, id in
                 if multiSelect { state.selection.focusDidChange() }
-                guard let id, rows.contains(where: { $0.id == id }) else { return }
-                withAnimation(.snappy(duration: 0.25)) { proxy.scrollTo(id) }
+                guard let id, let target = Self.rowID(of: id, sections: sections, columns: metrics.columns) else { return }
+                withAnimation(.snappy(duration: 0.25)) { proxy.scrollTo(target) }
             }
             .onChange(of: order) {
                 if multiSelect { state.selection.prune() }
@@ -103,25 +108,66 @@ struct CardGridView: View {
         .agentBadgeActions(state)
     }
 
-    private func cards(_ rows: [PaperRow], today: LocalDate, lang: UILang, order: [String], isMulti: Bool) -> some View {
-        ForEach(rows) { row in
-            let selected = multiSelect ? state.selection.isSelected(row.id) : state.selectedPaperID == row.id
-            PaperCardView(row: row, today: today, lang: lang, agentStatus: state.agentStatus,
-                          queuePosition: state.queuePositions[row.paper.pk],
-                          isSelected: selected)
-                .overlay(alignment: .topTrailing) {
-                    if isMulti && selected { SelectionCheckmark() }
+    /// What every card of one drawing shares.
+    private struct CardContext {
+        let today: LocalDate
+        let lang: UILang
+        let order: [String]
+        let isMulti: Bool
+        let metrics: CardGridMetrics
+    }
+
+    /// One drawn row: the cards of a section's `columns`-wide slice.
+    private struct CardRow: Identifiable {
+        let rows: [PaperRow]
+        var id: String { CardGridView.rowKey(rows.first?.id ?? "") }
+    }
+
+    static func rowKey(_ firstID: String) -> String { "row:" + firstID }
+
+    /// The drawn row holding paper `id` (what `scrollTo` can find: rows are the lazy stack's items).
+    static func rowID(of id: String, sections: [[String]], columns: Int) -> String? {
+        for section in sections {
+            guard let i = section.firstIndex(of: id) else { continue }
+            return rowKey(section[i - i % max(1, columns)])
+        }
+        return nil
+    }
+
+    private func cardRows(_ rows: [PaperRow], _ context: CardContext) -> some View {
+        let metrics = context.metrics
+        let slices = CardGridMetrics.rows(rows, columns: metrics.columns).map(CardRow.init)
+        return ForEach(slices) { slice in
+            HStack(alignment: .top, spacing: CardGridMetrics.gutter) {
+                ForEach(slice.rows) { row in
+                    card(row, context)
+                        .frame(width: metrics.cardWidth)
                 }
-                .contentShape(RoundedRectangle(cornerRadius: PaperCardView.cornerRadius, style: .continuous))
-                .onTapGesture(count: 2) { doubleClick(row, order: order) }
-                .simultaneousGesture(TapGesture().onEnded { click(row, order: order) })
-                .contextMenu { PaperContextMenu(state: state, row: row) }
-                .accessibilityAction(named: L.cardsMenuOpenPDF) { if !row.paper.isDeleted { state.openPDF(row) } }
-                .id(row.id)
+            }
+            // Every card of the row gets the row's tallest height (the footers line up).
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .id(slice.id)
         }
     }
 
-    // MARK: Clicks
+    private func card(_ row: PaperRow, _ context: CardContext) -> some View {
+        let selected = multiSelect ? state.selection.isSelected(row.id) : state.selectedPaperID == row.id
+        let metrics = context.metrics
+        return PaperCardView(row: row, today: context.today, lang: context.lang, agentStatus: state.agentStatus,
+                             queuePosition: state.queuePositions[row.paper.pk], isSelected: selected,
+                             style: metrics.style, thumbnailHeight: metrics.thumbnailHeight,
+                             showsThumbnailStrip: metrics.showsCompactThumbnail,
+                             showsCheckmark: context.isMulti && selected)
+            .contentShape(RoundedRectangle(cornerRadius: PaperCardView.cornerRadius, style: .continuous))
+            .onTapGesture(count: 2) { doubleClick(row, order: context.order) }
+            .simultaneousGesture(TapGesture().onEnded { click(row, order: context.order) })
+            .contextMenu { PaperContextMenu(state: state, row: row) }
+            .accessibilityAction(named: L.cardsMenuOpenPDF) { if !row.paper.isDeleted { state.openPDF(row) } }
+            .id(row.id)
+    }
+
+// MARK: Clicks
 
     private func click(_ row: PaperRow, order: [String]) {
         guard multiSelect else { state.selectedPaperID = row.id; return }
@@ -203,22 +249,6 @@ enum ClickModifiers {
         let now = ProcessInfo.processInfo.systemUptime
         if let last, now - last.at < 2 { return last.flags.intersection([.command, .shift]) }
         return NSEvent.modifierFlags.intersection([.command, .shift])
-    }
-}
-
-/// The badge on each card of a multi-selection (the thumbnail's bottom-trailing corner; the
-/// priority mark sits top-trailing, the AI badge bottom-leading, the duplicate ribbon top-leading).
-struct SelectionCheckmark: View {
-    var body: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 18, weight: .semibold))
-            .symbolRenderingMode(.palette)
-            .foregroundStyle(.white, Color.accentColor)
-            .background(Circle().fill(.white).padding(2))
-            .padding(.trailing, 8)
-            .padding(.top, PaperCardView.thumbnailHeight - 26)
-            .allowsHitTesting(false)
-            .accessibilityLabel(L.Select.selectedA11y)
     }
 }
 

@@ -2,11 +2,12 @@ import AppKit
 import SwiftUI
 import PaperDeckCore
 
-/// One email card of the inbox (MAIL_DESIGN Part A §3):
+/// One email card of the inbox (MAIL_DESIGN Part A §3) — one line per element, the rest on hover
+/// and in the inspector:
 ///
-///     ● Prof. X <x@example.edu> [Work] · 9/29 14:05   [导师请求] [邮件 DDL ≈10/3] [高]      ⋯
+///     ● Prof. X · 9/29 14:05                              [邮件 DDL ≈10/3] [高] [+1]      ⋯
 ///       papers for Thursday's journal club
-///       ✦ Asks you to read two neocortex papers before Thursday's lab meeting…  (wand = local rules)
+///       ✦ Asks you to read two neocortex papers before Thursday's lab meeting…  (one line; wand = local rules)
 ///       [✦ 让 AI 分析] ⓘ (until the user consents; the selected card shows the full privacy note)
 ///       ┌ rows (MailItemRow) … 「其余 12 篇」 for alert digests
 ///       还差 1 篇需要 PDF          [全部合并 (2)]  [忽略]  [稍后 ▾ 明天/下周一/自定义]
@@ -38,12 +39,13 @@ struct MailCardView: View {
     static func compactConsent(selected: Bool) -> Bool { !selected }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 8) {
             header
             Text(verbatim: card.displaySubject)
                 .font(.system(size: 14.5, weight: .semibold))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .help(card.displaySubject)
             summary
             // The list keeps 「让 AI 分析」 to one compact line (its privacy note behind ⓘ); the
             // selected card — and the inspector — show the whole explanation.
@@ -51,7 +53,7 @@ struct MailCardView: View {
             rows
             footer
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -73,40 +75,35 @@ struct MailCardView: View {
 
     // MARK: Header
 
-    /// Sender, account, time, the request / DDL / priority chips and ⋯ — on one line when they all
-    /// fit; else the chips wrap onto a second line (the inspector is open: ~660 pt); in a narrow
-    /// column the sender keeps the first line to itself and account, time and chips wrap below.
-    /// The sender's name is never squeezed out by the chips.
+    /// Sender, time, at most two chips (`MailCardDensity`: unverified sender, due date, high
+    /// priority, request kind — the rest as "+N") and ⋯ — on one line when they fit; else the chips
+    /// move to a second line; in a narrow column the sender keeps the first line to itself. The
+    /// address and the account are the sender's and the time's tooltips (and in the inspector).
     private var header: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 senderLine
-                MailAccountChip(card: card)
                 receivedText
-                Spacer(minLength: 6)
+                Spacer(minLength: 8)
                 chips
                 moreMenu
             }
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     senderLine
-                    MailAccountChip(card: card)
                     receivedText
-                    Spacer(minLength: 6)
+                    Spacer(minLength: 8)
                     moreMenu
                 }
-                if hasChips {
-                    DetailFlowLayout(spacing: 5, lineSpacing: 4) { chipViews }
-                }
+                if hasChips { chips }
             }
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     senderLine
-                    Spacer(minLength: 6)
+                    Spacer(minLength: 8)
                     moreMenu
                 }
-                DetailFlowLayout(spacing: 5, lineSpacing: 4) {
-                    MailAccountChip(card: card)
+                DetailFlowLayout(spacing: 4, lineSpacing: 4) {
                     receivedText
                     chipViews
                 }
@@ -114,7 +111,7 @@ struct MailCardView: View {
         }
     }
 
-    /// Unread dot (a new reading request from a person) + sender name and address.
+    /// Unread dot (a new reading request from a person) + the sender's name (address on hover).
     private var senderLine: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             if message.state == .pending, !message.userTouched, message.triage?.hasReadingRequest == true,
@@ -122,7 +119,7 @@ struct MailCardView: View {
                 Circle().fill(Color.blue).frame(width: 7, height: 7)
                     .accessibilityHidden(true)
             }
-            MailSenderLine(message: message)
+            MailSenderLine(message: message, showsAddress: false)
         }
         .layoutPriority(1)
     }
@@ -134,31 +131,61 @@ struct MailCardView: View {
             .monospacedDigit()
             .lineLimit(1)
             .fixedSize()
+            .help(MailAccountChip.name(card))
     }
 
-    private var hasChips: Bool {
-        message.authState == .fail || MailInboxRules.requestBadge(message) != nil
-            || card.dueHint(today: today) != nil || (message.triage?.priority).map { $0 != .normal } == true
+    /// The chips this card may show, most important first. An alert digest's 「论文提醒」 badge is
+    /// left to the inspector: the sender and the summary line already say it.
+    private var chipKinds: [MailCardChipKind] {
+        var kinds: [MailCardChipKind] = []
+        if message.authState == .fail { kinds.append(.unverified) }
+        if card.dueHint(today: today) != nil { kinds.append(.due) }
+        if message.triage?.priority == .high { kinds.append(.priorityHigh) }
+        if let badge = MailInboxRules.requestBadge(message), badge != .alert { kinds.append(.request) }
+        return kinds
     }
+
+    private var hasChips: Bool { !chipKinds.isEmpty }
 
     private var chips: some View {
-        HStack(spacing: 5) { chipViews }
+        HStack(spacing: 4) { chipViews }
             .fixedSize()
     }
 
     @ViewBuilder private var chipViews: some View {
-        if message.authState == .fail {
-            MailChip(text: L.Mail.unverifiedSender, symbol: "exclamationmark.shield.fill", hue: 9,
-                     help: L.Mail.unverifiedHelp)
+        let split = MailCardDensity.chips(chipKinds)
+        ForEach(split.shown, id: \.self) { kind in chip(kind) }
+        if !split.hidden.isEmpty {
+            MailChip(text: L.Mail.moreChips(split.hidden.count), hue: nil,
+                     help: split.hidden.map(chipText).joined(separator: "\n"))
         }
-        if let badge = MailInboxRules.requestBadge(message) {
-            MailRequestBadgeView(badge: badge, advisor: message.senderKind == .advisor)
+    }
+
+    @ViewBuilder private func chip(_ kind: MailCardChipKind) -> some View {
+        switch kind {
+        case .unverified:
+            MailChip(text: L.Mail.unverifiedSender, symbol: "exclamationmark.shield.fill", hue: 9, help: L.Mail.unverifiedHelp)
+        case .due:
+            if let due = card.dueHint(today: today) { MailDueChip(hint: due) }
+        case .priorityHigh:
+            MailPriorityChip(priority: .high)
+        case .request:
+            if let badge = MailInboxRules.requestBadge(message) {
+                MailRequestBadgeView(badge: badge, advisor: message.senderKind == .advisor)
+            }
         }
-        if let due = card.dueHint(today: today) {
-            MailDueChip(hint: due)
-        }
-        if let p = message.triage?.priority, p != .normal {
-            MailPriorityChip(priority: p)
+    }
+
+    /// A collapsed chip's words (the "+N" chip's tooltip).
+    private func chipText(_ kind: MailCardChipKind) -> String {
+        switch kind {
+        case .unverified: return L.Mail.unverifiedSender
+        case .due:
+            guard let due = card.dueHint(today: today) else { return "" }
+            return L.Mail.dueChip(SharedStrings.monthDay(due.date), confident: due.confident, past: due.isPast)
+        case .priorityHigh: return L.Mail.priorityHigh
+        case .request:
+            return MailInboxRules.requestBadge(message).map { L.Mail.badge($0, advisor: message.senderKind == .advisor) } ?? ""
         }
     }
 
@@ -228,8 +255,9 @@ struct MailCardView: View {
                 Text(verbatim: text)
                     .font(.system(size: 12.5))
                     .foregroundStyle(.primary.opacity(0.85))
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(text)
             }
         }
     }

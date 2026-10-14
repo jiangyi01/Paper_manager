@@ -3,7 +3,8 @@ import SwiftUI
 import PaperDeckCore
 
 /// 详情页头部: selectable title, authors (collapsed after 3), the
-/// `Nature · 2024 · doi ↗ · research · hard` line, category menu and tags.
+/// `Nature · 2024 · doi ↗ · research · hard` line, then the category menu and the tags on one
+/// wrapping line.
 struct DetailHeader: View {
     let state: AppState
     let row: PaperRow
@@ -19,9 +20,11 @@ struct DetailHeader: View {
             titleView
             authorsView
             DetailMetaLine(paper: paper)
-            DetailCategoryMenu(state: state, row: row, lang: lang, readOnly: readOnly)
-                .padding(.top, 2)
-            DetailTagsEditor(state: state, row: row, readOnly: readOnly)
+            // The category and the tags share one wrapping line.
+            DetailTagsEditor(state: state, row: row, readOnly: readOnly) {
+                DetailCategoryMenu(state: state, row: row, lang: lang, readOnly: readOnly)
+            }
+            .padding(.top, 2)
             fileNotes
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -269,10 +272,12 @@ private struct DetailCategoryMenu: View {
 
 // MARK: - Tags
 
-private struct DetailTagsEditor: View {
+private struct DetailTagsEditor<Leading: View>: View {
     let state: AppState
     let row: PaperRow
     let readOnly: Bool
+    /// Drawn first on the tags' line (the category menu).
+    @ViewBuilder let leading: () -> Leading
 
     @State private var adding = false
     @State private var draft = ""
@@ -281,6 +286,7 @@ private struct DetailTagsEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             DetailFlowLayout(spacing: 6, lineSpacing: 6) {
+                leading()
                 ForEach(row.tags, id: \.name) { tag in
                     DetailTagChip(name: tag.name, origin: tag.origin,
                                   onRemove: readOnly ? nil : { remove(tag.name) })

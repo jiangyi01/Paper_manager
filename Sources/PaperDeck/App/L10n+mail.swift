@@ -69,7 +69,6 @@ extension L {
         }
         static func accountLine(name: String, status: String) -> String { name + " · " + status }
         static var statusNotChecked: String { zh ? "尚未同步" : "Not synced yet" }
-        static func statusSynced(_ ago: String) -> String { zh ? "\(ago)同步" : "synced \(ago)" }
         static var statusReady: String { zh ? "已连接" : "Connected" }
         static func statusNeedsSetup(_ why: String) -> String { zh ? "需要设置：\(why)" : "Needs setup: \(why)" }
         static func statusAuthFailed(_ why: String) -> String { zh ? "登录被拒绝：\(why)" : "Sign-in rejected: \(why)" }
@@ -79,18 +78,93 @@ extension L {
         }
         static var triageLocalOnly: String { zh ? "邮件分拣：仅本地规则（不发送给 AI）" : "Mail triage: local rules only (nothing is sent to AI)" }
         static func triageQueued(_ n: Int) -> String { zh ? "\(n) 封等待 AI 分析" : "\(n) waiting for AI" }
-        /// Folder accounts: files Power Automate wrote that are not complete emails (`notEmailFiles`).
-        static func notEmailShort(_ n: Int) -> String {
-            zh ? "\(n) 个文件不是完整的邮件" : (n == 1 ? "1 file isn't a complete email" : "\(n) files aren't complete emails")
-        }
-        /// Allowlisted emails skipped because the account's retry list was full (`skipped`).
-        static func skippedShort(_ n: Int) -> String {
-            zh ? "跳过 \(n) 封邮件" : (n == 1 ? "1 email skipped" : "\(n) emails skipped")
-        }
         static var powerAutomateGuide: String { zh ? "Power Automate 设置指南…" : "Power Automate Guide…" }
         static var justNow: String { zh ? "刚刚" : "just now" }
         static func minutesAgo(_ n: Int) -> String { zh ? "\(n) 分钟前" : "\(n) min ago" }
         static func hoursAgo(_ n: Int) -> String { zh ? "\(n) 小时前" : "\(n) h ago" }
+
+        // MARK: Status pill (inbox header) and its popover
+
+        static var pillNotSetUp: String { zh ? "邮件未设置" : "Mail isn't set up" }
+        static var pillOff: String { zh ? "邮件同步已关闭" : "Mail sync is off" }
+        static var pillPaused: String { zh ? "所有账户已暂停" : "All accounts paused" }
+        static func pillAttention(_ n: Int) -> String {
+            zh ? "\(n) 个账户需要处理" : (n == 1 ? "1 account needs attention" : "\(n) accounts need attention")
+        }
+        static func pillSynced(_ ago: String) -> String { zh ? "\(ago)同步" : "Synced \(ago)" }
+        static var pillNotSynced: String { zh ? "尚未同步" : "Not synced yet" }
+        /// Tooltip and VoiceOver hint of the pill.
+        static var pillHelp: String { zh ? "邮件账户、同步状态与 AI 分拣" : "Mail accounts, sync status and AI triage" }
+        static var accountsTitle: String { zh ? "邮件账户" : "Mail Accounts" }
+        static var aiTriageTitle: String { zh ? "AI 分拣" : "AI Triage" }
+        static var accountPaused: String { zh ? "已暂停" : "Paused" }
+
+        // MARK: Notices (at most one in the inbox header)
+
+        /// "1 file in Work isn't an email" — files a watched folder holds that aren't emails.
+        static func notEmailNotice(_ n: Int, account: String) -> String {
+            if zh { return "「\(account)」中有 \(n) 个文件不是完整的邮件" }
+            return n == 1 ? "1 file in “\(account)” isn't a complete email" : "\(n) files in “\(account)” aren't complete emails"
+        }
+        /// "3 emails from Gmail were skipped" — the retry list was full.
+        static func skippedNotice(_ n: Int, account: String) -> String {
+            if zh { return "「\(account)」有 \(n) 封邮件被跳过" }
+            return n == 1 ? "1 email from “\(account)” was skipped" : "\(n) emails from “\(account)” were skipped"
+        }
+        static func moreNotices(_ n: Int) -> String { zh ? "还有 \(n) 条" : "+\(n) more" }
+        static var moreNoticesHelp: String { zh ? "查看所有账户的状态" : "Show every account's status" }
+        static var hideNotice: String { zh ? "隐藏此提醒" : "Hide This Notice" }
+        static var hideNoticeHelp: String {
+            zh ? "本次运行期间不再显示；状态按钮里仍可查看" : "Hidden until PaperDeck restarts; the status button still shows it"
+        }
+        static var ignore: String { zh ? "忽略" : "Ignore" }
+        static var ignoreFilesHelp: String {
+            zh ? "不再提醒这些文件；出现新的不完整文件时会再提醒一次" : "Stop warning about these files. A new one will warn you again once."
+        }
+        static var ignoreSkippedHelp: String {
+            zh ? "隐藏提醒，直到有更多邮件被跳过" : "Hide this until more emails are skipped"
+        }
+        static var moveToTrash: String { zh ? "移到废纸篓…" : "Move to Trash…" }
+        static var moveToTrashHelp: String {
+            zh ? "把这些不是邮件的文件移到废纸篓（只限监视的文件夹内；可在废纸篓中「放回原处」）"
+               : "Move these files that aren't emails to the Trash (only inside the watched folder; Put Back restores them)"
+        }
+        static var howToFix: String { zh ? "如何修复" : "How to fix" }
+        static func trashTitle(_ n: Int) -> String {
+            zh ? "将 \(n) 个文件移到废纸篓？" : (n == 1 ? "Move 1 file to the Trash?" : "Move \(n) files to the Trash?")
+        }
+        static func trashBody(folder: String, names: [String], more: Int) -> String {
+            let list = names.joined(separator: zh ? "、" : ", ") + (more > 0 ? (zh ? " 等 \(more) 个" : " and \(more) more") : "")
+            return zh ? "「\(folder)」中的这些文件不是邮件：\(list)。之后可以在废纸篓中用「放回原处」恢复。"
+                      : "These files in “\(folder)” aren't emails: \(list). You can restore them with Put Back in the Trash."
+        }
+        static func trashConfirm(_ n: Int) -> String {
+            zh ? "移到废纸篓" : (n == 1 ? "Move to Trash" : "Move \(n) Files to Trash")
+        }
+        static func trashed(_ n: Int) -> String {
+            zh ? "已将 \(n) 个文件移到废纸篓（可在废纸篓中「放回原处」）"
+               : (n == 1 ? "Moved 1 file to the Trash (Put Back restores it)" : "Moved \(n) files to the Trash (Put Back restores them)")
+        }
+        static var trashNothing: String {
+            zh ? "这些文件已经不在或有了变化，没有移动任何文件" : "Those files are gone or changed — nothing was moved"
+        }
+        static var trashFailed: String { zh ? "无法将文件移到废纸篓" : "Couldn't move the files to the Trash" }
+        static func ignoredFiles(_ n: Int) -> String {
+            zh ? "已忽略 \(n) 个不是邮件的文件" : (n == 1 ? "1 ignored file" : "\(n) ignored files")
+        }
+        static var showIgnored: String { zh ? "显示" : "Show" }
+        static var ignoredExplain: String {
+            zh ? "这些文件不是完整的邮件，PaperDeck 不再为它们提醒。" : "These files aren't complete emails. PaperDeck no longer warns about them."
+        }
+        static var showInFinder: String { zh ? "在访达中显示" : "Show in Finder" }
+        static var stopIgnoring: String { zh ? "不再忽略" : "Stop Ignoring" }
+        static var ignoredGone: String { zh ? "这些文件已经不在文件夹中" : "These files are no longer in the folder" }
+        /// Settings ▸ Mail: the skipped notice was hidden — the count, quietly.
+        static func skippedHidden(_ n: Int) -> String {
+            zh ? "跳过 \(n) 封邮件（提醒已隐藏）" : (n == 1 ? "1 email skipped (notice hidden)" : "\(n) emails skipped (notice hidden)")
+        }
+        /// "+2" chip of a list card; its tooltip lists the hidden chips.
+        static func moreChips(_ n: Int) -> String { "+\(n)" }
 
         // MARK: Empty states
 

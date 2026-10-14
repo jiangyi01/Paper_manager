@@ -175,20 +175,30 @@ import Testing
     // MARK: runtime-5
 
     @Test func joinNeverWaitsOnATaskThatIgnoresCancellation() async {
+        // Load-tolerant (ENV-1): the stubborn tasks run 20 s and the join returns while they still
+        // run — that is the proof it didn't wait for them, however slow or throttled (a background-QoS
+        // test process under load fires a 400 ms timer seconds late) the machine is. The wall clock
+        // only bounds it loosely.
         let clock = ContinuousClock()
+        let stubbornDone = RFB.K.Box(false)
         let t0 = clock.now
-        // Load-tolerant (ENV-1): the stubborn tasks run 20 s, so finishing well before that proves the
-        // join didn't wait for them, however slow the machine is.
-        await MailSyncActor.join(RFB.stubbornTask(20), within: .milliseconds(400))
-        #expect(clock.now - t0 < .seconds(10))
+        await MailSyncActor.join(RFB.stubbornTask(20, finished: stubbornDone), within: .milliseconds(400))
+        #expect(!stubbornDone.value)
+        #expect(clock.now - t0 < .seconds(19))
         // A cooperative task is waited for until it finished.
-        let quick = Task<Void, Never> { try? await Task.sleep(for: .milliseconds(50)) }
-        let t1 = clock.now
+        let quickDone = RFB.K.Box(false)
+        let quick = Task<Void, Never> {
+            try? await Task.sleep(for: .milliseconds(50))
+            quickDone.value = true
+        }
         await MailSyncActor.join(quick, within: .seconds(15))
-        #expect(clock.now - t1 < .seconds(10))
+        #expect(quickDone.value)
         // Several tasks share one deadline.
+        let first = RFB.K.Box(false), second = RFB.K.Box(false)
         let t2 = clock.now
-        await MailSyncActor.joinAll([RFB.stubbornTask(20), RFB.stubbornTask(20)], within: .milliseconds(400))
-        #expect(clock.now - t2 < .seconds(10))
+        await MailSyncActor.joinAll([RFB.stubbornTask(20, finished: first), RFB.stubbornTask(20, finished: second)],
+                                    within: .milliseconds(400))
+        #expect(!first.value && !second.value)
+        #expect(clock.now - t2 < .seconds(19))
     }
 }

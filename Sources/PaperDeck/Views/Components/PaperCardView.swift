@@ -4,11 +4,19 @@ import SwiftUI
 import PaperDeckCore
 
 /// One library card (§8 卡片). Display only: selection, clicks and the context menu are
-/// attached by the container (CardGridView). Fixed height 300 pt, pure stacks.
+/// attached by the container (CardGridView), which also sizes it (`CardGridMetrics`): a tile
+/// (thumbnail on top) in the multi-column grid, or a compact horizontal card in the one-column
+/// grid of a narrow content column. The height follows the content — the title and the TL;DR are
+/// never clipped — and the grid gives every card of a row the row's tallest height (the footer
+/// stays at the bottom).
+///
+/// One line per kind of information; the rest lives in the inspector: the AI badge only while
+/// the reading isn't ready or needs the user, the priority mark only for high, at most two chips
+/// (category, then tags, the rest folded into `+N`), no TL;DR placeholder.
 struct PaperCardView: View {
-    static let height: CGFloat = 300
-    static let thumbnailHeight: CGFloat = 120
     static let cornerRadius: CGFloat = 14
+    /// The thumbnail of a card at the grid's minimum width (single cards drawn on their own).
+    static let thumbnailHeight: CGFloat = 120
 
     let row: PaperRow
     let today: LocalDate
@@ -16,38 +24,43 @@ struct PaperCardView: View {
     let agentStatus: AgentQueueStatus
     let queuePosition: Int?
     let isSelected: Bool
+    /// Tile or compact (one-column grid).
+    var style: CardGridMetrics.Style
+    /// Tile thumbnail height (`CardGridMetrics.thumbnailHeight`).
+    var thumbnailHeight: CGFloat
+    /// Compact cards: the thumbnail strip on the leading edge (dropped when the card is narrow).
+    var showsThumbnailStrip: Bool
+    /// The multi-selection's checkmark (on the thumbnail, or at the trailing edge of a compact card).
+    var showsCheckmark: Bool
 
     @State private var hovering = false
 
     init(row: PaperRow, today: LocalDate, lang: UILang, agentStatus: AgentQueueStatus,
-         queuePosition: Int?, isSelected: Bool) {
+         queuePosition: Int?, isSelected: Bool, style: CardGridMetrics.Style = .tiles,
+         thumbnailHeight: CGFloat = PaperCardView.thumbnailHeight, showsThumbnailStrip: Bool = true,
+         showsCheckmark: Bool = false) {
         self.row = row
         self.today = today
         self.lang = lang
         self.agentStatus = agentStatus
         self.queuePosition = queuePosition
         self.isSelected = isSelected
+        self.style = style
+        self.thumbnailHeight = thumbnailHeight
+        self.showsThumbnailStrip = showsThumbnailStrip
+        self.showsCheckmark = showsCheckmark
     }
 
     private var paper: Paper { row.paper }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            thumbnail
-            VStack(alignment: .leading, spacing: 6) {
-                title
-                byline
-                chips
-                tldr
-                Spacer(minLength: 0)
-                footer
+        Group {
+            switch style {
+            case .tiles: tile
+            case .compact: compact
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 11)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
             .fill(Color(nsColor: .controlBackgroundColor)))
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
@@ -64,20 +77,72 @@ struct PaperCardView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
+    // MARK: Tile (thumbnail on top)
+
+    private var tile: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            thumbnail
+                .frame(height: thumbnailHeight)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 0.5) }
+                .overlay(alignment: .bottomLeading) { aiBadge(iconOnly: false).padding(8) }
+                .overlay(alignment: .topTrailing) { priorityMark.padding(8) }
+                .overlay(alignment: .topLeading) { DuplicateRibbon(row: row) }   // dedupe (Slice B), once it ships
+                .overlay(alignment: .bottomTrailing) { if showsCheckmark { SelectionCheckmark().padding(8) } }
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    title(lines: 3)
+                    byline
+                }
+                chips
+                tldr(lines: 3)
+                Spacer(minLength: 0)
+                footer
+            }
+            .padding(12)
+        }
+    }
+
+    // MARK: Compact (one-column grid)
+
+    private var compact: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if showsThumbnailStrip {
+                // A small page: the top-leading corner of page 1 (journal line, start of the title).
+                thumbnail
+                    .frame(width: CardGridMetrics.compactThumbnailWidth, height: CardGridMetrics.compactThumbnailHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5))
+                    .overlay(alignment: .bottomLeading) { aiBadge(iconOnly: true).padding(4) }
+                    .overlay(alignment: .topLeading) { DuplicateRibbon(row: row, compact: true).offset(x: -6, y: -6) }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        title(lines: 3, flag: true)
+                        byline
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if showsCheckmark { SelectionCheckmark() }
+                }
+                tldr(lines: 2)
+                Spacer(minLength: 0)
+                compactFooter
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+    }
+
     // MARK: Thumbnail
 
     private var thumbnail: some View {
-        CardThumbnail(url: row.thumbnailURL, placeholder: placeholderSymbol, placeholderText: placeholderText)
-            .frame(height: Self.thumbnailHeight)
-            .frame(maxWidth: .infinity)
-            .clipped()
-            .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 0.5) }
-            .overlay(alignment: .bottomLeading) {
-                AgentBadge(paper: paper, status: agentStatus, queuePosition: queuePosition, lang: lang)
-                    .padding(8)
-            }
-            .overlay(alignment: .topTrailing) { priorityMark.padding(8) }
-            .overlay(alignment: .topLeading) { DuplicateRibbon(row: row) }   // dedupe (Slice B), once it ships
+        CardThumbnail(url: row.thumbnailURL, placeholder: placeholderSymbol,
+                      placeholderText: style == .compact ? nil : placeholderText,
+                      placeholderIsWarning: placeholderText != nil)
+            .help(style == .compact ? (placeholderText ?? "") : "")
     }
 
     private var placeholderSymbol: String {
@@ -92,103 +157,111 @@ struct PaperCardView: View {
         return nil
     }
 
+    /// The AI status, only while it isn't ready or needs the user (`AgentBadgeKind.showsOnCard`).
+    @ViewBuilder private func aiBadge(iconOnly: Bool) -> some View {
+        AgentBadge(paper: paper, status: agentStatus, queuePosition: queuePosition, lang: lang, iconOnly: iconOnly)
+    }
+
     @ViewBuilder private var priorityMark: some View {
-        switch paper.priority {
-        case .high:
+        if CardBadgeRules.showsPriorityMark(paper.priority) {
             Image(systemName: "flag.fill")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(ChipPalette.dynamic(light: 0xD32F2F, dark: 0xFF6B61))
+                .foregroundStyle(Self.flagRed)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(.regularMaterial))
                 .help(L.cardsHighPriority)
                 .accessibilityLabel(L.cardsHighPriority)
-        case .low:
-            Image(systemName: "arrow.down.circle")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(.regularMaterial))
-                .help(L.cardsLowPriority)
-                .accessibilityLabel(L.cardsLowPriority)
-        case .normal:
-            EmptyView()
         }
     }
+
+    private static let flagRed = ChipPalette.dynamic(light: 0xD32F2F, dark: 0xFF6B61)
 
     // MARK: Text
 
-    private var title: some View {
+    /// The title with the NEW dot (a fresh AI reading) and, on compact cards, the high-priority flag.
+    private func title(lines: Int, flag: Bool = false) -> some View {
         let text = CardText.displayTitle(paper)
         let pending = CardText.metadataPending(paper)
+        var marks: [Text] = []
+        if !paper.aiSeen {
+            marks.append(Text(Image(systemName: "circle.fill")).font(.system(size: 7)).foregroundStyle(Color.blue))
+        }
+        if flag, CardBadgeRules.showsPriorityMark(paper.priority) {
+            marks.append(Text(Image(systemName: "flag.fill")).font(.system(size: 10)).foregroundStyle(Self.flagRed))
+        }
         let base = Text(text).italic(pending)
-        return Group {
-            if !paper.aiSeen {
-                Text("\(Text(Image(systemName: "circle.fill")).font(.system(size: 7)).foregroundStyle(Color.blue)) \(base)")
-                    .accessibilityLabel(L.cardsNewA11y(text))
-            } else {
-                base
-            }
-        }
-        .font(.system(size: 14, weight: .semibold))
-        .foregroundStyle(pending ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
-        .lineLimit(2)
-        .multilineTextAlignment(.leading)
-        .fixedSize(horizontal: false, vertical: true)
-        .help(text)
+        let composed = marks.reduce(Text("")) { acc, mark in Text("\(acc)\(mark) ") }
+        return Text("\(composed)\(base)")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(pending ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+            .lineLimit(lines)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(text)
+            .accessibilityLabel(titleA11y(text, flag: flag))
     }
 
+    private func titleA11y(_ text: String, flag: Bool) -> String {
+        var label = paper.aiSeen ? text : L.cardsNewA11y(text)
+        if flag, CardBadgeRules.showsPriorityMark(paper.priority) { label += ", " + L.cardsHighPriority }
+        return label
+    }
+
+    /// `Wang L … Kriegstein AR · Nature · 2024` — the venue already says arXiv / bioRxiv, so no
+    /// separate preprint badge on the card (the inspector has it).
     @ViewBuilder private var byline: some View {
-        let venue = CardText.venue(paper)
-        let line = CardText.byline(paper, venue: venue.name)
-        if !line.isEmpty || venue.preprint {
-            HStack(spacing: 5) {
-                if !line.isEmpty {
-                    Text(line)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.secondary)
-                }
-                if venue.preprint {
-                    Text(L.cardsPreprint)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Color.secondary.opacity(0.6), lineWidth: 0.75))
-                        .fixedSize()
-                }
-            }
-            .font(.system(size: 11))
+        let line = CardText.byline(paper, venue: CardText.venue(paper).name)
+        if !line.isEmpty {
+            Text(line)
+                .font(.system(size: 11))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.secondary)
+                .help(line)
         }
     }
 
-    private var chips: some View {
-        HStack(spacing: 5) {
-            CategoryChip(category: row.category, lang: lang)
-                .layoutPriority(1)
-            TagChips(tags: row.tags, limit: 2)
+    /// The category (when set) and tags, two chips in all; the rest folds into `+N`.
+    private var chips: some View { chips(budget: 2) }
+
+    /// `budget` chips (the category first); the rest folds into `+N`.
+    @ViewBuilder private func chips(budget n: Int) -> some View {
+        let budget = CardBadgeRules.chips(hasCategory: row.category != nil, tagCount: row.tags.count, budget: n)
+        if budget.showsCategory || !row.tags.isEmpty {
+            HStack(spacing: 4) {
+                if budget.showsCategory {
+                    CategoryChip(category: row.category, lang: lang)
+                        .layoutPriority(1)
+                }
+                TagChips(tags: row.tags, limit: budget.tags)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder private var tldr: some View {
-        Group {
-            if let t = paper.tldr?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
-                Text(t).foregroundStyle(.primary.opacity(0.82))
-            } else if let first = CardText.firstSentence(paper.abstract) {
-                Text(L.cardsAbstractPrefix + first).italic().foregroundStyle(.secondary)
-            } else {
-                Text(L.cardsTLDRPending).italic().foregroundStyle(.tertiary)
-            }
+    /// The TL;DR, else the abstract's first sentence; nothing while neither exists (the inspector
+    /// says the TL;DR is pending).
+    @ViewBuilder private func tldr(lines: Int) -> some View {
+        if let t = paper.tldr?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
+            Text(t)
+                .font(.system(size: 12))
+                .foregroundStyle(.primary.opacity(0.82))
+                .lineLimit(lines)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(t)
+        } else if let first = CardText.firstSentence(paper.abstract) {
+            Text(L.cardsAbstractPrefix + first)
+                .font(.system(size: 12))
+                .italic()
+                .foregroundStyle(.secondary)
+                .lineLimit(lines)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .font(.system(size: 12))
-        .lineLimit(2)
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: Footer
 
-    private var footer: some View {
+    private var progress: some View {
         HStack(spacing: 6) {
             if paper.status == .done {
                 ProgressRing(done: max(row.doneCount, row.totalCount), total: max(row.totalCount, 1))
@@ -200,13 +273,81 @@ struct PaperCardView: View {
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            Spacer(minLength: 6)
-            // A read paper already says 「已读 · 9/28」 on the left; its ✓ chip would repeat it.
-            if paper.status != .done {
-                DDLChip(spec: row.cardChipSpec(today: today, lang: lang),
-                        atRiskHint: row.cardAtRiskHint(today: today, lang: lang))
+        }
+        .fixedSize()
+    }
+
+    /// A read paper already says 「已读 · 9/28」 on the left; its ✓ chip would repeat it.
+    @ViewBuilder private var deadlineChip: some View {
+        if paper.status != .done {
+            DDLChip(spec: row.cardChipSpec(today: today, lang: lang),
+                    atRiskHint: row.cardAtRiskHint(today: today, lang: lang))
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            progress
+            Spacer(minLength: 8)
+            deadlineChip
+        }
+    }
+
+    /// Compact: progress, the chips while they fit, the DDL; when it's narrow the chips shrink to
+    /// the category and `+N` first, then go. Without the thumbnail, the ribbon and the AI badge
+    /// (icons) lead the line.
+    private var compactFooter: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                statusIcons
+                progress
+                chips.fixedSize()
+                Spacer(minLength: 8)
+                deadlineChip
+            }
+            HStack(spacing: 8) {
+                statusIcons
+                progress
+                chips(budget: 1).fixedSize()
+                Spacer(minLength: 8)
+                deadlineChip
+            }
+            HStack(spacing: 8) {
+                statusIcons
+                progress
+                Spacer(minLength: 8)
+                deadlineChip
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    statusIcons
+                    progress
+                }
+                deadlineChip
             }
         }
+    }
+
+    @ViewBuilder private var statusIcons: some View {
+        if !showsThumbnailStrip {
+            DuplicateRibbon(row: row, compact: true, inline: true)
+            aiBadge(iconOnly: true)
+        }
+    }
+}
+
+/// The multi-selection's badge on a card (the thumbnail's bottom-trailing corner of a tile, the
+/// title line's trailing end of a compact card; the priority mark sits top-trailing, the AI badge
+/// bottom-leading, the duplicate ribbon top-leading).
+struct SelectionCheckmark: View {
+    var body: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 18, weight: .semibold))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, Color.accentColor)
+            .background(Circle().fill(.white).padding(2))
+            .allowsHitTesting(false)
+            .accessibilityLabel(L.Select.selectedA11y)
     }
 }
 
@@ -299,32 +440,41 @@ private struct CardThumbnail: View {
     let url: URL?
     let placeholder: String
     let placeholderText: String?
+    /// The placeholder stands for a problem (missing / encrypted file): never covered by an image.
+    var placeholderIsWarning = false
 
     @State private var image: NSImage?
     @Environment(\.colorScheme) private var colorScheme
 
-    init(url: URL?, placeholder: String, placeholderText: String?) {
+    init(url: URL?, placeholder: String, placeholderText: String?, placeholderIsWarning: Bool = false) {
         self.url = url
         self.placeholder = placeholder
         self.placeholderText = placeholderText
+        self.placeholderIsWarning = placeholderIsWarning || placeholderText != nil
         _image = State(initialValue: url.flatMap { CardThumbnailCache.shared.cached($0) })
     }
 
     var body: some View {
         ZStack {
             Rectangle().fill(Color.primary.opacity(0.045))
-            if let image, placeholderText == nil {
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            if let image, !placeholderIsWarning {
+                // The crop's top-leading corner (journal line, start of the title) stays in view
+                // however the card is shaped.
+                // The fill overflows the frame; the overlay pins it to the frame's top-leading corner.
+                Color.clear
+                    .overlay(alignment: .topLeading) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fill)
+                    }
+                    .clipped()
                     .brightness(colorScheme == .dark ? -0.06 : 0)
                     .accessibilityHidden(true)
             } else {
                 VStack(spacing: 6) {
                     Image(systemName: placeholder)
-                        .font(.system(size: 30, weight: .light))
+                        .font(.system(size: placeholderText == nil && !placeholderIsWarning ? 30 : 26, weight: .light))
                         .foregroundStyle(.tertiary)
                     if let placeholderText {
                         Text(placeholderText)

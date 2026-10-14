@@ -174,8 +174,10 @@ struct MailAccountChip: View {
 
 /// Sender name and address on one line (both untrusted, rendered verbatim). When the line is
 /// short of room the address gives way first (middle-truncated), so the name stays readable.
+/// `showsAddress` false (the inbox list): the name only, the address its tooltip.
 struct MailSenderLine: View {
     let message: MailMessage
+    var showsAddress = true
 
     var body: some View {
         let name = MailInboxRules.line(message.fromName, limit: 80)
@@ -186,7 +188,8 @@ struct MailSenderLine: View {
                 .lineLimit(1)
                 .truncationMode(name.isEmpty ? .middle : .tail)
                 .layoutPriority(1)
-            if !name.isEmpty {
+                .help(address)
+            if !name.isEmpty, showsAddress {
                 Text(verbatim: "<\(address)>")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -195,6 +198,7 @@ struct MailSenderLine: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(verbatim: name.isEmpty ? address : name + ", " + address))
     }
 }
 

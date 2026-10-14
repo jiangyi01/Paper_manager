@@ -90,6 +90,7 @@ PaperDeck can turn emails into **reading requests**: papers an advisor or collea
   You can always **drag emails from Outlook or Mail (or `.eml` files) onto PaperDeck** with no account at all.
 - **Sorting.** Local rules classify each email immediately (request type, due date, papers, Safe Links/Proofpoint unwrapping). Paper alerts may be refined by AI automatically within a daily cap; **advisor/colleague mail goes to AI only after you click *Analyze with AI*** on that card. Word manuscripts from people can be converted to PDF locally (the original is kept next to it) and are treated as possibly unpublished.
 - **Confidential mail** — review invitations, manuscript-system mail, decisions/proofs about your own submissions, and mail marked confidential — is never sent to AI, merged or downloaded automatically.
+- The inbox shows one compact status pill (accounts, last sync, AI triage usage) and at most one notice at a time. Files in a Power Automate folder that aren't complete emails can be **ignored** (you are told again only about new ones) or **moved to the Trash** (only those files, restorable with Put Back).
 - Passwords live only in your login keychain. Email bodies are deleted 30 days after a card is handled (configurable).
 
 ## Library, privacy and moving to another Mac

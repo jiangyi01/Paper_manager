@@ -9,14 +9,22 @@ import PaperDeckShared
 /// never the user's real library, never a real AI run: both provider slots are mocks
 /// (`--mode claude|codex` only relabels the chrome; agent mode is off by default).
 enum PreviewRenderer {
-    /// The render's own settings suite (never the app's domain): `<bundle id>.render`.
-    static let suite = "\(BuildIdentity.current.bundleID).render"
+    /// The render's own settings domain (never the app's): an absolute-path suite inside the scratch
+    /// `--root` (`<root>/.render-defaults/defaults.plist`, as the self-tests' scratch domains), so two
+    /// renders on different roots never wipe each other's demo accounts and nothing is left in
+    /// ~/Library/Preferences.
+    static func suite(root: URL) -> String {
+        let dir = root.standardizedFileURL.appendingPathComponent(".render-defaults", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("defaults").path
+    }
 
     static func run(_ args: CLIArgs) async -> Int32 {
         guard let out = args.positional.map({ URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) }),
               let root = args.url("--root") else {
             return CLIRunner.fail("--render OUTDIR --root LIBRARY_ROOT [--lang zh|en] [--appearance light|dark] [--provider claude|codex] [--mode off|claude|codex]")
         }
+        let suite = Self.suite(root: root)
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.accessory)
@@ -110,6 +118,16 @@ enum PreviewRenderer {
                 let suffix = "\(lang.rawValue)-\(args.value("--appearance") ?? "light")"
                 try await ReaderRenders.render(state: state, engine: engine, root: root, appearance: appearance, out: out,
                                                suffix: suffix, probe: args.has("--probe-reader"))
+                state.stop()
+                await engine.shutdown()
+                defaults.removePersistentDomain(forName: suite)
+                return 0
+            }
+            // `--library-only [--widths "720, 900, …"]`: the library's columns at several window widths.
+            if args.has("--library-only") {
+                let suffix = "\(lang.rawValue)-\(args.value("--appearance") ?? "light")"
+                try await LibraryRenders.render(state: state, engine: engine, root: root, appearance: appearance, out: out,
+                                                suffix: suffix, widths: LibraryRenders.widths(args.value("--widths")))
                 state.stop()
                 await engine.shutdown()
                 defaults.removePersistentDomain(forName: suite)

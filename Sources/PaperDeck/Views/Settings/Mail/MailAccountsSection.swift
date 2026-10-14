@@ -25,7 +25,7 @@ struct MailAccountsSection: View {
                 NoteText(L.MailPref.noAccounts, symbol: "envelope.badge")
             }
             ForEach(settings.mailAccounts) { account in
-                MailAccountRow(account: account, info: byID[account.id], masterOn: settings.mailEnabled,
+                MailAccountRow(state: state, account: account, info: byID[account.id], masterOn: settings.mailEnabled,
                                enabled: enabledBinding(account.id), lookback: lookbackBinding(account.id),
                                onEdit: { sheet = .editAccount(account) },
                                onRemove: { removing = account },
@@ -92,6 +92,7 @@ struct MailAccountsSection: View {
 }
 
 private struct MailAccountRow: View {
+    let state: AppState
     let account: MailAccount
     let info: MailAccountSyncInfo?
     let masterOn: Bool
@@ -137,24 +138,42 @@ private struct MailAccountRow: View {
                     .padding(.leading, 28)
             }
             // Its notices (`MailAccountNotice`): files the flow wrote that aren't emails (Create
-            // file got the trigger's Body) → the guide; allowlisted emails skipped because the
-            // retry list was full (the engine's `skippedHint`) → 「立即同步」.
+            // file got the trigger's Body) → Move to Trash… · Ignore · the guide; allowlisted emails
+            // skipped because the retry list was full (the engine's `skippedHint`) → 「立即同步」 · hide
+            // until more are skipped. What the user ignored / hid stays as a quiet line.
             ForEach(MailAccountNotice.notices(info, active: masterOn && account.enabled), id: \.kind) { notice in
                 VStack(alignment: .leading, spacing: 6) {
                     StatusLine(.warning, notice.text)
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
-                    switch notice.action {
-                    case .openGuide:
-                        Button(L.MailPref.openGuide, action: onGuide)
-                            .controlSize(.small)
-                    case .syncNow:
-                        Button(syncing ? L.Mail.syncing : L.MailPref.syncNow, action: onSyncNow)
-                            .controlSize(.small)
-                            .disabled(syncing)
+                    DetailFlowLayout(spacing: 8, lineSpacing: 6) {
+                        switch notice.action {
+                        case .openGuide:
+                            MailNotEmailActions(state: state, accountID: account.id, ignored: false)
+                            Button(L.MailPref.openGuide, action: onGuide)
+                                .controlSize(.small)
+                        case .syncNow:
+                            Button(syncing ? L.Mail.syncing : L.MailPref.syncNow, action: onSyncNow)
+                                .controlSize(.small)
+                                .disabled(syncing)
+                            Button(L.Mail.hideNotice) { state.dismissSkippedNotice(accountID: account.id) }
+                                .controlSize(.small)
+                                .help(L.Mail.ignoreSkippedHelp)
+                        }
                     }
                 }
                 .padding(.leading, 28)
+            }
+            if let info, info.kind == .folder, info.ignoredNotEmailFiles > 0 {
+                MailIgnoredFilesLine(state: state, accountID: account.id, count: info.ignoredNotEmailFiles)
+                    .padding(.leading, 28)
+            }
+            if let info, masterOn, account.enabled, info.skipped > 0, info.skippedDismissed >= info.skipped {
+                Text(L.Mail.skippedHidden(info.skipped))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .help(info.skippedHint ?? "")
+                    .padding(.leading, 28)
             }
             HStack(spacing: 10) {
                 Picker(L.MailPref.lookbackShort, selection: $lookback) {

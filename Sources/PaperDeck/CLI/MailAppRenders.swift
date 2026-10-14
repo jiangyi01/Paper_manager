@@ -100,9 +100,12 @@ enum MailAppRenders {
                 .frame(width: 640, height: 640),
             size: NSSize(width: 640, height: 640), appearance: appearance, png("settings-mail-notify"))
         state.settings.mailNotifyNewRequests = false
-        if let info = folderInfo, info.notEmailFiles > 0 {
-            try await PreviewRenderer.captureView(MailNotEmailNotice(state: state, info: info).frame(width: 820).padding(12),
-                                                  size: nil, appearance: appearance, png("mail-notemail-notice"))
+        if let notice = MailNoticePolicy.notices(snap.accounts).first(where: { $0.kind == .notEmail }) {
+            for width in [820, 400] {
+                try await PreviewRenderer.captureView(
+                    MailInboxNoticeView(state: state, notice: notice, more: 1, onShowAll: {}).frame(width: CGFloat(width)).padding(12),
+                    size: nil, appearance: appearance, png(width == 820 ? "mail-notemail-notice" : "mail-notemail-notice-400"))
+            }
         }
 
         // Card states.
@@ -192,7 +195,65 @@ enum MailAppRenders {
         print("wrote \(text.path)")
         lines.forEach { print("  " + $0) }
 
+        if folderFixtures != nil, let folderInfo {
+            try await ignoreRenders(state: state, accountID: folderInfo.id, root: root, appearance: appearance, png: png)
+        }
         try await skippedRenders(state: state, appearance: appearance, png: png)
+    }
+
+    /// The decluttered header and 「忽略」 on the folder's not-email files: the header and the status
+    /// popover before; then the files ignored — the header without the notice or an orange status,
+    /// the popover and Settings ▸ Mail with the quiet 「1 ignored file · Show」 line, the whole
+    /// inbox; then a new not-email file (one more pass of the demo folder) brings the notice back
+    /// for that file alone (then both are ignored). Everything inside the scratch `--root`; nothing
+    /// is moved to the Trash.
+    static func ignoreRenders(state: AppState, accountID: String, root: URL,
+                              appearance: NSAppearance?, png: (String) -> URL) async throws {
+        let engine = state.engine
+        let chrome = LibraryChrome()
+        func refreshed(_ ok: @escaping (MailSnapshot) -> Bool) async throws -> MailSnapshot {
+            var waited = 0
+            state.scheduleMailRefresh(delay: .zero)
+            while !(state.mailSnapshot.map(ok) ?? false) && waited < 50 {
+                try await Task.sleep(for: .milliseconds(100))
+                state.scheduleMailRefresh(delay: .zero)
+                waited += 1
+            }
+            return try await engine.mailSnapshot()
+        }
+        func shots(_ snap: MailSnapshot, _ tag: String) async throws {
+            try await PreviewRenderer.captureView(MailInboxHeader(state: state, snap: snap).frame(width: 820).padding(12),
+                                                  size: nil, appearance: appearance, png("mail-header-\(tag)"))
+            try await PreviewRenderer.captureView(MailStatusPopover(state: state, snap: snap), size: nil, appearance: appearance,
+                                                  png("mail-status-popover-\(tag)"))
+            try await PreviewRenderer.captureView(
+                Form { MailAccountsSection(state: state, infos: snap.accounts, sheet: .constant(nil)) }.formStyle(.grouped)
+                    .frame(width: 640, height: 640),
+                size: NSSize(width: 640, height: 640), appearance: appearance, png("settings-mail-accounts-\(tag)"))
+        }
+        let previous = state.sidebar
+        state.sidebar = .mail
+        defer { state.sidebar = previous }
+        try await shots(try await refreshed { _ in true }, "notemail")
+
+        await engine.mail.ignoreNotEmailFiles(accountID: accountID)
+        let ignored = try await refreshed { $0.accounts.contains { $0.ignoredNotEmailFiles > 0 } }
+        try await shots(ignored, "ignored")
+        try await PreviewRenderer.captureView(MailInboxView(state: state).environment(chrome).frame(width: 1044, height: 900),
+                                              size: NSSize(width: 1044, height: 900), appearance: appearance,
+                                              png("mail-inbox-ignored"))
+
+        // A new file that isn't an email (scratch fixtures under --root): the notice is back, for it alone.
+        let extra = root.appendingPathComponent("render-new-notemail", isDirectory: true)
+        try FileManager.default.createDirectory(at: extra, withIntermediateDirectories: true)
+        try Data("<html><head><meta charset=\"utf-8\"></head><body>Body only</body></html>".utf8)
+            .write(to: extra.appendingPathComponent("Second body only.eml"))
+        try await syncFolder(state: state, root: root, fixtures: extra)
+        let again = try await refreshed { $0.accounts.contains { $0.notEmailFiles > 0 && $0.ignoredNotEmailFiles > 0 } }
+        try await shots(again, "newfile")
+        // Both ignored: the skipped-emails pages after these show their own notice.
+        await engine.mail.ignoreNotEmailFiles(accountID: accountID)
+        _ = try await refreshed { $0.accounts.allSatisfy { $0.notEmailFiles == 0 } }
     }
 
     /// Allowlisted emails skipped because an account's retry list was full (a4-1): the notice with
@@ -237,8 +298,9 @@ enum MailAppRenders {
         try await PreviewRenderer.captureView(MailInboxView(state: state).environment(LibraryChrome()).frame(width: 900, height: 640),
                                               size: NSSize(width: 900, height: 640), appearance: appearance,
                                               png("mail-inbox-skipped"))
-        if let info = state.mailSnapshot?.accounts.first(where: { $0.skipped > 0 }), let hint = info.skippedHint {
-            try await PreviewRenderer.captureView(MailSkippedNotice(state: state, info: info, hint: hint).frame(width: 820).padding(12),
+        if let notice = MailNoticePolicy.notices(state.mailSnapshot?.accounts ?? []).first(where: { $0.kind == .skipped }) {
+            try await PreviewRenderer.captureView(MailInboxNoticeView(state: state, notice: notice, more: 0, onShowAll: {})
+                                                    .frame(width: 820).padding(12),
                                                   size: nil, appearance: appearance, png("mail-skipped-notice"))
         }
         try await engine.db.setMailCursor(accountID: gmail.id + ".skipped", nil)

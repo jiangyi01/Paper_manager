@@ -95,7 +95,7 @@ struct MailItemRow: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, layout == .wide ? 6 : 8)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
             .fill(Color.primary.opacity(hovering ? 0.05 : 0.025)))
         .opacity(item.status == .skipped ? 0.6 : 1)
@@ -121,10 +121,11 @@ struct MailItemRow: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// The narrowest a title column gets beside the buttons (two lines of ~30 characters), and
+    /// The narrowest a title column gets beside the buttons (two lines of ~45 characters — a
+    /// narrower column moves the buttons under the title instead of cutting the title short), and
     /// beside the chip once the buttons moved under it.
-    static let minTitleWidth: CGFloat = 220
-    static let minStackedTitleWidth: CGFloat = 160
+    static let minTitleWidth: CGFloat = 300
+    static let minStackedTitleWidth: CGFloat = 240
     private var chipWidth: CGFloat { L.lang == .zh ? 76 : 112 }
 
     private var chipColumn: some View {
@@ -153,8 +154,16 @@ struct MailItemRow: View {
         return title.isEmpty ? (item.ids.doi ?? item.ids.arxivID ?? L.Mail.untitled) : title
     }
 
+    /// The AI's "why" (untrusted, clipped): its own line in the inspector; in the list the
+    /// title's tooltip (one line of information per element).
+    private var why: String? {
+        item.why.map { MailInboxRules.line($0, limit: 160) }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     private var texts: some View {
         let title = displayTitle
+        let wide = layout == .wide
+        let tooltip = wide ? ([title] + [why, item.foundBy == .ai ? L.Mail.foundByAI : nil].compactMap { $0 }).joined(separator: "\n") : title
         return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 if item.relevance == .requested {
@@ -168,22 +177,30 @@ struct MailItemRow: View {
                     .font(.system(size: 12.5, weight: .medium))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .help(title)
+                    .help(tooltip)
+                if wide, item.foundBy == .ai {
+                    Image(systemName: "checkmark.seal")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .help(L.Mail.foundByAI)
+                        .accessibilityLabel(L.Mail.foundByAI)
+                }
             }
             if let meta = metaLine {
                 Text(verbatim: meta)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .help(meta)
             }
-            if let why = item.why.map({ MailInboxRules.line($0, limit: 160) }), !why.isEmpty {
+            if !wide, let why {
                 Text(verbatim: why)
                     .font(.system(size: 11))
                     .italic()
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
-            if item.foundBy == .ai {
+            if !wide, item.foundBy == .ai {
                 Label(L.Mail.foundByAI, systemImage: "checkmark.seal")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)

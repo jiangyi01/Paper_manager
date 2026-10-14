@@ -195,11 +195,13 @@ enum RFB {
     }
 
     /// Ignores cancellation: finishes after `seconds` whatever happens.
-    static func stubbornTask(_ seconds: Double) -> Task<Void, Never> {
+    /// `finished` turns true once the task is done.
+    static func stubbornTask(_ seconds: Double, finished: K.Box<Bool>? = nil) -> Task<Void, Never> {
         Task.detached {
             await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
                 DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { c.resume() }
             }
+            finished?.value = true
         }
     }
 }

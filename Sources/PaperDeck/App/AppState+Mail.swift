@@ -260,6 +260,108 @@ extension AppState {
         }
     }
 
+    // MARK: Account notices (files that aren't emails, skipped emails)
+
+    /// 「忽略」 on the not-email notice: the folder account's not-email files stop warning — the
+    /// notice, the orange status and the Help Center check go quiet; Settings ▸ Mail keeps a quiet
+    /// line. A new not-email file warns again once.
+    func ignoreNotEmailFiles(accountID: String) {
+        let engine = self.engine
+        Task {
+            await engine.mail.ignoreNotEmailFiles(accountID: accountID)
+            self.scheduleMailRefresh(delay: .zero)
+        }
+    }
+
+    /// 「不再忽略」: the account's ignored not-email files warn again.
+    func unignoreNotEmailFiles(accountID: String) {
+        let engine = self.engine
+        Task {
+            await engine.mail.unignoreNotEmailFiles(accountID: accountID)
+            self.scheduleMailRefresh(delay: .zero)
+        }
+    }
+
+    /// ✕ on the skipped-emails notice: hidden until more emails are skipped.
+    func dismissSkippedNotice(accountID: String) {
+        let engine = self.engine
+        Task {
+            await engine.mail.dismissSkippedNotice(accountID: accountID)
+            self.scheduleMailRefresh(delay: .zero)
+        }
+    }
+
+    /// 「在访达中显示」: the account's not-email files (checked again now) selected in Finder.
+    func revealNotEmailFiles(accountID: String, ignored: Bool?) {
+        let engine = self.engine
+        Task {
+            let found = await engine.mail.notEmailFiles(accountID: accountID, ignored: ignored)
+            guard !found.files.isEmpty else {
+                await engine.mail.recountNotEmailFiles(accountID: accountID)
+                self.post(Toast(kind: .info, message: L.Mail.ignoredGone))
+                self.scheduleMailRefresh(delay: .zero)
+                return
+            }
+            NSWorkspace.shared.activateFileViewerSelecting(found.files.map(\.url))
+        }
+    }
+
+    /// 「移到废纸篓…」: the folder account's not-email files — the notice's (`ignored` false) or the
+    /// ignored ones — as they are now, confirmed with their count and names, checked again at the
+    /// confirming click (same place, hashed name, size, mtime and content, directly inside the
+    /// watched folder: `MailNotEmailFiles.unchanged`) and moved to the Trash with
+    /// `NSWorkspace.recycle` (Finder's Put Back restores them). Nothing outside the folder is touched.
+    func trashNotEmailFiles(accountID: String, ignored: Bool) {
+        let engine = self.engine
+        Task {
+            let found = await engine.mail.notEmailFiles(accountID: accountID, ignored: ignored)
+            guard let folder = found.folder, !found.files.isEmpty else {
+                await engine.mail.recountNotEmailFiles(accountID: accountID)
+                self.post(Toast(kind: .info, message: L.Mail.trashNothing))
+                self.scheduleMailRefresh(delay: .zero)
+                return
+            }
+            guard Self.confirmTrash(found.files, folder: folder) else { return }
+            let again = await engine.mail.notEmailFiles(accountID: accountID, ignored: ignored)
+            let outcome = await MailNotEmailTrash.perform(confirmed: found, now: again) { @MainActor urls in
+                do {
+                    return try await NSWorkspace.shared.recycle(urls).count
+                } catch {
+                    Log.app.error("mail: moving not-email files to the Trash failed (\(String(describing: type(of: error)), privacy: .public))")
+                    throw error
+                }
+            }
+            switch outcome {
+            case .nothing:
+                self.post(Toast(kind: .info, message: L.Mail.trashNothing))
+            case .moved(let n):
+                self.post(Toast(id: "mail-notemail-trashed-\(accountID)", kind: .success, message: L.Mail.trashed(n)))
+            case .failed:
+                self.post(Toast(kind: .warning, message: L.Mail.trashFailed))
+            }
+            await engine.mail.recountNotEmailFiles(accountID: accountID)
+            self.scheduleMailRefresh(delay: .zero)
+        }
+    }
+
+    /// The Move to Trash confirmation: how many, which (the first three names) and where; Return
+    /// cancels (the destructive button needs a click or its own key).
+    private static func confirmTrash(_ files: [MailNotEmailFile], folder: URL) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L.Mail.trashTitle(files.count)
+        let names = files.prefix(3).map { MailInboxRules.line($0.name, limit: 60) }
+        alert.informativeText = L.Mail.trashBody(folder: MailInboxRules.line(folder.lastPathComponent, limit: 60),
+                                                 names: names, more: max(0, files.count - names.count))
+        let trash = alert.addButton(withTitle: L.Mail.trashConfirm(files.count))
+        trash.hasDestructiveAction = true
+        trash.keyEquivalent = ""
+        let cancel = alert.addButton(withTitle: L.cancel)
+        cancel.keyEquivalent = "\r"
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     // MARK: Links (untrusted: http(s) only)
 
     func openMailLink(_ item: MailItem) {

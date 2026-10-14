@@ -34,66 +34,47 @@ extension View {
     }
 }
 
-/// AI (Claude / ChatGPT) status capsule shown on the card thumbnail (§8 AgentBadge table).
+/// AI (Claude / ChatGPT) status capsule shown on a card (§8 AgentBadge table) — only while the
+/// reading isn't ready or needs the user (`AgentBadgeKind.showsOnCard`); AI off, skipped, fresh
+/// and incomplete text are said elsewhere (toolbar pill, the title's NEW dot, the inspector).
+/// `iconOnly`: the compact card's thumbnail strip (the text stays in the help and VoiceOver label).
 struct AgentBadge: View {
     let paper: Paper
     let status: AgentQueueStatus
     let queuePosition: Int?
     let lang: UILang
+    var iconOnly = false
 
     @Environment(\.agentBadgeHandler) private var handler
     @State private var hovering = false
 
-    init(paper: Paper, status: AgentQueueStatus, queuePosition: Int?, lang: UILang) {
+    init(paper: Paper, status: AgentQueueStatus, queuePosition: Int?, lang: UILang, iconOnly: Bool = false) {
         self.paper = paper
         self.status = status
         self.queuePosition = queuePosition
         self.lang = lang
+        self.iconOnly = iconOnly
     }
 
-    /// The badge state for a paper, or nil when nothing should be shown.
-    enum Kind: Equatable {
-        case modeOff, awaitingConfirmation, queued(Int?), running(since: Date?), failed
-        case limited(until: Date?), needsLogin, skipped, textIncomplete, fresh
-    }
+    /// The badge state for a paper (`AgentBadgeKind`, Core).
+    typealias Kind = AgentBadgeKind
 
     static func kind(for paper: Paper, status: AgentQueueStatus, queuePosition: Int?) -> Kind? {
-        let partialText = paper.textQuality == .partial || paper.textQuality == .poor
-        switch paper.aiState {
-        case .held:
-            return paper.aiNote == AgentQueue.modeOffNote || status.mode == .off ? .modeOff : .awaitingConfirmation
-        case .queued:
-            return .queued(queuePosition)
-        case .running:
-            return .running(since: status.runningPaperID == paper.id ? status.runningSince : nil)
-        case .failed:
-            return .failed
-        case .limited:
-            return .limited(until: status.pausedUntil)
-        case .needsLogin:
-            return .needsLogin
-        case .skipped:
-            return .skipped
-        case .done:
-            if partialText { return .textIncomplete }
-            return paper.aiSeen ? nil : .fresh
-        case .none:
-            return partialText ? .textIncomplete : nil
-        }
+        AgentBadgeKind.of(paper, status: status, queuePosition: queuePosition)
     }
 
     var body: some View {
-        if let kind = Self.kind(for: paper, status: status, queuePosition: queuePosition) {
+        if let kind = Self.kind(for: paper, status: status, queuePosition: queuePosition), kind.showsOnCard {
             let action = Self.action(for: kind)
             if let action, let handler {
                 Button { handler.perform(action, paper) } label: { capsule(kind, interactive: true) }
                     .buttonStyle(.plain)
                     .onHover { hovering = $0 }
-                    .help(help(kind) ?? "")
+                    .help(tooltip(kind))
                     .accessibilityHint(help(kind) ?? "")
             } else {
                 capsule(kind, interactive: false)
-                    .help(help(kind) ?? "")
+                    .help(tooltip(kind))
             }
         }
     }
@@ -111,7 +92,7 @@ struct AgentBadge: View {
         let tint = Self.tint(kind)
         HStack(spacing: 4) {
             icon(kind, tint: tint)
-            if kind != .fresh {
+            if kind != .fresh, !iconOnly {
                 label(kind)
                     .font(.system(size: 10.5, weight: .medium))
                     .monospacedDigit()
@@ -119,7 +100,7 @@ struct AgentBadge: View {
                     .foregroundStyle(kind == .modeOff || kind == .skipped ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
             }
         }
-        .padding(.horizontal, kind == .fresh ? 5 : 7)
+        .padding(.horizontal, kind == .fresh || iconOnly ? 5 : 7)
         .padding(.vertical, 3)
         .background(Capsule().fill(.regularMaterial))
         .overlay(Capsule().strokeBorder(interactive && hovering ? tint.opacity(0.7) : Color.primary.opacity(0.10),
@@ -166,6 +147,13 @@ struct AgentBadge: View {
         case .textIncomplete: return L.cardsBadgeTextIncomplete
         case .fresh: return L.cardsBadgeFreshA11y
         }
+    }
+
+    /// The help tag: an icon-only badge leads with its text.
+    private func tooltip(_ kind: Kind) -> String {
+        let help = help(kind)
+        guard iconOnly else { return help ?? "" }
+        return [text(kind), help].compactMap { $0 }.joined(separator: "\n")
     }
 
     private func help(_ kind: Kind) -> String? {

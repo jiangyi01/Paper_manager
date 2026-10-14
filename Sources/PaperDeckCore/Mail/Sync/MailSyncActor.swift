@@ -18,8 +18,12 @@ package struct MailAccountSyncInfo: Sendable, Equatable, Identifiable {
     package var waitingForSettings: Bool
     package var isSyncing: Bool
     /// Folder accounts: files in the watched folder that are not complete emails (never become
-    /// cards, never retried; the number drops once they are deleted — at the next sync).
+    /// cards, never retried; the number drops once they are deleted — at the next sync) and that
+    /// the user has not chosen to ignore (`ignoreNotEmailFiles`): what the notices count.
     package var notEmailFiles: Int
+    /// Folder accounts: not-email files still in the folder that the user chose to ignore (their
+    /// hashed names are remembered, kv `<id>.notmail.ignored`): no notice, a quiet line in Settings.
+    package var ignoredNotEmailFiles: Int
     /// Ready-to-show fix for `notEmailFiles` (UI language), nil when there are none.
     package var notEmailHint: String?
     /// Allowlisted emails that could not be downloaded for more than a day. They are still
@@ -31,13 +35,16 @@ package struct MailAccountSyncInfo: Sendable, Equatable, Identifiable {
     package var skipped: Int
     /// Ready-to-show text for `skipped` (UI language), nil when there are none.
     package var skippedHint: String?
+    /// The `skipped` count the user dismissed the skipped notice at (kv `<id>.skipped.dismissed`);
+    /// the notice is back once `skipped` grows past it (`MailNoticePolicy.skippedNoticeDue`).
+    package var skippedDismissed: Int
 
     package init(id: String, displayName: String, kind: MailAccount.Kind, enabled: Bool,
                  status: MailSourceStatus? = nil, lastAttemptAt: Date? = nil, lastSuccessAt: Date? = nil,
                  lastCaptured: Int = 0, totalCaptured: Int = 0, consecutiveFailures: Int = 0,
                  nextRetryAt: Date? = nil, waitingForSettings: Bool = false, isSyncing: Bool = false,
                  notEmailFiles: Int = 0, notEmailHint: String? = nil, undownloadable: Int = 0,
-                 skipped: Int = 0, skippedHint: String? = nil) {
+                 skipped: Int = 0, skippedHint: String? = nil, ignoredNotEmailFiles: Int = 0, skippedDismissed: Int = 0) {
         self.id = id; self.displayName = displayName; self.kind = kind; self.enabled = enabled
         self.status = status; self.lastAttemptAt = lastAttemptAt; self.lastSuccessAt = lastSuccessAt
         self.lastCaptured = lastCaptured; self.totalCaptured = totalCaptured
@@ -46,6 +53,7 @@ package struct MailAccountSyncInfo: Sendable, Equatable, Identifiable {
         self.notEmailFiles = notEmailFiles; self.notEmailHint = notEmailHint
         self.undownloadable = undownloadable
         self.skipped = skipped; self.skippedHint = skippedHint
+        self.ignoredNotEmailFiles = ignoredNotEmailFiles; self.skippedDismissed = skippedDismissed
     }
 }
 
@@ -174,8 +182,20 @@ package actor MailSyncActor {
         var syncing = false
         var moreWaiting = false          // stopped at maxPagesPerSync with pages left: continue soon
         var notEmailFiles: Int?          // nil = not known yet (seeded from the stored ledger)
+        /// The hashed names of those files (nil: not known, or the transport doesn't tell).
+        var notEmailKeys: Set<String>?
+        var ignoredNotEmail: Set<String>?   // nil = not loaded yet (kv `<id>.notmail.ignored`)
         var undownloadable = 0
         var skipped: Int?                // nil = not known yet (seeded from kv `<id>.skipped`)
+        var skippedDismissed: Int?       // nil = not loaded yet (kv `<id>.skipped.dismissed`)
+
+        /// Not-email files to tell the user about, and the ones they ignore.
+        var notEmailCounts: (shown: Int, ignored: Int) {
+            guard account.kind == .folder else { return (0, 0) }
+            guard let keys = notEmailKeys else { return (notEmailFiles ?? 0, 0) }
+            let ignored = ignoredNotEmail ?? []
+            return (keys.subtracting(ignored).count, keys.intersection(ignored).count)
+        }
     }
 
     private var accounts: [String: AccountState] = [:]
@@ -346,7 +366,8 @@ package actor MailSyncActor {
         let hintLang = lang ?? self.lang
         return settings.accounts.map { a in
             let st = accounts[a.id]
-            let notEmail = a.kind == .folder ? (st?.notEmailFiles ?? 0) : 0
+            let counts = st?.notEmailCounts ?? (shown: 0, ignored: 0)
+            let notEmail = counts.shown
             let skipped = st?.skipped ?? 0
             return MailAccountSyncInfo(
                 id: a.id, displayName: a.displayName, kind: a.kind, enabled: settings.enabled && a.enabled,
@@ -356,7 +377,8 @@ package actor MailSyncActor {
                 waitingForSettings: st?.waitingForSettings ?? false, isSyncing: st?.syncing ?? false,
                 notEmailFiles: notEmail, notEmailHint: notEmail > 0 ? MailSyncText.notEmailFiles(notEmail, hintLang) : nil,
                 undownloadable: st?.undownloadable ?? 0, skipped: skipped,
-                skippedHint: skipped > 0 ? MailSyncText.skippedByCap(skipped, lookbackDays: a.lookbackDays, hintLang) : nil)
+                skippedHint: skipped > 0 ? MailSyncText.skippedByCap(skipped, lookbackDays: a.lookbackDays, hintLang) : nil,
+                ignoredNotEmailFiles: counts.ignored, skippedDismissed: st?.skippedDismissed ?? 0)
         }
     }
 
@@ -364,6 +386,120 @@ package actor MailSyncActor {
     package func waitUntilIdle() async {
         guard postTask != nil || !postQueue.isEmpty else { return }
         await withCheckedContinuation { idleWaiters.append($0) }
+    }
+
+    // MARK: - Notices (files that aren't emails, skipped emails)
+
+    /// kv `mail.cursor.<account>.notmail.ignored`: hashed names (`FolderLedger.key`) of the
+    /// not-email files the user chose to ignore, with the account configuration they belong to.
+    static func ignoredNotEmailKey(_ accountID: String) -> String { accountID + ".notmail.ignored" }
+    /// kv `mail.cursor.<account>.skipped.dismissed`: the skipped count the user dismissed its notice at.
+    static func skippedDismissedKey(_ accountID: String) -> String { accountID + ".skipped.dismissed" }
+
+    private struct IgnoredNotEmail: Codable {
+        var config: String
+        var keys: [String]
+    }
+
+    private func loadIgnoredNotEmail(_ id: String, account: MailAccount) async -> Set<String> {
+        guard let raw = try? await ctx.db.mailCursor(accountID: Self.ignoredNotEmailKey(id))?.value,
+              let stored = try? JSONDecoder().decode(IgnoredNotEmail.self, from: Data(raw.utf8)),
+              stored.config == Self.fingerprint(account) else { return [] }
+        return Set(stored.keys)
+    }
+
+    private func saveIgnoredNotEmail(_ id: String, account: MailAccount, _ keys: Set<String>) async -> Bool {
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys]
+        let value = keys.isEmpty ? nil : (try? enc.encode(IgnoredNotEmail(config: Self.fingerprint(account), keys: keys.sorted())))
+            .map { MailCursor(String(decoding: $0, as: UTF8.self)) }
+        do {
+            try await ctx.db.setMailCursor(accountID: Self.ignoredNotEmailKey(id), value)
+            return true
+        } catch {
+            Self.log.error("mail: ignored files not stored (\(String(describing: type(of: error)), privacy: .public))")
+            return false
+        }
+    }
+
+    private func saveSkippedDismissed(_ id: String, _ n: Int) async {
+        do {
+            try await ctx.db.setMailCursor(accountID: Self.skippedDismissedKey(id), n > 0 ? MailCursor(String(n)) : nil)
+        } catch {
+            Self.log.error("mail: skipped notice state not stored (\(String(describing: type(of: error)), privacy: .public))")
+        }
+    }
+
+    /// A folder account's stored ledger, when it was saved for this configuration.
+    private func storedLedger(_ id: String, account: MailAccount) async -> FolderLedger? {
+        guard account.kind == .folder,
+              (try? await ctx.db.mailCursor(accountID: Self.fingerprintKey(id)))?.value == Self.fingerprint(account) else { return nil }
+        return FolderLedger(try? await ctx.db.mailCursor(accountID: id))
+    }
+
+    /// A folder account (as configured now) and the hashed names of its not-email files: the
+    /// last pass's, else the stored ledger's.
+    private func notEmailKeys(_ id: String) async -> (account: MailAccount, keys: Set<String>)? {
+        guard let account = accounts[id]?.account ?? loadMailSettings().accounts.first(where: { $0.id == id }),
+              account.kind == .folder else { return nil }
+        if accounts[id]?.account == account, let keys = accounts[id]?.notEmailKeys { return (account, keys) }
+        return (account, await storedLedger(id, account: account)?.notMailKeys ?? [])
+    }
+
+    /// 「忽略」 on the not-email notice: the folder account's not-email files are remembered as
+    /// acknowledged (their hashed names; the ones no longer there are forgotten) — the notice, the
+    /// hint, the orange status and the Help Center check go quiet, and Settings shows a quiet
+    /// line instead. A new not-email file brings the notice back once. Survives relaunches; a
+    /// changed folder or 「清除所有邮件数据」 starts over.
+    package func ignoreNotEmailFiles(accountID id: String) async {
+        guard let found = await notEmailKeys(id), !found.keys.isEmpty,
+              await saveIgnoredNotEmail(id, account: found.account, found.keys) else { return }
+        if accounts[id]?.account == found.account { accounts[id]?.ignoredNotEmail = found.keys }
+        Self.log.info("mail: \(found.keys.count, privacy: .public) not-email file(s) ignored")
+    }
+
+    /// 「不再忽略」: the folder account's ignored not-email files are told about again.
+    package func unignoreNotEmailFiles(accountID id: String) async {
+        guard let found = await notEmailKeys(id), await saveIgnoredNotEmail(id, account: found.account, []) else { return }
+        if accounts[id]?.account == found.account { accounts[id]?.ignoredNotEmail = [] }
+    }
+
+    /// A folder account's not-email files as they are now (click time; `FolderMailSource.notEmailFiles`:
+    /// same hashed name, size and mtime as the ledger says, still not an email, directly inside the
+    /// folder). `ignored`: true → the ignored ones, false → the others (the notice's), nil → all.
+    package func notEmailFiles(accountID id: String, ignored: Bool? = nil) async -> MailNotEmailFiles {
+        guard let found = await notEmailKeys(id), let folder = FolderMailSource.folderURL(found.account),
+              let ledger = await storedLedger(id, account: found.account) else { return MailNotEmailFiles() }
+        var ignoredKeys = accounts[id]?.account == found.account ? accounts[id]?.ignoredNotEmail : nil
+        if ignoredKeys == nil { ignoredKeys = await loadIgnoredNotEmail(id, account: found.account) }
+        var keys = ledger.notMailKeys
+        switch ignored {
+        case true?: keys.formIntersection(ignoredKeys ?? [])
+        case false?: keys.subtract(ignoredKeys ?? [])
+        case nil: break
+        }
+        guard !keys.isEmpty else { return MailNotEmailFiles(folder: folder) }
+        return MailNotEmailFiles(folder: folder, files: await FolderMailSource.notEmailFiles(in: folder, ledger: ledger, keys: keys))
+    }
+
+    /// After not-email files were moved to the Trash (or removed in Finder): the ones no longer in
+    /// the folder leave the counts now (a scan of the folder's names); the ledger forgets them at
+    /// the next pass.
+    package func recountNotEmailFiles(accountID id: String) async {
+        guard let st = accounts[id], st.notEmailKeys != nil, let folder = FolderMailSource.folderURL(st.account),
+              let facts = try? await BlockingIO.run({ try FolderMailSource.scan(folder) }) else { return }
+        let present = Set(facts.map { FolderLedger.key(forFileName: $0.name) })
+        guard accounts[id]?.account == st.account, let keys = accounts[id]?.notEmailKeys else { return }
+        let left = keys.intersection(present)
+        accounts[id]?.notEmailKeys = left
+        accounts[id]?.notEmailFiles = left.count
+    }
+
+    /// 「忽略」 on the skipped-emails notice: hidden until more emails are skipped.
+    package func dismissSkippedNotice(accountID id: String) async {
+        guard let st = accounts[id], let n = st.skipped, n > 0 else { return }
+        await saveSkippedDismissed(id, n)
+        if accounts[id]?.account == st.account { accounts[id]?.skippedDismissed = n }
     }
 
     // MARK: - Manual .eml import
@@ -456,8 +592,11 @@ package actor MailSyncActor {
             st.nextRetryAt = nil
             st.moreWaiting = false
             st.notEmailFiles = nil
+            st.notEmailKeys = nil
+            st.ignoredNotEmail = nil
             st.undownloadable = 0
             st.skipped = 0
+            st.skippedDismissed = nil
             accounts[id] = st
         }
     }
@@ -603,13 +742,21 @@ package actor MailSyncActor {
                 let n = Int((try? await ctx.db.mailCursor(accountID: Self.skippedKey(id)))?.value ?? "") ?? 0
                 if accounts[id]?.account == st.account, accounts[id]?.skipped == nil { accounts[id]?.skipped = n }
             }
-            guard st.account.kind == .folder, st.notEmailFiles == nil else { continue }
-            var count = 0
-            if (try? await ctx.db.mailCursor(accountID: Self.fingerprintKey(id)))?.value == Self.fingerprint(st.account),
-               let ledger = FolderLedger(try? await ctx.db.mailCursor(accountID: id)) {
-                count = ledger.notMailCount
+            if st.skippedDismissed == nil {
+                let n = Int((try? await ctx.db.mailCursor(accountID: Self.skippedDismissedKey(id)))?.value ?? "") ?? 0
+                if accounts[id]?.account == st.account, accounts[id]?.skippedDismissed == nil { accounts[id]?.skippedDismissed = n }
             }
-            if accounts[id]?.account == st.account, accounts[id]?.notEmailFiles == nil { accounts[id]?.notEmailFiles = count }
+            guard st.account.kind == .folder else { continue }
+            if st.ignoredNotEmail == nil {
+                let ignored = await loadIgnoredNotEmail(id, account: st.account)
+                if accounts[id]?.account == st.account, accounts[id]?.ignoredNotEmail == nil { accounts[id]?.ignoredNotEmail = ignored }
+            }
+            guard st.notEmailFiles == nil else { continue }
+            let ledger = await storedLedger(id, account: st.account)
+            if accounts[id]?.account == st.account, accounts[id]?.notEmailFiles == nil {
+                accounts[id]?.notEmailFiles = ledger?.notMailCount ?? 0
+                accounts[id]?.notEmailKeys = ledger?.notMailKeys ?? []
+            }
         }
     }
 
@@ -766,7 +913,10 @@ package actor MailSyncActor {
             while true {
                 guard !stopping, !clearing else { interrupted = true; break }
                 let page = try await source.listHeaders(since: cursor, limit: tuning.pageLimit)
-                if let n = page.notEmailFiles, accounts[id]?.account == account { accounts[id]?.notEmailFiles = n }
+                if let n = page.notEmailFiles, accounts[id]?.account == account {
+                    accounts[id]?.notEmailFiles = n
+                    accounts[id]?.notEmailKeys = page.notEmailKeys
+                }
                 let result = await processPage(page.headers, account: account, source: source, settings: settings,
                                                retry: &retry, force: force, watched: watched)
                 listedAgain.formUnion(result.listedAgain)
@@ -855,6 +1005,12 @@ package actor MailSyncActor {
         if skipped != skippedBefore || skippedRefs != refsBefore {
             await saveSkipped(id, skipped, refs: skippedRefs)
             if accounts[id]?.account == account { accounts[id]?.skipped = skipped }
+        }
+        // A dismissed skipped notice comes back when the count grows past the dismissed one —
+        // counted from the lowest it has been since (fewer skipped lowers the mark).
+        if let dismissed = accounts[id]?.skippedDismissed, dismissed > skipped, accounts[id]?.account == account {
+            accounts[id]?.skippedDismissed = skipped
+            await saveSkippedDismissed(id, skipped)
         }
         if interrupted {
             if accounts[id]?.account == account { accounts[id]?.syncing = false }

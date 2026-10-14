@@ -737,7 +737,7 @@ same entries, with every step, are in [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.
 - <a id="fix-login-item"></a>[PaperDeck doesn't open at login](TROUBLESHOOTING.md#fix-login-item) — approve it in Login Items.
 - <a id="fix-app-blocked"></a>[macOS blocks PaperDeck or runs a temporary copy](TROUBLESHOOTING.md#fix-app-blocked) — move it to Applications; Open Anyway.
 - <a id="fix-mail-auth-failed"></a>[A mail account can't sign in](TROUBLESHOOTING.md#fix-mail-auth-failed) — make a new app password.
-- <a id="fix-mail-not-email-files"></a>["Files in this folder aren't complete emails"](TROUBLESHOOTING.md#fix-mail-not-email-files) — fix the flow's File Content.
+- <a id="fix-mail-not-email-files"></a>["Files in this folder aren't complete emails"](TROUBLESHOOTING.md#fix-mail-not-email-files) — fix the flow's File Content; then **Ignore** the old files or **Move to Trash…** them from the notice (only files inside the watched folder; Finder's Put Back restores them).
 - <a id="fix-mail-onedrive-missing"></a>[PaperDeck can't find the OneDrive mail folder](TROUBLESHOOTING.md#fix-mail-onedrive-missing) — sign in to OneDrive with the work or school account.
 - <a id="fix-search-after-move"></a>[Search finds titles but not the text inside papers](TROUBLESHOOTING.md#fix-search-after-move) — Re-index full text.
 - <a id="fix-two-macs-diverged"></a>[Two Macs show different libraries](TROUBLESHOOTING.md#fix-two-macs-diverged) — rebuild the index; one Mac at a time.

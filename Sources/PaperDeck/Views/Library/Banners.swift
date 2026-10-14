@@ -5,23 +5,33 @@ import PaperDeckConfig
 
 /// Dismissible banners at the top of the content column (§8 横幅):
 /// Claude not signed in / not installed, at-risk DDLs, library folder or PDFs missing.
+/// One at a time, the most severe first (`NoticeQueue`); `1/3 ›` steps to the next one, and
+/// closing one shows the next.
 struct LibraryBanners: View {
     let state: AppState
     @Bindable var chrome: LibraryChrome
     @State private var libraryReachable = true
+    /// The banner on screen; nil (or one that went away) → the most severe.
+    @State private var shownID: String?
 
     var body: some View {
         let banners = currentBanners()
-        VStack(spacing: 8) {
-            ForEach(banners) { banner in
-                LibraryBannerView(banner: banner) { dismiss(banner) }
-                    .transition(.move(edge: .top).combined(with: .opacity))
+        let ids = banners.map(\.id)
+        let index = NoticeQueue.shownIndex(ids, selected: shownID)
+        VStack(spacing: 0) {
+            if let index {
+                let banner = banners[index]
+                LibraryBannerView(banner: banner, position: banners.count > 1 ? (index + 1, banners.count) : nil,
+                                  onNext: { showNext(after: banner.id, in: ids) },
+                                  onDismiss: { dismiss(banner, in: ids) })
+                    .id(banner.id)
+                    .transition(.opacity)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, banners.isEmpty ? 0 : 10)
-        .padding(.bottom, banners.isEmpty ? 0 : 4)
-        .animation(.snappy(duration: 0.25), value: banners.map(\.id))
+        .padding(.top, banners.isEmpty ? 0 : 12)
+        .animation(.snappy(duration: 0.25), value: ids)
+        .animation(.snappy(duration: 0.2), value: shownID)
         .task(id: state.snapshot?.generatedAt) { await checkLibraryFolder() }
         .onChange(of: atRiskCount) { old, new in
             // New at-risk papers bring the banner back even after 忽略.
@@ -70,7 +80,16 @@ struct LibraryBanners: View {
                     actions: [.init(title: L.Shell.show, prominent: false) { state.sidebar = .needsAttention }]))
             }
         }
-        return out.filter { !$0.dismissible || !chrome.dismissedBanners.contains($0.id) }
+        var shown = out.filter { !$0.dismissible || !chrome.dismissedBanners.contains($0.id) }
+        if state.sidebar == .mail && state.searchText.isEmpty {
+            // The inbox has its own notice line: one notice in the column at most.
+            let inboxNotice = state.mailSnapshot.map {
+                MailInboxHeader.showsNotice($0, dismissed: MailNoticeDismissals.shared.keys)
+            } ?? false
+            shown = shown.filter { NoticeQueue.showsOverInbox($0.severity, inboxHasNotice: inboxNotice) }
+        }
+        let order = NoticeQueue.ordered(shown.map { (id: $0.id, severity: $0.severity) })
+        return order.compactMap { id in shown.first { $0.id == id } }
     }
 
     /// Only once the user opted into a real provider (mode claude / codex); mock/off need no CLI.
@@ -119,8 +138,13 @@ struct LibraryBanners: View {
 
     // MARK: Actions
 
-    private func dismiss(_ banner: LibraryBanner) {
+    private func dismiss(_ banner: LibraryBanner, in ids: [String]) {
+        shownID = NoticeQueue.successor(ids, dismissing: banner.id)
         chrome.dismissedBanners.insert(banner.id)
+    }
+
+    private func showNext(after id: String, in ids: [String]) {
+        shownID = NoticeQueue.next(ids, after: id)
     }
 
     private func shiftAtRisk() {
@@ -178,11 +202,30 @@ struct LibraryBanner: Identifiable {
         case .error: .red
         }
     }
+
+    var severity: NoticeQueue.Severity {
+        switch tone {
+        case .info: .info
+        case .warning: .warning
+        case .error: .error
+        }
+    }
 }
 
 struct LibraryBannerView: View {
     let banner: LibraryBanner
+    /// `(index, count)` (1-based) while other banners wait: the `1/3 ›` pager.
+    var position: (index: Int, count: Int)?
+    var onNext: () -> Void = {}
     let onDismiss: () -> Void
+
+    init(banner: LibraryBanner, position: (index: Int, count: Int)? = nil, onNext: @escaping () -> Void = {},
+         onDismiss: @escaping () -> Void) {
+        self.banner = banner
+        self.position = position
+        self.onNext = onNext
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         // One row when it fits; otherwise the buttons move under the text (narrow window,
@@ -193,13 +236,21 @@ struct LibraryBannerView: View {
                 icon
                 texts
                 actions
-                closeButton
+                trailing
+            }
+            // Still one row: the text wraps (two lines) beside the buttons.
+            HStack(alignment: .center, spacing: 12) {
+                icon
+                texts
+                    .frame(minWidth: 200, idealWidth: 240, maxWidth: .infinity, alignment: .leading)
+                actions
+                trailing
             }
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 12) {
                     icon
                     texts
-                    closeButton
+                    trailing
                 }
                 HStack(spacing: 8) {
                     Spacer(minLength: 0)
@@ -236,17 +287,59 @@ struct LibraryBannerView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Two buttons at most (the prominent one kept); the others sit in a ⋯ menu after them.
     private var actions: some View {
-        HStack(spacing: 8) {
-            ForEach(Array(banner.actions.enumerated()), id: \.offset) { _, action in
+        let split = NoticeQueue.splitActions(prominent: banner.actions.map(\.prominent))
+        return HStack(spacing: 8) {
+            ForEach(split.shown, id: \.self) { i in
+                let action = banner.actions[i]
                 if action.prominent {
                     Button(action.title, action: action.run).buttonStyle(.borderedProminent).tint(banner.tint)
                 } else {
                     Button(action.title, action: action.run).buttonStyle(.bordered)
                 }
             }
+            if !split.overflow.isEmpty {
+                Menu {
+                    ForEach(split.overflow, id: \.self) { i in
+                        Button(banner.actions[i].title, action: banner.actions[i].run)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .menuStyle(.button)
+                .buttonStyle(.bordered)
+                .menuIndicator(.hidden)
+                .help(L.Library.moreActions)
+                .accessibilityLabel(L.Library.moreActions)
+            }
         }
         .controlSize(.small)
+        .fixedSize()
+    }
+
+    /// The pager (while others wait) and ×.
+    private var trailing: some View {
+        HStack(spacing: 6) {
+            if let position {
+                Button(action: onNext) {
+                    HStack(spacing: 2) {
+                        Text(verbatim: "\(position.index)/\(position.count)")
+                            .monospacedDigit()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help(L.Library.nextNotice)
+                .accessibilityLabel(L.Library.noticePosition(position.index, position.count))
+                .accessibilityHint(L.Library.nextNotice)
+            }
+            closeButton
+        }
         .fixedSize()
     }
 

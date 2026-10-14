@@ -25,6 +25,13 @@ enum MailInboxRenders {
             try await Task.sleep(for: .milliseconds(100))
             waited += 1
         }
+        // `--mail-widths "720,900,…"`: whole windows of those widths (`MailWidthRenders`).
+        if let widths = MailWidthRenders.requestedWidths() {
+            try await MailWidthRenders.render(state: state, widths: widths, appearance: appearance, out: out, suffix: suffix)
+            try await MailWidthRenders.bannerCheck(state: state, width: widths.first { $0 >= 1280 } ?? widths[0],
+                                                   appearance: appearance, out: out, suffix: suffix)
+            if MailWidthRenders.widthsOnly { return }
+        }
         let chrome = LibraryChrome()
         let previous = state.sidebar
         state.sidebar = .mail

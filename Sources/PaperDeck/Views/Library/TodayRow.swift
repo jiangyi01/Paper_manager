@@ -1,8 +1,10 @@
 import SwiftUI
 import PaperDeckCore
 
-/// One line of the 今天 list (§8 今天分区): DDL chip, title, progress and up to two
-/// unchecked checklist items that can be ticked inline. Pure SwiftUI, display + callbacks.
+/// One line of the 今天 list (§8 今天分区): title with the DDL chip at its end, the byline (or
+/// today's plan) with the progress, and up to two unchecked checklist items that can be ticked
+/// inline. Rows of papers not due yet (本周接下来) keep their steps folded: their progress
+/// (`0/3 · 48′ left ›`) unfolds them. Pure SwiftUI, display + callbacks.
 struct TodayRow: View {
     static let inlineItems = 2
 
@@ -11,19 +13,23 @@ struct TodayRow: View {
     let lang: UILang
     /// Today's planned slice (今日计划); nil for overdue / due-today / upcoming rows.
     let minutesToday: Int?
+    /// The steps start folded (upcoming papers: nothing to tick today).
+    let stepsCollapsed: Bool
     let onToggle: (String) -> Void
     let onOpen: () -> Void
 
     /// Items ticked here but not yet confirmed by the next snapshot (instant feedback).
     @State private var ticked: Set<String> = []
     @State private var hovering = false
+    @State private var stepsShown = false
 
-    init(row: PaperRow, today: LocalDate, lang: UILang, minutesToday: Int?,
+    init(row: PaperRow, today: LocalDate, lang: UILang, minutesToday: Int?, stepsCollapsed: Bool = false,
          onToggle: @escaping (String) -> Void, onOpen: @escaping () -> Void) {
         self.row = row
         self.today = today
         self.lang = lang
         self.minutesToday = minutesToday
+        self.stepsCollapsed = stepsCollapsed
         self.onToggle = onToggle
         self.onOpen = onOpen
     }
@@ -32,18 +38,12 @@ struct TodayRow: View {
     private var unchecked: [ChecklistItem] { row.checklist.filter { !$0.isDone } }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            DDLChip(spec: row.cardChipSpec(today: today, lang: lang),
-                    atRiskHint: row.cardAtRiskHint(today: today, lang: lang))
-                .frame(minWidth: lang == .zh ? 86 : 118, alignment: .leading)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 5) {
-                header
-                subtitle
-                items
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            header
+            subline
+            items
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -62,18 +62,53 @@ struct TodayRow: View {
 
     // MARK: Parts
 
+    /// The title, and the DDL chip at the end of its first line.
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             titleText
-            Spacer(minLength: 8)
-            HStack(spacing: 5) {
-                ProgressRing(done: row.doneCount, total: row.totalCount, size: 14)
-                Text(CardText.progress(row, lang: lang))
-                    .font(.system(size: 11))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            DDLChip(spec: row.cardChipSpec(today: today, lang: lang),
+                    atRiskHint: row.cardAtRiskHint(today: today, lang: lang))
+        }
+    }
+
+    /// The byline (or today's plan) and the progress at the end of the line. On a row whose steps
+    /// start folded the progress is the disclosure (`0/3 · 48′ left ›`).
+    private var subline: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            subtitle
+            Spacer(minLength: 0)
+            let open = unchecked.count
+            if stepsCollapsed, open > 0 {
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) { stepsShown.toggle() }
+                } label: {
+                    HStack(spacing: 5) {
+                        progress
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(stepsShown ? 90 : 0))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .fixedSize()
+                .help(stepsShown ? L.Library.hideSteps : L.Library.showSteps(open))
+                .accessibilityLabel(L.Library.stepsA11y(open, expanded: stepsShown))
+            } else {
+                progress.fixedSize()
             }
-            .fixedSize()
+        }
+    }
+
+    private var progress: some View {
+        HStack(spacing: 5) {
+            ProgressRing(done: row.doneCount, total: row.totalCount, size: 14)
+            Text(CardText.progress(row, lang: lang))
+                .font(.system(size: 11))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -130,7 +165,7 @@ struct TodayRow: View {
 
     @ViewBuilder private var items: some View {
         let open = unchecked
-        if !open.isEmpty {
+        if !open.isEmpty, !stepsCollapsed || stepsShown {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(open.prefix(Self.inlineItems)) { item in
                     itemLine(item)
@@ -142,7 +177,7 @@ struct TodayRow: View {
                         .padding(.leading, 24)
                 }
             }
-            .padding(.top, 3)
+            .padding(.top, 4)
         }
     }
 

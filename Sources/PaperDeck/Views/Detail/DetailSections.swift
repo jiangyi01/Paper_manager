@@ -78,6 +78,9 @@ extension DetailSection where Accessory == EmptyView {
 
 /// TL;DR → 阅读清单 → Summary → Key contributions → Method → Results → Limitations →
 /// Key terms → Data & code → Abstract → 笔记 → 文件 (§8). Card text is plain text only.
+/// What a reader needs first (TL;DR, checklist, summary, contributions, notes) starts open; the
+/// deeper card sections, the abstract and the file facts start folded (each remembers its own
+/// state once toggled).
 struct DetailSectionStack: View {
     let state: AppState
     let row: PaperRow
@@ -123,7 +126,7 @@ struct DetailSectionStack: View {
             }
 
             Divider()
-            DetailSection(L.Detail.file, key: "file") {
+            DetailSection(L.Detail.file, key: "file", expandedByDefault: false) {
                 DetailFilesSection(state: state, row: row, onEditMetadata: onEditMetadata)
             }
         }
@@ -150,23 +153,23 @@ struct DetailSectionStack: View {
         }
         if !card.method.isEmpty {
             Divider()
-            DetailSection("Method", key: "method") { DetailParagraph(text: card.method) }
+            DetailSection("Method", key: "method", expandedByDefault: false) { DetailParagraph(text: card.method) }
         }
         if !card.results.isEmpty {
             Divider()
-            DetailSection("Results", key: "results") { DetailBulletList(items: card.results) }
+            DetailSection("Results", key: "results", expandedByDefault: false) { DetailBulletList(items: card.results) }
         }
         if !card.limitations.isEmpty {
             Divider()
-            DetailSection("Limitations", key: "limitations") { DetailLimitations(items: card.limitations) }
+            DetailSection("Limitations", key: "limitations", expandedByDefault: false) { DetailLimitations(items: card.limitations) }
         }
         if !card.keyTerms.isEmpty {
             Divider()
-            DetailSection("Key terms", key: "keyTerms") { DetailKeyTerms(terms: card.keyTerms) }
+            DetailSection("Key terms", key: "keyTerms", expandedByDefault: false) { DetailKeyTerms(terms: card.keyTerms) }
         }
         if !card.resources.isEmpty {
             Divider()
-            DetailSection("Data & code", key: "resources") { DetailResources(resources: card.resources) }
+            DetailSection("Data & code", key: "resources", expandedByDefault: false) { DetailResources(resources: card.resources) }
         }
     }
 }

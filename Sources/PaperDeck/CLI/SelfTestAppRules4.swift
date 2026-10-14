@@ -5,9 +5,10 @@ import PaperDeckCore
 
 /// Round-4 checks of `--selftest app-rules`:
 /// - skipped (a4-1): allowlisted emails skipped because the retry list was full are a notice of
-///   their own — Settings ▸ Mail ▸ Accounts rows and the inbox header — with the engine's
-///   `skippedHint` (UI language) and 「立即同步」; the status line no longer repeats the sentence.
-///   Pure rules, then a real engine (fake mail source, no network) with a stored skipped count;
+///   their own — Settings ▸ Mail ▸ Accounts rows (the engine's `skippedHint`, UI language) and the
+///   inbox header (one line, the sentence its tooltip) — with 「立即同步」, hidden until the count
+///   grows; the status line no longer repeats the sentence and the inbox's status pill counts the
+///   account. Pure rules, then a real engine (fake mail source, no network) with a stored count;
 /// - bytes (a4-2): every size the app shows is worded in the UI language (no "Zero KB" in zh);
 /// - alert (a4-3): the launch alert is assembled once (`LaunchAlert.makeAlert`) for the real
 ///   launch (`AppDelegate.launchAlert`) and the renders (`PreviewRenderer.launchAlert`).
@@ -76,18 +77,26 @@ extension SelfTestAppRules {
         other.status = .authFailed("rejected")
         c.check("skipped: other statuses untouched", MailAccountNotice.shownStatus(other, active: true) == .authFailed("rejected"))
 
-        // 3. The inbox: the line says how many (orange), the notice below has the sentence + Sync Now.
-        let line = MailInboxHeader.line(ready)
-        c.check("skipped: inbox account line counts them, without the sentence",
-                line.0.contains(L.Mail.skippedShort(3)) && !line.0.contains(hint) && line.1 == "exclamationmark.triangle"
-                    && line.2 == .orange, ["line": line.0])
+        // 3. The inbox: the status pill counts the account; its notices (one shown at a time) come
+        // most serious first, for syncing accounts only; hidden ones come back when the count grows.
+        let pill = MailNoticePolicy.pill([ready], enabled: true)
+        c.check("skipped: the inbox's status pill counts the account", pill == .attention(accounts: 1, critical: false),
+                ["pill": "\(pill)"])
         var paused = ready
         paused.id = "acct-p"
         paused.enabled = false
         both.id = "acct-b"
-        let entries = MailAccountNotice.inbox([ready, paused, both])
-        c.check("skipped: inbox notices for syncing accounts only, in order",
-                entries.map(\.id) == ["acct-k/skipped", "acct-b/not-email", "acct-b/skipped"], ["ids": entries.map(\.id)])
+        let entries = MailNoticePolicy.notices([ready, paused, both])
+        c.check("skipped: inbox notices for syncing accounts only, most serious first",
+                entries.map(\.id) == ["acct-b/notEmail", "acct-k/skipped", "acct-b/skipped"], ["ids": entries.map(\.id)])
+        var hidden = ready
+        hidden.skippedDismissed = 3
+        var grown = hidden
+        grown.skipped = 4
+        c.check("skipped: a hidden notice stays hidden until more emails are skipped",
+                MailNoticePolicy.notices([hidden]).isEmpty && MailAccountNotice.notices(hidden, active: true).isEmpty
+                    && MailNoticePolicy.pill([hidden], enabled: true) == .synced(hidden.lastSuccessAt)
+                    && MailNoticePolicy.notices([grown]).map(\.kind) == [.skipped])
 
         // 4. Rows read in another language never show the old sentence.
         let otherLang: UILang = lang == .zh ? .en : .zh
@@ -128,10 +137,10 @@ extension SelfTestAppRules {
             await engine.mail.settingsDidChange()
             await engine.mail.syncNow()
             let snap = try await engine.mailSnapshot()
-            let entries = MailAccountNotice.inbox(snap.accounts)
+            let entries = MailNoticePolicy.notices(snap.accounts)
             let zh = MailSyncText.skippedByCap(4, lookbackDays: account.lookbackDays, .zh)
-            c.check("skipped: inbox notice from the snapshot, in the UI language, with Sync Now",
-                    entries.count == 1 && entries.first?.notice == .skipped(count: 4, hint: zh) && entries.first?.notice.action == .syncNow,
+            c.check("skipped: inbox notice from the snapshot, in the UI language",
+                    entries.count == 1 && entries.first?.kind == .skipped && entries.first?.count == 4 && entries.first?.text == zh,
                     ["entries": entries.map(\.id)])
             await close(engine)
         } catch {
@@ -171,9 +180,10 @@ extension SelfTestAppRules {
         await close(engine2)
     }
 
-    /// The views themselves, drawn offscreen and read back (`drawnText`): the inbox header and
-    /// the Settings account row say the skipped sentence once — in the notice, not again in the
-    /// status line — with a 「立即同步」 button beside it (the inbox: its toolbar's too).
+    /// The views themselves, drawn offscreen and read back (`drawnText`): the inbox header shows the
+    /// skipped notice as one line (the sentence is its tooltip) with one 「立即同步」; the Settings
+    /// account row says the sentence once — in the notice, not again in the status line — with
+    /// 「立即同步」 beside it.
     private static func skippedViews(scratch: URL, engine: Engine, account: MailAccount, lang: UILang, _ c: Checker) async {
         let suite = scratch.appendingPathComponent("defaults-skipped/defaults").path
         try? FileManager.default.createDirectory(atPath: (suite as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
@@ -203,10 +213,10 @@ extension SelfTestAppRules {
             return
         }
         let inbox = await drawnText(MailInboxHeader(state: state, snap: snap), width: 820)
-        c.check("skipped: inbox header shows the sentence once, with Sync Now",
-                occurrences(key, inbox) == 1 && buttons(L.Mail.syncNow, inbox) == 2
-                    && occurrences(squeeze(L.Mail.skippedShort(2)), inbox) == 1,
-                ["sentences": occurrences(key, inbox), "buttons": buttons(L.Mail.syncNow, inbox)])
+        let line = lang == .zh ? "封邮件被跳过" : "wereskipped"
+        c.check("skipped: inbox header shows one notice line (no sentence), with Sync Now",
+                occurrences(key, inbox) == 0 && occurrences(line, inbox) == 1 && buttons(L.Mail.syncNow, inbox) == 1,
+                ["sentences": occurrences(key, inbox), "lines": occurrences(line, inbox), "buttons": buttons(L.Mail.syncNow, inbox)])
         let rows = await MailStatusText.read(engine.mail, lang: lang)
         let settings = await drawnText(Form { MailAccountsSection(state: state, infos: rows, sheet: .constant(nil)) }
                                         .formStyle(.grouped), width: 640)

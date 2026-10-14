@@ -107,12 +107,15 @@ struct ClaudePill: View {
     var body: some View {
         let summary = ClaudePillStatus(state.agentStatus)
         Button { showQueue.toggle() } label: {
-            HStack(spacing: 5) {
-                ClaudePillDot(summary: summary)
+            // A Label, so the toolbar item has a title (its overflow menu entry when the window is narrow).
+            Label {
                 Text(summary.text)
                     .monospacedDigit()
                     .lineLimit(1)
+            } icon: {
+                ClaudePillDot(summary: summary)
             }
+            .labelStyle(PillLabelStyle())
             .padding(.horizontal, 4)
         }
         .help(L.Shell.queueTitle(state.agentStatus.shownKind))
@@ -120,6 +123,16 @@ struct ClaudePill: View {
         .accessibilityValue(summary.text)
         .popover(isPresented: $showQueue, arrowEdge: .bottom) {
             ClaudeQueuePopover(state: state)
+        }
+    }
+}
+
+/// Dot + text side by side, as the pill always drew them (a toolbar would otherwise show the icon only).
+private struct PillLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon
+            configuration.title
         }
     }
 }

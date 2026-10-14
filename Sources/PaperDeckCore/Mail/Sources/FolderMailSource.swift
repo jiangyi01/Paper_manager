@@ -107,6 +107,9 @@ package struct FolderLedger: Codable, Sendable, Equatable {
     /// Files in the folder that were read and are not emails (vanished ones are pruned).
     package var notMailCount: Int { files.reduce(0) { $0 + ($1.notMail ? 1 : 0) } }
 
+    /// The hashed names of those files.
+    package var notMailKeys: Set<String> { Set(files.lazy.filter(\.notMail).map(\.key)) }
+
     package init?(_ cursor: MailCursor?) {
         guard let cursor, let data = cursor.value.data(using: .utf8),
               let l = try? JSONDecoder().decode(FolderLedger.self, from: data) else { return nil }
@@ -449,7 +452,8 @@ package actor FolderMailSource: MailSource {
         rememberNotMail(ledger)
         let notMail = ledger.notMailCount
         MailTransportLog.logger.info("mail folder listHeaders: \(headers.count, privacy: .public) header(s), \(notMail, privacy: .public) not email, hasMore=\(hasMore, privacy: .public)")
-        return MailHeaderPage(headers: headers, nextCursor: ledger.cursor, hasMore: hasMore, notEmailFiles: notMail)
+        return MailHeaderPage(headers: headers, nextCursor: ledger.cursor, hasMore: hasMore, notEmailFiles: notMail,
+                              notEmailKeys: ledger.notMailKeys)
     }
 
     package func fetchMessage(_ header: MailHeader, maxBytes: Int) async throws -> MailContent {
@@ -489,6 +493,115 @@ package actor FolderMailSource: MailSource {
             do { try FileManager.default.removeItem(at: url); return true } catch { return false }
         }
         MailTransportLog.logger.info("mail folder: processed file \(removed ? "deleted" : "could not be deleted", privacy: .public)")
+    }
+}
+
+// MARK: - Files that aren't emails (the notice's Move to Trash / Show)
+
+/// One file of a watched folder that the ledger records as not an email, as found at click time.
+package struct MailNotEmailFile: Sendable, Equatable {
+    package var url: URL
+    /// `FolderLedger.key` of its name.
+    package var key: String
+    package var size: Int64
+    package var mtimeMs: Int64
+    /// SHA-256 of the whole file: what a confirmation showed is what goes to the Trash.
+    package var sha256: String
+    package var name: String { url.lastPathComponent }
+
+    package init(url: URL, key: String, size: Int64, mtimeMs: Int64, sha256: String) {
+        self.url = url; self.key = key; self.size = size; self.mtimeMs = mtimeMs; self.sha256 = sha256
+    }
+}
+
+/// The not-email files of one folder account, found at click time (`MailSyncActor.notEmailFiles`).
+package struct MailNotEmailFiles: Sendable, Equatable {
+    /// The account's watched folder (nil: not a folder account / not configured).
+    package var folder: URL?
+    package var files: [MailNotEmailFile]
+    package init(folder: URL? = nil, files: [MailNotEmailFile] = []) { self.folder = folder; self.files = files }
+
+    /// The files of `confirmed` that are still exactly what they were (same place, hashed name,
+    /// size, mtime and content) — the only ones a confirmed Move to Trash may take.
+    package func unchanged(since confirmed: MailNotEmailFiles) -> [MailNotEmailFile] {
+        guard let folder, confirmed.folder == folder else { return [] }
+        let now = Dictionary(files.map { ($0.url.standardizedFileURL.path, $0) }, uniquingKeysWith: { a, _ in a })
+        return confirmed.files.filter { old in
+            guard let cur = now[old.url.standardizedFileURL.path] else { return false }
+            return cur.key == old.key && cur.size == old.size && cur.mtimeMs == old.mtimeMs && cur.sha256 == old.sha256
+                && FolderMailSource.mayTrash(cur.url, folder: folder)
+        }
+    }
+}
+
+/// The confirmed Move to Trash of not-email files: what the confirmation listed (`confirmed`) is
+/// compared with the files as found again at the click (`now`); only the ones still unchanged and
+/// directly inside the watched folder (`MailNotEmailFiles.unchanged`) are handed to `recycle` —
+/// the App's is `NSWorkspace.recycle` (Finder's Put Back restores them), the tests' a fake. It is
+/// never called with an empty list or with anything else.
+package enum MailNotEmailTrash {
+    package enum Outcome: Equatable, Sendable {
+        /// Nothing left to move (gone, changed, or not inside the folder); `recycle` wasn't called.
+        case nothing
+        /// `recycle` reported this many files moved.
+        case moved(Int)
+        /// `recycle` threw.
+        case failed
+    }
+
+    package static func perform(confirmed: MailNotEmailFiles, now: MailNotEmailFiles,
+                                recycle: @Sendable ([URL]) async throws -> Int) async -> Outcome {
+        let urls = await BlockingIO.run { now.unchanged(since: confirmed).map(\.url) }   // a stat per file
+        guard !urls.isEmpty else { return .nothing }
+        do { return .moved(try await recycle(urls)) } catch { return .failed }
+    }
+}
+
+extension FolderMailSource {
+    /// The account's watched folder (nil when none is configured).
+    package static func folderURL(_ account: MailAccount) -> URL? {
+        guard account.kind == .folder, let p = account.folderPath?.trimmingCharacters(in: .whitespaces), !p.isEmpty else { return nil }
+        return URL(fileURLWithPath: (p as NSString).expandingTildeInPath, isDirectory: true)
+    }
+
+    /// Files of `folder` the ledger records as not emails, checked again now: the same hashed name,
+    /// size and mtime as the ledger's entry, directly inside `folder` (`mayTrash`), and their first
+    /// bytes still not an RFC 822 message (`MailFileSniffer`). `keys`: only these hashed names (nil:
+    /// all). Each file is read once (its head and its hash) by a coordinated read with a timeout; a
+    /// file that can't be read is left out. Never logs a name.
+    package static func notEmailFiles(in folder: URL, ledger: FolderLedger, keys: Set<String>? = nil,
+                                      readTimeout: Duration = .seconds(30)) async -> [MailNotEmailFile] {
+        var entries: [String: FolderLedger.Entry] = [:]
+        for e in ledger.files where e.notMail && (keys?.contains(e.key) ?? true) { entries[e.key] = e }
+        guard !entries.isEmpty, let facts = try? await BlockingIO.run({ try scan(folder) }) else { return [] }
+        var out: [MailNotEmailFile] = []
+        for f in facts {
+            let key = FolderLedger.key(forFileName: f.name)
+            guard let e = entries[key], e.size == f.size, e.mtimeMs == f.mtimeMs else { continue }
+            let url = f.url
+            guard await BlockingIO.run({ mayTrash(url, folder: folder) }) else { continue }
+            let read = try? await FileOps.coordinatedRead(source: url, timeout: readTimeout, queue: readQueue) { u in
+                (head: try FileOps.readHead(u, bytes: headerReadBytes), sha: try FileOps.sha256(of: u))
+            }
+            guard let read, !MailFileSniffer.isMessage(read.head) else { continue }
+            out.append(MailNotEmailFile(url: url, key: key, size: f.size, mtimeMs: f.mtimeMs, sha256: read.sha))
+        }
+        return out
+    }
+
+    /// Whether the Trash may take `url` for the account watching `folder`: a regular file (never a
+    /// link or a folder) with a mail-file name, directly inside `folder` — both compared with
+    /// symlinks resolved — never anything in a subfolder or outside it. Blocking (one stat).
+    package static func mayTrash(_ url: URL, folder: URL) -> Bool {
+        guard url.isFileURL, folder.isFileURL, isCandidateName(url.lastPathComponent) else { return false }
+        let root = folder.standardizedFileURL.resolvingSymlinksInPath().path
+        let parent = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath().path
+        guard root.count > 1, parent == root else { return false }
+        var u = url.standardizedFileURL
+        u.removeAllCachedResourceValues()
+        guard let v = try? u.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+              v.isRegularFile == true, v.isSymbolicLink != true else { return false }
+        return true
     }
 }
 
