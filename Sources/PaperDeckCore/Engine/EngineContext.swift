@@ -14,6 +14,8 @@ package struct EngineContext: Sendable {
     package let now: @Sendable () -> Date
     /// `Calendar.autoupdatingCurrent` in the app, so a time-zone change (travel) moves "today".
     package let calendar: Calendar
+    /// Removals that wait out an undo window (shared by the intake and the duplicate decisions).
+    package let undoCleanups = UndoCleanups()
 
     package init(paths: AppPaths, db: Database, sidecars: SidecarWriter, texts: TextStore, thumbs: ThumbnailStore,
                  events: EventHub<EngineEvent>, loadSettings: @escaping @Sendable () -> EngineSettings,

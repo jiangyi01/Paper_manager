@@ -452,6 +452,14 @@ extension Database {
         }
     }
 
+    /// Every review (any state) that names a paper on either side — what a hard delete of every
+    /// paper would cascade away (`paperAssistLinks`, index rebuild).
+    package func dupReviewsNamingPapers() throws -> [DupReview] {
+        try db.query(Database.reviewSelect + """
+             WHERE r.new_paper_pk IS NOT NULL OR r.existing_paper_pk IS NOT NULL ORDER BY r.pk
+            """) { readReview($0) }
+    }
+
     /// Open reviews that matched a tombstone (Clear History removes those rows with them).
     package func openDupReviewsMatchingHistory() throws -> [DupReview] {
         try db.query(Database.reviewSelect + " WHERE r.state = 'open' AND r.history_pk IS NOT NULL ORDER BY r.pk") {

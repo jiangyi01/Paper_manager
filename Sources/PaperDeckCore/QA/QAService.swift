@@ -303,7 +303,10 @@ package actor QAService {
     }
 
     /// Imports the threads of `paperID`'s `qa.json` that the database doesn't have (index rebuild).
-    /// Returns how many threads were added.
+    /// A thread the database still has but with no paper left (its papers were hard-deleted and
+    /// inserted again under new pks) is linked back to `paperID` — its messages are still stored —
+    /// instead of being skipped, which would leave it to launch recovery to delete. Returns how many
+    /// threads were added or linked back.
     @discardableResult
     package func restoreSidecar(paperID: String) async -> Int {
         guard let library, let paper = try? await library.ctx.db.paper(id: paperID) else { return 0 }
@@ -314,7 +317,18 @@ package actor QAService {
         for (thread, messages) in file.restored() {
             var t = thread
             t.paperIDs = [paperID]
-            guard (try? await library.ctx.db.qaThread(id: t.id)) == nil else { continue }
+            let stored: QAThread?
+            do { stored = try await library.ctx.db.qaThread(id: t.id) } catch { continue }
+            if let stored {
+                guard stored.paperIDs.isEmpty else { continue }
+                do {
+                    try await library.ctx.db.linkQAThread(id: t.id, paperID: paperID)
+                    added += 1
+                } catch {
+                    Log.assist.error("qa.json restore could not link a thread: \(String(describing: type(of: error)), privacy: .public)")
+                }
+                continue
+            }
             do {
                 try await library.ctx.db.insertQAThread(t)
                 for m in messages { try await library.ctx.db.insertQAMessage(m) }

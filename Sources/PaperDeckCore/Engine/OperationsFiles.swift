@@ -19,13 +19,17 @@ extension Engine {
         let pk = try await PaperOpsSupport.livePK(db, paperID)
         // "Possibly unpublished — confirm before AI reading" is a fact about the file, not only its
         // job's: it outlives the cancelled job (the assist surfaces and the duplicate history read it).
-        let unpublished = try await db.paper(pk: pk)?.aiNote == ImportAnnotation.unpublishedHoldNote
+        let before = try await db.paper(pk: pk)
+        let unpublished = before?.aiNote == ImportAnnotation.unpublishedHoldNote
+        // The reading it waited for (held, queued or running) comes back with a restore.
+        let waiting = try await db.activeJob(paperPK: pk).map { TrashedJob($0, note: before?.aiNote) }
         await agents.cancel(paperPK: pk)
         let library = paths.library, bin = paths.recentlyDeleted, papers = paths.papers, inbox = paths.inbox
         let now = ctx.now()
         let saved = try await db.transaction { db -> Paper in
             var p = try PaperOpsSupport.live(db, pk: pk, id: paperID)
             if unpublished { p.aiNote = ImportAnnotation.unpublishedHoldNote }
+            try db.setTrashedJob(waiting, paperID: p.id)
             try? FileOps.createFolder(bin)
             var src = LibraryPaths.folderURL(forRelative: p.folder, library: library)
             var name = OpsFiles.folderName(p)
@@ -58,7 +62,9 @@ extension Engine {
     /// 恢复: moves the folder back under Papers/ (or Papers/_Inbox/ while not yet filed) with
     /// a unique name and clears `deleted_at`. Throws `.restoreConflict` when a live paper has
     /// the same DOI (either bioRxiv prefix) or arXiv id now. A paper deleted before the
-    /// pipeline finished it goes back to EnrichActor (held AI, like a relaunch's resume).
+    /// pipeline finished it goes back to EnrichActor (held AI, like a relaunch's resume); a ready
+    /// paper gets back the reading its delete cancelled (`TrashedJob`): held when it was held or
+    /// is possibly unpublished, else queued (a running one starts over).
     @discardableResult
     package func restore(paperID: String) async throws -> Paper {
         guard let current = try await db.paper(id: paperID) else { throw PaperOperationError.paperNotFound(paperID) }
@@ -66,7 +72,7 @@ extension Engine {
         let pk = current.pk
         let library = paths.library, bin = paths.recentlyDeleted, papers = paths.papers, inbox = paths.inbox
         let now = ctx.now()
-        let saved = try await db.transaction { db -> Paper in
+        var saved = try await db.transaction { db -> Paper in
             guard var p = try db.paper(pk: pk) else { throw PaperOperationError.paperNotFound(paperID) }
             guard p.isDeleted else { throw PaperOperationError.paperNotDeleted(paperID) }
             if let other = try OpsFiles.liveSameIdentifier(db, as: p) {
@@ -95,9 +101,49 @@ extension Engine {
                 throw error
             }
         }
+        if saved.stage == .ready {
+            saved = await requeueTrashedJob(saved)
+        } else {
+            try? await db.setTrashedJob(nil, paperID: saved.id)      // the pipeline's resume decides
+        }
         await ctx.syncSidecar(pk: pk)
         if saved.stage != .ready { await enrich.submit(pk: pk, holdAI: true) }
         return saved
+    }
+
+    /// A restored ready paper's reading its delete cancelled (`TrashedJob`), as an active job
+    /// again — in its own transaction, so a failure here never undoes the restore. Unless a job
+    /// is active already. Returns the row.
+    private func requeueTrashedJob(_ p: Paper) async -> Paper {
+        let now = ctx.now()
+        do {
+            let row = try await db.transaction { db -> Paper? in
+                guard let job = try db.takeTrashedJob(paperID: p.id) else { return nil }
+                guard let current = try db.paper(pk: p.pk), current.isLive, current.stage == .ready,
+                      [.held, .queued, .running].contains(job.state), try db.activeJob(paperPK: p.pk) == nil else { return nil }
+                let unpublished = current.aiNote == ImportAnnotation.unpublishedHoldNote
+                let hold = job.state == .held || unpublished
+                var waiting = current
+                waiting.aiState = hold ? .held : .queued
+                waiting.aiNote = unpublished ? ImportAnnotation.unpublishedHoldNote
+                    : hold && job.note == AgentQueue.modeOffNote ? AgentQueue.modeOffNote : nil
+                waiting = try db.updatePaper(waiting, now: now)
+                guard try AgentQueue.recreateLostJob(for: waiting, db: db, providerID: job.provider, now: now) else {
+                    return waiting
+                }
+                if job.priority != 0, var active = try db.activeJob(paperPK: p.pk) {
+                    active.priority = job.priority
+                    try db.updateJob(active)
+                }
+                return try db.paper(pk: p.pk) ?? waiting
+            }
+            guard let row else { return p }
+            await agents.jobsChanged()
+            return row
+        } catch {
+            Log.storage.error("restore: the reading of \(p.id, privacy: .public) was not queued again: \(String(describing: error), privacy: .public)")
+            return p
+        }
     }
 
     /// Hard-deletes papers soft-deleted at least `age` ago: DB row (checklist, tags, jobs,
@@ -242,6 +288,7 @@ enum OpsFiles {
                 // the tombstone (or end, releasing the held paper, when none is kept).
                 let history = try remember && db.mayRemember(current) ? db.writeTombstone(current, at: now) : nil
                 let released = try db.retargetOpenDupReviews(existing: current.pk, to: nil, history: history, now: now)
+                try db.setTrashedJob(nil, paperID: current.id)
                 try db.hardDelete(pk: current.pk)
                 for url in folders where !trash(url) { throw TrashRefused(name: url.lastPathComponent) }
                 return (.removed, released)

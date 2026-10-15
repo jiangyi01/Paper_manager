@@ -389,7 +389,8 @@ PaperDeck/Papers/2025_Author_Title-of-the-paper/
 PaperDeck's index (a SQLite database), caches and daily backups live separately in PaperDeck's own
 folders on this Mac (`~/Library/Application Support/PaperDeck`, `~/Library/Caches/PaperDeck`). The
 index can always be rebuilt from the folders (Settings ▸ Library & Storage ▸ Rebuild index from
-folders).
+folders). A rebuild keeps your Ask threads, Explain history and open duplicate questions with their
+papers; while AI is reading a paper it doesn't start (try again once the reading finishes).
 
 - **Cloud folders** (iCloud Drive, Dropbox, Google Drive, OneDrive) work on **one Mac at a time**.
   Keep the folder downloaded (Finder ▸ Keep Downloaded / Always Keep on This Device).

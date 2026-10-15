@@ -23,8 +23,17 @@ extension Engine {
     /// location decides live vs deleted. FTS metadata is indexed on insert; full text comes
     /// from the text cache when present. Refuses (`.libraryNotEmpty`) when the index has
     /// papers unless `replacingExisting` (then only DB rows are dropped — files stay).
+    /// Replacing keeps what hangs off the dropped rows but isn't in card.json — Q&A threads,
+    /// Explain history, duplicate reviews — by linking it back to the re-inserted papers by id;
+    /// it refuses (`.aiReadingInProgress`) while the agent queue is reading a paper, whose
+    /// result would otherwise land on a deleted row and be read a second time.
     @discardableResult
     package func rebuildFromSidecars(replacingExisting: Bool = false) async throws -> RebuildReport {
+        // A running reading's job row would cascade away under it: its card dropped, the paper
+        // queued again from card.json. A started queue has reset every stale running row, so a
+        // running job then is a live one (checked again inside the transaction below).
+        if replacingExisting, await agents.runningPaperPK() != nil { throw PaperOperationError.aiReadingInProgress }
+        let queueLive = await agents.mayBeReading()
         let library = paths.library, manifestURL = paths.libraryManifest
         let liveScan = await SidecarWriter.scanSidecars(papersRoot: paths.papers)
         let binScan = await SidecarWriter.scanSidecars(papersRoot: paths.recentlyDeleted)
@@ -48,8 +57,13 @@ extension Engine {
 
         let outcome = try await db.transaction { db -> SidecarRestore.Outcome in
             let existing = try db.allPapers()
+            var links = PaperAssistLinks()
             if !existing.isEmpty {
                 guard replacingExisting else { throw PaperOperationError.libraryNotEmpty }
+                if queueLive, try !db.jobs(states: [.running]).isEmpty { throw PaperOperationError.aiReadingInProgress }
+                // Q&A thread links, Explain records and duplicate reviews hang off the rows'
+                // pks (cascade / set null): read them by paper id, link them back below.
+                links = try db.paperAssistLinks()
                 for p in existing { try db.hardDelete(pk: p.pk) }
             }
             var categories = try SidecarRestore.restoreCategories(db, manifest: manifest)
@@ -68,6 +82,12 @@ extension Engine {
                     if saved.isDeleted { out.deleted += 1 } else { out.live += 1 }
                 } catch let e as SQLiteError where e.isConstraintViolation {
                     out.skipped.append("\(c.relativeFolder): \(e.message)")
+                }
+            }
+            if !links.isEmpty {
+                let relinked = try db.relinkPaperAssistLinks(links)
+                if relinked.unmatched > 0 {
+                    Log.storage.notice("rebuild: \(relinked.unmatched, privacy: .public) assist row(s) without their paper")
                 }
             }
             if let manifest {

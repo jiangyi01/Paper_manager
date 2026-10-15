@@ -295,8 +295,13 @@ struct ClaudeQueuePopover: View {
         HStack(spacing: 8) {
             if status.held > 0 {
                 Button(L.Shell.readAllNow(status.held)) {
-                    let agents = state.engine.agents
-                    Task { await agents.releaseHeld(paperPKs: nil) }
+                    // Papers waiting for their own confirmation (possibly unpublished, confidential,
+                    // under duplicate review) stay held; a toast names them.
+                    let appState = state, engine = state.engine
+                    Task {
+                        let outcome = await engine.releaseHeldReadings()
+                        if let note = L.Select.rereadHeld(outcome.held) { appState.post(Toast(kind: .info, message: note)) }
+                    }
                 }
                 .disabled(!aiEnabled)
             }
@@ -320,10 +325,10 @@ struct ClaudeQueuePopover: View {
     }
 
     private func queueExisting(_ pks: [Int64]) {
-        let agents = state.engine.agents
+        let appState = state, engine = state.engine
         Task {
-            await agents.releaseHeld(paperPKs: nil)
-            for pk in pks { await agents.enqueue(paperPK: pk, hold: false) }
+            let outcome = await engine.queueExistingPapers(pks)
+            if let note = L.Select.rereadHeld(outcome.held) { appState.post(Toast(kind: .info, message: note)) }
         }
     }
 }

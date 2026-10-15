@@ -485,17 +485,21 @@ extension Engine {
         }
         let reviewID = review.id
         var orphaned: [DupReview] = []
+        var links = DupMergedLinks()
         do {
-            orphaned = try await db.transaction { db -> [DupReview] in
+            (orphaned, links) = try await db.transaction { db -> ([DupReview], DupMergedLinks) in
                 if var r = try db.dupReview(id: reviewID) {
                     r.newPaperPK = nil                 // keep the review row (ON DELETE CASCADE)
                     try db.updateDupReview(r)
                 }
                 for source in try db.paperSources(paperPK: n.pk) { try db.insertPaperSource(paperPK: e.pk, source) }
+                // The copy's Q&A threads and keep-apart decisions follow it to the kept paper (its
+                // hard delete would cascade them away; launch recovery then drops the threads).
+                let links = try db.moveMergedLinks(from: n.pk, to: e.pk)
                 // Other papers compared with the removed one are compared with the one kept.
                 let orphaned = try db.retargetOpenDupReviews(existing: n.pk, to: e.pk, history: nil, now: now)
                 try db.hardDelete(pk: n.pk)
-                return orphaned
+                return (orphaned, links)
             }
         } catch {
             if let parked { _ = try? await BlockingIO.run { try FileOps.moveFolder(from: parked, to: nFolder) } }
@@ -504,15 +508,20 @@ extension Engine {
         review.newPaperPK = nil
         await releaseDuplicateHolds(orphaned)
         await ctx.sidecars.discard(paperID: n.id)
+        await syncPairPartners(links)
         let movedItems = (try? await db.repointMailItems(from: n.id, to: e.id)) ?? []
         steps.append(.recreatePaper(snapN, parkedFolder: parked, mailItems: movedItems, keptPaperID: e.id,
-                                    heldJob: copyJob.map { $0.state == .held || $0.state == .queued } ?? false))
+                                    heldJob: copyJob.map { $0.state == .held || $0.state == .queued } ?? false,
+                                    links: links))
 
         // Anything below that fails puts back what was done so far (the undo steps), then throws.
         let rollbackFrom = steps.count
         do {
-            return try await mergeKept(e, drop: n, snapN: snapN, copyNote: copyBefore.aiNote, parked: parked, steps: &steps,
-                                       lang: lang, now: now)
+            let kept = try await mergeKept(e, drop: n, snapN: snapN, copyNote: copyBefore.aiNote, parked: parked,
+                                           steps: &steps, lang: lang, now: now)
+            // The kept paper's qa.json now holds the threads it took over (its folder is final now).
+            if !links.threads.isEmpty { await syncQASidecar(paperID: kept.id) }
+            return kept
         } catch {
             var newPK: [Int64: Int64] = [:]
             for step in steps[rollbackFrom - 1..<steps.count].reversed() { try? await undo(step, newPK: &newPK) }
@@ -670,15 +679,22 @@ extension Engine {
             let enrich = self.enrich, pk = target.pk
             Task { _ = await enrich.refreshMetadata(pk: pk) }
         }
-        // The removed paper's caches go once the undo window has passed (unless undone).
+        // The removed paper's caches go once the undo window has passed (unless undone; a
+        // duplicate batch may keep them longer, `UndoCleanups.extend`).
         let ctx = self.ctx, nid = n.id
-        Task {
-            try? await Task.sleep(for: .seconds(UndoToken.lifetime + 5))
+        await ctx.undoCleanups.schedule(UndoCleanups.mergedCopyKey(nid), after: UndoToken.lifetime + 5) {
             if (try? await ctx.db.paper(id: nid)) == nil {
                 await BlockingIO.run { _ = ctx.texts.delete(id: nid); ctx.thumbs.delete(id: nid) }
             }
         }
         return saved
+    }
+
+    /// card.json `distinctFrom` / `relatedTo` of the papers whose decisions a merge (or its undo) moved.
+    private func syncPairPartners(_ links: DupMergedLinks) async {
+        for pair in links.pairs {
+            if let p = try? await db.paper(id: pair.partnerID) { await ctx.syncSidecar(pk: p.pk) }
+        }
     }
 
     /// The kept paper's policy after a merge: each flag on when either paper had it (set by the
@@ -729,7 +745,7 @@ extension Engine {
             ctx.events.send(.dedupe(.reviewOpened(reviewID: r.id, paperID: r.newPaperPK == nil ? nil : r.newPaperID)))
         case .restorePaper(let snap, let text, let thumbnail):
             try await snap.restore(db: db, ctx: ctx, now: ctx.now(), text: text, thumbnail: thumbnail)
-        case .recreatePaper(let snap, let parked, let items, let keptID, let heldJob):
+        case .recreatePaper(let snap, let parked, let items, let keptID, let heldJob, let links):
             if let parked {
                 let dest = LibraryPaths.folderURL(forRelative: snap.paper.folder, library: paths.library)
                 try await BlockingIO.run {
@@ -741,6 +757,10 @@ extension Engine {
             let pk = try await snap.recreate(db: db, ctx: ctx)
             newPK[snap.paper.pk] = pk
             _ = try? await db.repointMailItems(from: keptID, to: snap.paper.id, only: items)
+            // Its Q&A threads and keep-apart decisions back from the kept paper.
+            do { try await db.restoreMergedLinks(links, copyPK: pk, keptPaperID: keptID) } catch {
+                Log.importer.error("merge undo: links not restored: \(String(describing: error), privacy: .public)")
+            }
             if heldJob {
                 // Its reading waits again (for the review, or for the confirmation its note asks for).
                 await agents.enqueue(paperPK: pk, hold: true)
@@ -749,6 +769,12 @@ extension Engine {
                 }
             }
             await ctx.syncSidecar(pk: pk)
+            if !links.isEmpty, let kept = try? await db.paper(id: keptID) { await ctx.syncSidecar(pk: kept.pk) }
+            await syncPairPartners(links)
+            if !links.threads.isEmpty {
+                await syncQASidecar(paperID: snap.paper.id)
+                await syncQASidecar(paperID: keptID)
+            }
         case .swapBack(let paperPK, let backup, let newFileTo):
             guard let p = try await db.paper(pk: paperPK) else { return }
             let pdf = ctx.pdfURL(p)
@@ -944,7 +970,11 @@ extension Engine {
         let lang = (await ctx.settings()).lang
         var out = DupBatchResolution()
         var steps: [DupUndoStep] = []
+        // Each row's removals (a skipped file, a merged copy's caches) were timed from that row;
+        // the one token below is timed from the last: they are kept until it expires.
+        var keepAlive = DupBatchKeepAlive()
         for item in items {
+            let started = ctx.now()
             do {
                 let r = try await resolveDuplicate(reviewID: item.reviewID, item.choice)
                 out.resolved.append(r)
@@ -952,16 +982,19 @@ extension Engine {
                 if let token = r.undoToken,
                    let entry = await dupUndoLedger.take(token, owner: ObjectIdentifier(self), now: ctx.now()) {
                     steps += entry.steps
+                    keepAlive.add(keys: DupBatchKeepAlive.cleanupKeys(entry.steps), startedAt: started)
                 }
             } catch let e as DupResolutionError {
                 out.failed[item.reviewID] = e
             } catch {
                 out.failed[item.reviewID] = .failed(String(describing: error))
             }
+            await extendCleanups(&keepAlive, at: ctx.now())
         }
         if !steps.isEmpty {
             let token = UUID().uuidString.lowercased()
             let now = ctx.now()
+            await extendCleanups(&keepAlive, at: now)
             await dupUndoLedger.put(token, DupUndoLedger.Entry(owner: ObjectIdentifier(self),
                                                                expiresAt: now.addingTimeInterval(UndoToken.lifetime),
                                                                steps: steps), now: now)
@@ -971,6 +1004,11 @@ extension Engine {
         for i in out.resolved.indices { out.resolved[i].undoToken = nil }
         out.message = DupBatchResolution.message(applied: out.resolved.count, failed: out.failed.count, lang: lang)
         return out
+    }
+
+    /// The batch's keep-alive extensions due at `now`, applied to the rows' pending removals.
+    private func extendCleanups(_ keepAlive: inout DupBatchKeepAlive, at now: Date) async {
+        for e in keepAlive.extensions(at: now) { await ctx.undoCleanups.extend(e.key, by: e.seconds) }
     }
 
     // MARK: - AI judge (B3)
@@ -1551,8 +1589,10 @@ package struct DupPaperSnapshot: Sendable {
 package enum DupUndoStep: Sendable {
     case reopenReview(DupReview)
     case restorePaper(DupPaperSnapshot, text: String?, thumbnail: Data?)
-    /// `heldJob`: the paper had a waiting reading job (it is re-created held).
-    case recreatePaper(DupPaperSnapshot, parkedFolder: URL?, mailItems: [String], keptPaperID: String, heldJob: Bool)
+    /// `heldJob`: the paper had a waiting reading job (it is re-created held). `links`: its Q&A
+    /// threads and pair decisions the merge moved to the kept paper (moved back).
+    case recreatePaper(DupPaperSnapshot, parkedFolder: URL?, mailItems: [String], keptPaperID: String, heldJob: Bool,
+                       links: DupMergedLinks)
     /// The kept paper's PDF goes to `newFileTo` (the removed paper's parked folder), `backup` back in place.
     case swapBack(paperPK: Int64, backup: URL?, newFileTo: URL?)
     case softDeleteAgain(paperID: String)

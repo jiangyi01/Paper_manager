@@ -359,7 +359,10 @@ package actor AgentQueue {
     }
 
     /// Held/queued/running → cancelled. A running child is terminated; the paper
-    /// goes back to `none` (or `done` if it still has an earlier card).
+    /// goes back to `none` (or `done` if it still has an earlier card). Its job-state note goes
+    /// with the job, but "possibly unpublished — confirm before AI reading"
+    /// (`ImportAnnotation.unpublishedHoldNote`) is a fact about the file: it stays, so a batch
+    /// "Read with AI", Explain / Ask and the duplicate history still see it.
     package func cancel(paperPK: Int64) async {
         guard let job = try? await ctx.db.activeJob(paperPK: paperPK) else { return }
         if running?.jobPK == job.pk {
@@ -375,7 +378,7 @@ package actor AgentQueue {
                          },
                          paper: { p in
                              p.aiState = p.card == nil ? .none : .done
-                             p.aiNote = nil
+                             if p.aiNote != ImportAnnotation.unpublishedHoldNote { p.aiNote = nil }
                          })
         poke()
         await publish()
@@ -398,6 +401,19 @@ package actor AgentQueue {
     }
 
     package func status() async -> AgentQueueStatus { await currentStatus() }
+
+    /// The paper a card job is reading right now (nil: none).
+    package func runningPaperPK() -> Int64? { running?.paperPK }
+
+    /// Whether a card run may be in flight: the loop was started (`start()` turned every job a
+    /// crash left `running` back into queued, so a running row now is a live run) or one runs.
+    package func mayBeReading() -> Bool { loopRunning || running != nil }
+
+    /// Jobs were written outside `enqueue` (a restore re-created a reading): look at them now.
+    package func jobsChanged() async {
+        poke()
+        await publish()
+    }
 
     /// 1-based run order of every queued job, by paper pk (AgentBadge 「排队中 · 第 N」).
     /// Jobs waiting out a backoff keep their place.

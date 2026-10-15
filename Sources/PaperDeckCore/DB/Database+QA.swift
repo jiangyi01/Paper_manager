@@ -78,6 +78,24 @@ extension Database {
             """) { s in (pk: s.int64(0), id: s.string(1)) }
     }
 
+    /// Adds `paperID` to a stored thread, after its other papers (nothing when it is there already).
+    /// A thread whose papers were all hard-deleted is linked back this way when its paper's
+    /// `qa.json` is read again (index rebuild). Throws `notFound` for an unknown thread or paper.
+    package func linkQAThread(id: String, paperID: String) throws {
+        try write {
+            guard let threadPK = try db.scalarInt("SELECT pk FROM qa_thread WHERE id = ?", [.text(id)]) else {
+                throw DatabaseError.notFound("qa thread \(id)")
+            }
+            guard let paperPK = try db.scalarInt("SELECT pk FROM paper WHERE id = ?", [.text(paperID.lowercased())]) else {
+                throw DatabaseError.notFound("paper \(paperID)")
+            }
+            let ord = try db.scalarInt("SELECT coalesce(max(ord) + 1, 0) FROM qa_thread_paper WHERE thread_pk = ?",
+                                       [.integer(threadPK)]) ?? 0
+            try db.run("INSERT OR IGNORE INTO qa_thread_paper(thread_pk, paper_pk, ord) VALUES(?, ?, ?)",
+                       [.integer(threadPK), .integer(paperPK), .integer(ord)])
+        }
+    }
+
     /// Title, language, context mode, archived flag and `updated_at` of a stored thread (nil: unchanged).
     package func updateQAThread(id: String, title: String? = nil, language: AssistSettings.AnswerLanguage? = nil,
                                 mode: QAContextMode? = nil, archived: Bool? = nil, updatedAt: Date? = nil) throws {

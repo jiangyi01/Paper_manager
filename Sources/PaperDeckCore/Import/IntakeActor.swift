@@ -203,9 +203,8 @@ package actor IntakeActor {
             emit(row)
             if keep {
                 discarded[pendingID] = w
-                let lifetime = UndoToken.lifetime + 5
-                Task { [weak self] in
-                    try? await Task.sleep(for: .seconds(lifetime))
+                // A duplicate batch may keep it longer (`UndoCleanups.extend`).
+                await ctx.undoCleanups.schedule(UndoCleanups.parkedKey(pendingID), after: UndoToken.lifetime + 5) { [weak self] in
                     await self?.dropDiscarded(pendingID)
                 }
             } else {
@@ -390,9 +389,7 @@ package actor IntakeActor {
         let undoID = UUID().uuidString.lowercased()
         replacedRecords[undoID] = ReplacedRecord(work: w, pdf: pdf, backup: backup, before: existing, text: previous.0,
                                                  thumbnail: previous.1, sources: sourcesBefore)
-        let lifetime = UndoToken.lifetime + 5
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(lifetime))
+        await ctx.undoCleanups.schedule(UndoCleanups.replacedKey(undoID), after: UndoToken.lifetime + 5) { [weak self] in
             await self?.forgetReplaced(undoID)
         }
         return .replaced(adopted, undoID: undoID)

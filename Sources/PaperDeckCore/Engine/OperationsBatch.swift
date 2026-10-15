@@ -133,6 +133,58 @@ extension Engine {
         return live.compactMap { p in holds[p.pk].map { RereadHeld(paperID: p.id, reason: $0) } }
     }
 
+    /// "Read All Now (N)" in the AI queue: every held reading starts (those held while
+    /// `agent.mode` was off too) — except the ones a batch must never send (`rereadHolds`:
+    /// never-AI, possibly unpublished, confidential, held by a duplicate review), which keep their
+    /// held job and note for the user's own confirmation in the paper. When the holds can't be
+    /// read, nothing is released. Returns how many started and which stayed held, and why.
+    @discardableResult
+    package func releaseHeldReadings() async -> HeldRelease {
+        let held = (try? await db.jobs(states: [.held])) ?? []
+        var papers: [Paper] = []
+        for job in held {
+            if let p = try? await db.paper(pk: job.paperPK), p.isLive, !papers.contains(where: { $0.pk == p.pk }) {
+                papers.append(p)
+            }
+        }
+        guard !papers.isEmpty else { return HeldRelease() }
+        guard let holds = await batchHolds(papers) else { return HeldRelease() }
+        let release = papers.filter { holds[$0.pk] == nil }.map(\.pk)
+        if !release.isEmpty { await agents.releaseHeld(paperPKs: release) }
+        return HeldRelease(released: release.count,
+                           held: papers.compactMap { p in holds[p.pk].map { RereadHeld(paperID: p.id, reason: $0) } })
+    }
+
+    /// "Queue Existing Papers" (AI queue, Settings ▸ AI): `releaseHeldReadings`, then a reading for
+    /// each of `paperPKs` (papers never read: live, no card, no job) under the same rule — a paper
+    /// a batch must never send is left as it is and reported.
+    @discardableResult
+    package func queueExistingPapers(_ paperPKs: [Int64]) async -> HeldRelease {
+        var out = await releaseHeldReadings()
+        var papers: [Paper] = []
+        for pk in BatchSupport.uniquePKs(paperPKs) {
+            if let p = try? await db.paper(pk: pk), p.isLive, p.card == nil, p.aiState == .none { papers.append(p) }
+        }
+        guard !papers.isEmpty, let holds = await batchHolds(papers) else { return out }
+        for p in papers {
+            if let reason = holds[p.pk] {
+                out.held.append(RereadHeld(paperID: p.id, reason: reason))
+                continue
+            }
+            await agents.enqueue(paperPK: p.pk, hold: false)
+            out.released += 1
+        }
+        return out
+    }
+
+    /// `rereadHolds`, or nil (and logged) when they can't be read: then nothing may be sent.
+    private func batchHolds(_ papers: [Paper]) async -> [Int64: RereadHold]? {
+        do { return try await rereadHolds(papers) } catch {
+            Log.agent.error("batch reading holds unreadable: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     /// Why each of `papers` must not be read by a batch (missing: it may be). The strongest reason
     /// wins (`RereadHold`'s order).
     private func rereadHolds(_ papers: [Paper]) async throws -> [Int64: RereadHold] {
@@ -243,10 +295,19 @@ extension Engine {
         for id in ids {
             if let p = try await db.paper(id: id), p.isLive { live.append(p) } else { skipped.append(id) }
         }
-        for p in live { await agents.cancel(paperPK: p.pk) }
+        // As `softDelete`: the reading each paper waited for comes back with Undo / Restore
+        // (`TrashedJob`), and the "possibly unpublished" mark outlives the cancelled job.
+        var waiting: [Int64: TrashedJob] = [:]
+        var unpublished = Set<Int64>()
+        for p in live {
+            if let job = try await db.activeJob(paperPK: p.pk) { waiting[p.pk] = TrashedJob(job, note: p.aiNote) }
+            if p.aiNote == ImportAnnotation.unpublishedHoldNote { unpublished.insert(p.pk) }
+            await agents.cancel(paperPK: p.pk)
+        }
         let library = paths.library, bin = paths.recentlyDeleted, papers = paths.papers, inbox = paths.inbox
         let now = ctx.now()
         let pks = live.map(\.pk)
+        let waitingJobs = waiting, unpublishedPKs = unpublished
         var run = try await db.transaction { db -> BatchRun in
             var run = BatchRun()
             var moves: [(from: URL, to: URL)] = []
@@ -256,6 +317,8 @@ extension Engine {
                     guard var p = try db.paper(pk: pk), p.isLive else {
                         continue                                  // deleted meanwhile
                     }
+                    if unpublishedPKs.contains(pk) { p.aiNote = ImportAnnotation.unpublishedHoldNote }
+                    try db.setTrashedJob(waitingJobs[pk], paperID: p.id)
                     let before = p
                     var src = LibraryPaths.folderURL(forRelative: p.folder, library: library)
                     var name = OpsFiles.folderName(p)
@@ -315,6 +378,17 @@ extension Engine {
 
 // MARK: - Support
 
+/// What `Engine.releaseHeldReadings` did: readings started, and readings left held because they
+/// wait for the user's own confirmation.
+package struct HeldRelease: Sendable, Equatable {
+    /// Readings started (held ones released, never-read papers queued).
+    package var released = 0
+    /// The papers left out, and why (`L.Select.rereadHeld` words them).
+    package var held: [RereadHeld] = []
+
+    package init(released: Int = 0, held: [RereadHeld] = []) { self.released = released; self.held = held }
+}
+
 /// What one batch did, before the undo token is made.
 struct BatchRun: Sendable {
     var applied: [String] = []
@@ -359,6 +433,12 @@ enum BatchSupport {
     static func unique(_ ids: [String]) -> [String] {
         var seen = Set<String>()
         return ids.map { $0.lowercased() }.filter { seen.insert($0).inserted }
+    }
+
+    /// First occurrence kept, order kept.
+    static func uniquePKs(_ pks: [Int64]) -> [Int64] {
+        var seen = Set<Int64>()
+        return pks.filter { seen.insert($0).inserted }
     }
 
     /// Tag names as `Engine.addTag` stores them. Adding: an invalid name throws before anything

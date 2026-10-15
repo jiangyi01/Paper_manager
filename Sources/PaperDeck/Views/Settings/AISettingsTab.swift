@@ -235,14 +235,15 @@ struct AISettingsTab: View {
     }
 
     /// 为现有 N 篇论文排队解读: every held job (incl. those held while the mode was off)
-    /// plus the papers that never had a job.
+    /// plus the papers that never had a job — except papers waiting for their own confirmation
+    /// (`Engine.queueExistingPapers`), which a toast names.
     private func queueExisting() {
         releasing = true
-        let agents = state.engine.agents
+        let appState = state, engine = state.engine
         let pks = Self.neverQueued(state)
         Task {
-            await agents.releaseHeld(paperPKs: nil)
-            for pk in pks { await agents.enqueue(paperPK: pk, hold: false) }
+            let outcome = await engine.queueExistingPapers(pks)
+            if let note = L.Select.rereadHeld(outcome.held) { appState.post(Toast(kind: .info, message: note)) }
             releasing = false
         }
     }

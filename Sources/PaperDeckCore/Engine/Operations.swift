@@ -28,6 +28,7 @@ package enum PaperOperationError: Error, Equatable, Sendable {
     case fileOperation(String)
     case trashFailed(String)                        // folder name that could not be moved to the Trash
     case libraryNotEmpty                            // rebuild into a non-empty index
+    case aiReadingInProgress                        // rebuild while the agent queue reads a paper
 
     package func message(_ lang: UILang) -> String { PaperOpsText.error(self, lang) }
 }
@@ -586,6 +587,9 @@ enum PaperOpsText {
         case .fileOperation(let why): return zh ? "文件操作失败：\(why)" : "File operation failed: \(why)"
         case .trashFailed(let name): return zh ? "无法将「\(name)」移到废纸篓" : "Couldn't move “\(name)” to the Trash"
         case .libraryNotEmpty: return zh ? "索引中已有论文，未执行重建" : "The index already contains papers; nothing was rebuilt"
+        case .aiReadingInProgress:
+            return zh ? "AI 正在解读一篇论文，未执行重建。请等它读完（或在 AI 队列中取消）后再试。"
+                      : "AI is reading a paper right now; nothing was rebuilt. Try again once it finishes (or cancel it in the AI queue)."
         }
     }
 
