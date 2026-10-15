@@ -493,7 +493,9 @@ private struct CardThumbnail: View {
     }
 }
 
-/// In-memory cache of decoded card thumbnails (≈ 560×240 px JPEGs, ~0.5 MB decoded each).
+/// In-memory cache of decoded card thumbnails (≈ 560×240 px JPEGs, ~0.5 MB decoded each), keyed
+/// by the row's versioned URL (`ThumbnailStore.versioned`): a thumbnail rewritten in place (a
+/// replaced PDF, a merge, their Undo) comes with a new URL and is decoded again.
 final class CardThumbnailCache {
     static let shared = CardThumbnailCache()
 
@@ -526,10 +528,10 @@ final class CardThumbnailCache {
 
     private struct Decoded: @unchecked Sendable { let image: CGImage }
 
-    /// Reads and fully decodes the JPEG on a background executor.
+    /// Reads and fully decodes the JPEG on a background executor (the file the versioned URL names).
     @concurrent
     nonisolated private static func decode(_ url: URL) async -> Decoded? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+        guard let source = CGImageSourceCreateWithURL(ThumbnailStore.unversioned(url) as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
         else { return nil }
         return Decoded(image: image)

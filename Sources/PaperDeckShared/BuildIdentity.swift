@@ -2,7 +2,7 @@ import Foundation
 
 /// Who this build is: bundle ids, keychain service, log subsystem, signing identity and channel.
 /// `build_app.sh` stamps the values into the staged Info.plists (`PDHostBundleIdentifier`,
-/// `PDKeychainService`, `PDSigningIdentity`, `PDBuildChannel`); without them every value is
+/// `PDWidgetBundleIdentifier`, `PDKeychainService`, `PDSigningIdentity`, `PDBuildChannel`); without them every value is
 /// derived from the bundle id, and without a bundle id from `defaultBundleID` — so a build made
 /// with the script's defaults keeps the same defaults domain, keychain items, permissions and widget.
 public struct BuildIdentity: Sendable, Equatable {
@@ -17,6 +17,8 @@ public struct BuildIdentity: Sendable, Equatable {
     /// The Info.plist keys `build_app.sh` stamps.
     public enum InfoKey {
         public static let hostBundleID = "PDHostBundleIdentifier"
+        /// `PAPERDECK_WIDGET_ID` (default: the bundle id + ".widget").
+        public static let widgetBundleID = "PDWidgetBundleIdentifier"
         public static let keychainService = "PDKeychainService"
         public static let signingIdentity = "PDSigningIdentity"
         public static let channel = "PDBuildChannel"
@@ -47,9 +49,11 @@ public struct BuildIdentity: Sendable, Equatable {
 
     /// Pure and testable. The bundle id is `PDHostBundleIdentifier`, else the main bundle id with
     /// ".widget" stripped (the widget extension reports its own id), else `defaultBundleID`. The
-    /// widget id, keychain service and log subsystem derive from it; `PDKeychainService` overrides
-    /// the service, `PDSigningIdentity` and `PDBuildChannel` are read as stamped. Malformed values
-    /// are ignored (never a crash, never an empty id).
+    /// widget id, keychain service and log subsystem derive from it; `PDWidgetBundleIdentifier`
+    /// overrides the widget id when it is a valid id under the bundle id (`<bundle id>.<label…>`,
+    /// what `build_app.sh` accepts for `PAPERDECK_WIDGET_ID`), `PDKeychainService` the service;
+    /// `PDSigningIdentity` and `PDBuildChannel` are read as stamped. Malformed values are ignored
+    /// (never a crash, never an empty id).
     public static func resolve(info: [String: Any]?, mainBundleID: String?) -> BuildIdentity {
         func text(_ key: String) -> String? {
             guard let s = (info?[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else {
@@ -64,6 +68,9 @@ public struct BuildIdentity: Sendable, Equatable {
             return isValidBundleID(stripped) ? stripped : nil
         }
         var identity = derived(from: host ?? main ?? defaultBundleID)
+        if let widget = text(InfoKey.widgetBundleID), isValidWidgetID(widget, bundleID: identity.bundleID) {
+            identity.widgetBundleID = widget
+        }
         if let service = text(InfoKey.keychainService) { identity.keychainService = service }
         identity.signingIdentityName = text(InfoKey.signingIdentity)
         if let channel = text(InfoKey.channel).flatMap({ Channel(rawValue: $0.lowercased()) }) {
@@ -82,6 +89,12 @@ public struct BuildIdentity: Sendable, Equatable {
                 ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0) || $0 == "-"
             }
         }
+    }
+
+    /// A widget id `build_app.sh` accepts for `bundleID`: reverse DNS that extends `bundleID + "."`
+    /// (macOS only loads a widget whose id extends its app's).
+    public static func isValidWidgetID(_ id: String, bundleID: String) -> Bool {
+        id.count > bundleID.count + 1 && id.hasPrefix(bundleID + ".") && isValidBundleID(id)
     }
 
     /// The values a bundle id implies when nothing else is stamped.

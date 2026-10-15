@@ -1,5 +1,6 @@
 import AppKit
 import PaperDeckCore
+import PaperDeckConfig
 
 /// Parsed `--flag value` / `--flag` arguments.
 struct CLIArgs {
@@ -31,16 +32,10 @@ struct CLIArgs {
         value(key).map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) }
     }
     func int(_ key: String) -> Int? { value(key).flatMap(Int.init) }
+    /// ISO 8601 with a zone, or local time without one (2026-09-29T10:00:00). A `--now` that is
+    /// present but doesn't parse never gets here: `runIfRequested` refuses it first.
     func date(_ key: String) -> Date? {
-        guard let s = value(key) else { return nil }
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        if let d = f.date(from: s) { return d }
-        // Local time without zone, e.g. 2026-09-29T10:00:00
-        let lf = DateFormatter()
-        lf.locale = Locale(identifier: "en_US_POSIX")
-        lf.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        return lf.date(from: s)
+        value(key).flatMap(CommandLineRules.date)
     }
 }
 
@@ -56,6 +51,13 @@ enum CLIRunner {
     ]
 
     static func runIfRequested(_ argv: [String]) -> Int32? {
+        // A mistyped `--option` (or `--gui-root` without a folder, or an unparsable `--now`) is an
+        // error, never the GUI on the real library; single-dash AppKit arguments still pass.
+        switch CommandLineRules.launch(argv, commands: commands) {
+        case .gui: return nil
+        case .refuse(let message): return fail(message)
+        case .command: break
+        }
         let args = CLIArgs(argv)
         guard let command = args.command else { return nil }
         switch command {
@@ -144,7 +146,11 @@ enum CLIRunner {
     static let usage = """
     PaperDeck \(versionString) — paper-reading manager
 
-    GUI:  open -a PaperDeck                          (dev: --gui-root DIR uses an isolated library)
+    GUI:  open -a PaperDeck
+          PaperDeck --gui-root DIR                  dev: the GUI on an isolated library in DIR. Only the library:
+                                                    settings (the defaults domain) and the single-instance lock
+                                                    are the normal ones, so quit the running PaperDeck first
+                                                    (refused, exit 1, while it runs). An unknown --option exits 2.
 
     Headless (never touch the real library unless noted):
       --selftest import|schedule|agent|storage|all --root DIR [--fixtures DIR] [--agent off|mock|claude|codex]
@@ -174,12 +180,16 @@ enum CLIRunner {
       --rebuild-index --root DIR                    rebuild the DB from card.json sidecars
       --dump-canonical --root DIR                   deterministic JSON dump (rebuild fidelity)
       --render OUTDIR --root DIR [--lang zh|en] [--appearance light|dark] [--provider claude|codex] [--mode off|claude|codex]
-                                                    offscreen PNGs of the window (AI providers are mocks)
+                 [--provider-state ready]           offscreen PNGs of the window (AI providers are mocks;
+                                                    --provider-state ready: the mocks report signed in)
                  [--mail-fixtures EML_DIR] [--mail-folder EML_DIR] [--mail-only] [--seed-plist FILE]
                                                     + the Mail inbox / folder-account pages; --mail-only skips the
                                                     rest (Settings ▸ AI and setup probe the CLIs with --version);
                                                     --seed-plist loads a settings plist into the render suite
                                                     instead of the demo accounts
+                 [--mail-widths "720, 900, 1280" [--mail-widths-only]]
+                                                    with --mail-fixtures: the Mail inbox in whole windows of those
+                                                    widths; --mail-widths-only skips the other inbox pages
                  [--guide-only --scenario fresh|legacy|codexOnly|noAI|allReady|mailError|m365Contoso]
                                                     setup window pages + Help Center with canned facts; no CLI probes
                  [--select-only [--no-mail-demo] [--probe-gestures]]
@@ -190,6 +200,10 @@ enum CLIRunner {
                                                     the built-in reader's PNGs (fixture PDF printed i, ii, 1201–1204;
                                                     missing / damaged / locked files); --probe-reader drives it
                                                     off-screen (PROBE … PASS|FAIL); no CLI probed, no window shown
+                 [--library-only [--widths "720, 900, 1280"] [--no-mail-demo]]
+                                                    the library's columns at those window widths (default 720 …
+                                                    2560), Today, grouped To Read, a selection, search, the
+                                                    inspector (fixture papers when --root is empty); no CLI probed
       --guide-export DIR [--lang en|zh]             Help topics as Markdown: TROUBLESHOOTING.generated.<lang>.md +
                                                     GUIDE.generated.<lang>.md (pure; nothing spawned)
       --dedupe-report --root DIR [--json] [--sensitivity strict|balanced|loose]
@@ -209,7 +223,9 @@ enum CLIRunner {
       --doctor [--root DIR] [--mail-only]           Claude + Codex CLI, login (no quota), agent.mode, DB, signing, widget,
                                                     mail accounts / senders / statuses (never a secret, no network);
                                                     bundle id, keychain service, channel, institution and field
-                                                    (--mail-only: identity, configuration and mail only; no CLI)
+                                                    (--mail-only: identity, configuration and mail only; no CLI);
+                                                    the database is opened read-only (never upgraded or backed up:
+                                                    an older schema is reported, "open the app to upgrade")
       --agent-argv [--provider claude|codex] [--root DIR]
                                                     dry-run: argv, cwd, env keys, stdin size (no spawn)
       --agent-smoke --yes [--provider claude|codex] [--max-runs N] [--root DIR]
@@ -223,8 +239,12 @@ enum CLIRunner {
       --mail-flow-package OUT.zip [--senders "a@x.edu;b@y.org" | --from-settings] [--folder "/PaperDeck Mail"] [--name NAME] [--lang en|zh]
                                                     Power Automate flow package: Import ▸ Import Package (Legacy)
       --mail-dry-run FILE.eml [--root DIR] [--kind advisor|person|alert] [--senders SPEC] [--lang en|zh] [--stdin-only]
+                 [--default-settings] [--defaults-suite NAME] [--now ISO]
                                                     parse + extraction + local triage + the exact AI triage stdin
-                                                    (Settings ▸ Mail read-only; no spawn, no network, nothing stored)
+                                                    (Settings ▸ Mail read-only; no spawn, no network, nothing stored);
+                                                    --default-settings: the built-in mail settings instead of the
+                                                    app's; --defaults-suite: read settings from that domain instead;
+                                                    --now: the clock the dates are read against
       --mail-sync --root DIR (--defaults-suite NAME | --real-accounts)
                                                     one sync pass into DIR: scratch accounts, or the app's own with
                                                     --real-accounts (connects to your mail servers, reads the keychain;
@@ -239,13 +259,17 @@ enum CLIRunner {
                                                     the keys the first launch of this build would add (only absent
                                                     keys; legacy installs are backed up first); --out writes the
                                                     migrated copy to a new plist file
-      --export-settings OUT.json [--plist FILE | --suite NAME] [--sections profile,organization,…] [--include-personal] [--home DIR]
+      --export-settings OUT.json [--plist FILE | --suite NAME] [--sections profile,organization,…]
+                 [--include-mailbox-addresses] [--include-personal] [--home DIR]
                                                     a paperdeck.settings/1 file like Settings ▸ General ▸ Export
-                                                    Settings… (no passwords; the keychain is never read)
+                                                    Settings… (no passwords; the keychain is never read);
+                                                    mailbox addresses only with --include-mailbox-addresses,
+                                                    the Crossref contact email (and addresses) only with
+                                                    --include-personal
       --import-settings IN.json --dry-run [--plist FILE | --suite NAME] [--sections …] [--keep-people-always]
                  [--accept-reader] [--accept-instructions] [--accept-looser] [--home DIR] [--lang en|zh]
-                                                    what an import would change and warn about (AI reading and Mail
-                                                    are never turned on; a privacy or quota setting looser than this
+                                                    what an import would change and warn about (an import never turns
+                                                    AI reading or Mail on; a privacy or quota setting looser than this
                                                     Mac's is kept stricter unless --accept-looser; the reader
                                                     description / triage instructions only with --accept-reader /
                                                     --accept-instructions; out-of-range values are dropped); a real

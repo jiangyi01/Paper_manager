@@ -41,11 +41,13 @@ import Testing
         let before = SenderMatcher.match(address: "news@lab.example.edu", rules: [Self.lab, Self.digest])
         #expect(before?.id == "lab" && before?.aiPolicy == .never)
         let m = SettingsImporter.mergeSenders(current: [Self.lab, Self.digest], imported: [Self.moved], keepPeopleAlways: false)
-        #expect(m.loosened.map(\.id) == [ImportLoosening.newSenderID("digest"), ImportLoosening.newSenderID("digest", .autoMerge)],
+        // The lab's rule is a person's: the alert taking over its mail keeps that type too (mail-ai-privacy-4).
+        #expect(m.loosened.map(\.id) == [ImportLoosening.newSenderID("digest", .kind), ImportLoosening.newSenderID("digest"),
+                                         ImportLoosening.newSenderID("digest", .autoMerge)],
                 "\(m.loosened.map(\.id))")
         #expect(m.loosened.allSatisfy { $0.overrides == "lab" && !$0.accepted })
         let governing = try #require(SenderMatcher.match(address: "news@lab.example.edu", rules: m.rules))
-        #expect(governing.id == "digest" && governing.aiPolicy == .never && !governing.autoMerge)
+        #expect(governing.id == "digest" && governing.aiPolicy == .never && !governing.autoMerge && governing.kind == .person)
         #expect(governing.pattern == "news@lab.example.edu")              // the move itself imports
         #expect(m.rules.first { $0.id == "lab" } == Self.lab)
     }

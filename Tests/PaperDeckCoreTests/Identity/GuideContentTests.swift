@@ -240,8 +240,10 @@ struct GuideContentTests {
             }
         }
         let lookup = "$(defaults read /Applications/PaperDeck.app/Contents/Info CFBundleIdentifier)"
+        // The widget's own id (any PAPERDECK_WIDGET_ID under the bundle id), not "<bundle id>.widget".
+        let widgetLookup = "$(defaults read /Applications/PaperDeck.app/Contents/PlugIns/PaperDeckWidget.appex/Contents/Info CFBundleIdentifier)"
         let widget = try Self.topic(.fixWidgetMissing).steps.flatMap(\.commands)
-        #expect(widget.contains("pluginkit -m -v -i \"\(lookup).widget\""))
+        #expect(widget.contains("pluginkit -m -v -i \"\(widgetLookup)\""))
         let reset = try Self.topic(.fixDocumentsAccess).steps.flatMap(\.commands)
         #expect(reset.contains("tccutil reset SystemPolicyDocumentsFolder \"\(lookup)\""))
         // The certificate name comes from BuildIdentity (one literal in the code base).

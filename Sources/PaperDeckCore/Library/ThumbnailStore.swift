@@ -24,6 +24,29 @@ package struct ThumbnailStore: Sendable {
     package func cardURL(for id: String) -> URL { cardDirectory.appendingPathComponent("\(id)@2x.jpg") }
     package func widgetURL(for id: String) -> URL { widgetDirectory.appendingPathComponent("\(id).jpg") }
 
+    // MARK: Versioned card URLs (the card grid's in-memory image cache is keyed by URL)
+
+    /// A replace, a duplicate merge or their Undo rewrites `<id>@2x.jpg` in place: the version (the
+    /// file's modification time in µs and its size) tells the copies apart.
+    package static func version(modified: Date?, size: Int?) -> String {
+        let micros = modified.map { Int64(($0.timeIntervalSince1970 * 1_000_000).rounded()) } ?? 0
+        return "\(micros)-\(size ?? 0)"
+    }
+
+    /// `url` with `version` as its fragment (`…/<id>@2x.jpg#v=<version>`): what `PaperRow.thumbnailURL`
+    /// carries, so a rewritten thumbnail is a new URL (a new cache key, a new `.task(id:)`).
+    package static func versioned(_ url: URL, version: String) -> URL {
+        guard var c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        c.fragment = "v=" + version
+        return c.url ?? url
+    }
+
+    /// The file a (versioned) thumbnail URL names: the same path without the fragment.
+    package static func unversioned(_ url: URL) -> URL {
+        guard url.isFileURL else { return url }
+        return URL(fileURLWithPath: url.path, isDirectory: false)
+    }
+
     /// Stores the card JPEG and derives the widget thumbnail from it. Rejects data that
     /// ImageIO can't decode before writing anything.
     package func save(cardJPEG: Data, id: String) throws {

@@ -17,7 +17,7 @@ import Testing
 
     /// A file exported from `d` (`sections`: a lab setup file is profile, organization, mail senders).
     static func bundle(_ d: [String: Any], sections: Set<SettingsSection> = Set(SettingsSection.allCases)) -> SettingsBundle {
-        SettingsExporter.export(PersistedDomain(d), sections: sections, includePersonal: false, home: home, roots: [],
+        SettingsExporter.export(PersistedDomain(d), sections: sections, includePersonal: false, includeAddresses: false, home: home, roots: [],
                                 app: "PaperDeck 1.0 (27)", now: now)
     }
 

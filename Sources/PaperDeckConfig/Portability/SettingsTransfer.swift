@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import PaperDeckCore
 
@@ -18,41 +19,57 @@ package struct SettingsBundle: Codable, Sendable, Equatable {
 
 package enum SettingsExporter {
     /// The allowlisted keys of `sections` present in `p` (`SettingsRegistry`; `never` keys and
-    /// unlisted keys are never exported, personal ones only with `includePersonal`). Paths travel
-    /// as `PortablePath`; the JSON-string settings (senders, accounts, criteria, the custom
-    /// organization) as JSON trees. No password, app password or token is ever part of a domain's
-    /// allowlisted keys — IMAP app passwords live in the keychain, which is never read here.
+    /// unlisted keys are never exported, personal ones — the Crossref contact email — only with
+    /// `includePersonal`). The mailbox addresses travel only with `includeAddresses` (moving to a
+    /// new Mac needs them): without it an IMAP account has no `username`, an address in an
+    /// account's name is left out, and so is a cloud root's account address
+    /// (`PortablePath.withoutAddresses`). Paths travel as `PortablePath`; the JSON-string settings
+    /// (senders, accounts, criteria, the custom organization) as JSON trees. No password, app
+    /// password or token is ever part of a domain's allowlisted keys — IMAP app passwords live in
+    /// the keychain, which is never read here.
     package static func export(_ p: PersistedDomain, sections: Set<SettingsSection>, includePersonal: Bool,
-                               home: URL, roots: [CloudRoot], app: String, now: Date) -> SettingsBundle {
+                               includeAddresses: Bool, home: URL, roots: [CloudRoot], app: String,
+                               now: Date) -> SettingsBundle {
         var out: [String: [String: JSONValue]] = [:]
         for entry in SettingsRegistry.entries where entry.keyClass != .never && sections.contains(entry.section) {
             if entry.personal && !includePersonal { continue }
             guard SettingsTransferValues.isSafeKey(entry.key), let raw = p.values[entry.key],
-                  let value = exportValue(entry.key, raw, includePersonal: includePersonal, home: home, roots: roots)
+                  let value = exportValue(entry.key, raw, includeAddresses: includeAddresses, home: home, roots: roots)
             else { continue }
             out[entry.section.rawValue, default: [:]][entry.key] = value
         }
         return SettingsBundle(exportedAt: now, app: app, sections: out.mapValues { .object($0) })
     }
 
-    static func exportValue(_ key: String, _ raw: Any, includePersonal: Bool, home: URL, roots: [CloudRoot]) -> JSONValue? {
+    static func exportValue(_ key: String, _ raw: Any, includeAddresses: Bool, home: URL, roots: [CloudRoot]) -> JSONValue? {
+        func portable(_ path: String) -> PortablePath {
+            let p = PortablePath.encode(path, home: home, roots: roots)
+            return includeAddresses ? p : p.withoutAddresses
+        }
         switch key {
         case "library.path", ConfigKeys.importLastFolder, "agent.cliPath", "agent.codexPath":
             guard let path = raw as? String, !path.isEmpty else { return nil }
-            return try? JSONValue.from(PortablePath.encode(path, home: home, roots: roots))
+            return try? JSONValue.from(portable(path))
         case MailSettings.Keys.accounts:
             let accounts = MailSettings.list(raw as? String, MailAccount.self, what: "account")
             guard !accounts.isEmpty else { return nil }
             return .array(accounts.compactMap { a -> JSONValue? in
                 guard case .object(var o)? = try? JSONValue.from(a) else { return nil }
                 o["folderPath"] = nil
-                if let folder = a.folderPath, !folder.isEmpty,
-                   let portable = try? JSONValue.from(PortablePath.encode(folder, home: home, roots: roots)) {
-                    o["folder"] = portable
+                if let folder = a.folderPath, !folder.isEmpty, let encoded = try? JSONValue.from(portable(folder)) {
+                    o["folder"] = encoded
                 }
-                if !includePersonal { o["username"] = nil }      // the mailbox address
+                if !includeAddresses {
+                    o["username"] = nil                           // the mailbox address
+                    o["displayName"] = .string(accountNameWithoutAddresses(a))
+                }
                 return .object(o)
             })
+        case ConfigKeys.mailCloudRoot:
+            // A root name holding the account's address (`GoogleDrive-<address>`) is left out:
+            // without it the name matches no root on the new Mac anyway.
+            guard let name = raw as? String, !name.isEmpty else { return nil }
+            return includeAddresses || !name.contains("@") ? .string(name) : nil
         case MailSettings.Keys.senders:
             let rules = MailSettings.list(raw as? String, SenderRule.self, what: "sender")
             return try? JSONValue.from(rules)
@@ -68,6 +85,39 @@ package enum SettingsExporter {
         default:
             return SettingsTransferValues.json(raw)
         }
+    }
+
+    /// An account's name with every mailbox address left out ("Gmail — jane@example.com" →
+    /// "Gmail"); a name that was only an address becomes the provider's ("Gmail", "IMAP") or the
+    /// watched folder's name.
+    static func accountNameWithoutAddresses(_ a: MailAccount) -> String {
+        let name = withoutAddresses(a.displayName)
+        guard name.isEmpty else { return name }
+        switch a.kind {
+        case .imap:
+            switch a.imapPreset {
+            case .gmail?: return "Gmail"
+            case .icloud?: return "iCloud"
+            case .yahoo?: return "Yahoo"
+            case .fastmail?: return "Fastmail"
+            case .custom?, nil: return "IMAP"
+            }
+        case .folder:
+            let folder = a.folderPath.map { withoutAddresses(URL(fileURLWithPath: $0).lastPathComponent) } ?? ""
+            return folder.isEmpty ? "PaperDeck Mail" : folder
+        }
+    }
+
+    /// `text` with every word that holds an "@" (a mailbox address) removed, and the separators,
+    /// empty brackets and spaces it leaves behind tidied up.
+    package static func withoutAddresses(_ text: String) -> String {
+        guard text.contains("@") else { return text }
+        var s = text.replacingOccurrences(of: #"[^\s<>()\[\]{}"'“”‘’,;|]*@[^\s<>()\[\]{}"'“”‘’,;|]*"#, with: "",
+                                          options: .regularExpression)
+        for empty in ["()", "<>", "[]", "{}", "“”", "\"\""] { s = s.replacingOccurrences(of: empty, with: "") }
+        s = s.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        let edges = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "—–-·:|,;/"))
+        return s.trimmingCharacters(in: edges)
     }
 }
 
@@ -150,6 +200,8 @@ package struct ImportChange: Sendable, Equatable {
 }
 
 package enum ImportWarning: Sendable, Equatable {
+    /// An IMAP account this Mac has no saved app password for: one the file adds, or one moved to
+    /// the file's server under a new id. Not for this Mac's own account on the same server.
     case needsAppPassword(account: String), folderRemapped(account: String, to: String), folderUnresolved(account: String, root: String)
     case cliPathDropped(String), peopleAlwaysClamped(sender: String), readerDescriptionNeedsConfirm, unknownKeysIgnored(Int)
     /// The file's value of the key is of the wrong type, not finite or out of range: not imported.
@@ -172,9 +224,13 @@ package struct ImportListMerge: Sendable, Equatable {
     package var replaced: [String]
     /// This Mac's entries left as they are: only on this Mac, or the same in the file.
     package var kept: [String]
+    /// This Mac's entries replaced under a new id (this Mac's id → the new one): an IMAP account
+    /// moved to the file's server (`ImportEntryField.server` accepted), so its old keychain item is
+    /// never read for the new server. Listed under `replaced`, never as removed.
+    package var newIDs: [String: String]
 
-    package init(added: [String] = [], replaced: [String] = [], kept: [String] = []) {
-        self.added = added; self.replaced = replaced; self.kept = kept
+    package init(added: [String] = [], replaced: [String] = [], kept: [String] = [], newIDs: [String: String] = [:]) {
+        self.added = added; self.replaced = replaced; self.kept = kept; self.newIDs = newIDs
     }
 
     package var addCount: Int { added.count }
@@ -251,6 +307,22 @@ package enum ImportEntryField: String, Sendable, CaseIterable {
     case lookbackDays
     /// A folder account removes its .eml files once captured (on deletes the user's files).
     case deleteProcessedFiles
+    /// A sender's type: a person's or advisor's rule turned into an alert's (an alert's mail loses
+    /// the safeguards for a person's unpublished work — the possibly-unpublished hold, the
+    /// person-sourced confirmation, documents and share links read as a person's).
+    case kind
+    /// Where an IMAP account signs in — host, port and address (and the preset that supplies an
+    /// empty host): its saved app password is never sent to another server
+    /// (`MailAccount.mayReuseSavedPassword`).
+    case server
+
+    /// The fields of the sender rule or mail account this guards (`SettingsRegistryLintTests`).
+    package var guardedProperties: [String] {
+        switch self {
+        case .server: return ["imapPreset", "host", "port", "username"]
+        default: return [rawValue]
+        }
+    }
 }
 
 /// Which looser values (`ImportLoosening.id`) the user accepted: none by default (every one is
@@ -329,8 +401,11 @@ package enum SettingsImporter {
     ///    unless `acceptLooser` accepts that item;
     /// 2a. a *new* person or advisor sender with AI `always` arrives as `ask` unless
     ///    `keepPeopleAlways`;
-    /// 3. IMAP accounts arrive as "needs app password" (same ids: on the same Mac the keychain item
-    ///    is found again);
+    /// 3. IMAP accounts arrive as "needs app password" — except one merged into this Mac's account
+    ///    on the same server (same id, or the same mailbox): its keychain item is found again. An
+    ///    account this Mac has that the file points at another server (host, port or address) keeps
+    ///    this Mac's server unless `ImportLoosening.accountID(<id>, .server)` is accepted; then it
+    ///    gets a new id, so the app password saved for the old server is never sent to the new one;
     /// 3a. senders and accounts are merged into this Mac's by id (`mergeSenders`, `mergeAccounts`):
     ///    entries only this Mac has are kept, `merges` counts what is added / replaced / kept;
     /// 4. folder accounts are re-resolved against this Mac's roots (same root name, else the only
@@ -563,7 +638,12 @@ package enum SettingsImporter {
             let mine = MailSettings.list(current.values[key] as? String, MailAccount.self, what: "account")
             let merged = mergeAccounts(current: mine, imported: accounts, acceptLooser: acceptLooser)
             for (i, own) in warnings.enumerated() where !merged.existingMailboxes.contains(i) {
-                plan.warnings.append(contentsOf: own)
+                // This Mac's own account on the same server: its saved app password is found again.
+                let keepsPassword = merged.sameAccounts.contains(i)
+                plan.warnings.append(contentsOf: own.filter {
+                    if case .needsAppPassword = $0 { return !keepsPassword }
+                    return true
+                })
             }
             plan.loosenings += merged.loosened
             plan.merges[key] = merged.merge
@@ -634,6 +714,9 @@ package enum SettingsImporter {
     ///   (`aiLooseness`: never → ask → always, any kind; an alert's `always` turned into a
     ///   person's — `loosened` lists them, with the policy kept) unless `acceptLooser` accepts
     ///   `ImportLoosening.senderID(<this Mac's id>)`;
+    /// - … its type stays a person's / advisor's when the file makes it an alert (`.kind`: an
+    ///   alert's mail loses the safeguards for a person's unpublished work), with no more of its
+    ///   mail going to AI than the file's rule would send, unless `senderID(<id>, .kind)` is accepted;
     /// - … and its switches turned off here stay off (`guardedSenderSwitches`: the sender itself,
     ///   automatic merge, storing attachments) unless `senderID(<id>, field)` is accepted;
     /// - a new person's / advisor's `always` arrives as `ask` (`clamped` names them) unless
@@ -646,10 +729,10 @@ package enum SettingsImporter {
                                      acceptLooser: LooserAcceptance = .none)
         -> (rules: [SenderRule], merge: ImportListMerge, clamped: [String], loosened: [ImportLoosening]) {
         func name(_ r: SenderRule) -> String { r.label.isEmpty ? r.pattern : r.label }
-        let matches = match(current: current, imported: imported, id: \.id) { a, b in
+        let matches = match(current: current, imported: imported, id: \.id, same: [{ a, b in
             guard let p = SenderMatcher.Pattern(a.pattern) else { return false }
             return SenderMatcher.Pattern(b.pattern) == p
-        }
+        }])
         var clamped: [String] = []
         var loosened: [ImportLoosening] = []
         var incoming = imported
@@ -673,11 +756,18 @@ package enum SettingsImporter {
                                                 accepted: accepted))
                 return !accepted
             }
-            if aiLooseness(theirs) > aiLooseness(here) {
-                // The loosest policy of the file's kind that isn't looser than this Mac's rule.
-                func with(_ p: MailAIPolicy) -> SenderRule { var r = theirs; r.aiPolicy = p; return r }
-                let kept = [MailAIPolicy.always, .ask, .never].first { aiLooseness(with($0)) <= aiLooseness(here) } ?? .never
-                if keep(.aiPolicy, mine: .string(kept.rawValue), theirs: .string(theirs.aiPolicy.rawValue)) {
+            // A person's or advisor's rule isn't turned into an alert's: this Mac's type stays, and
+            // the rule sends no more of that mail to AI than the file's own rule would.
+            if isLooserKind(theirs, than: here),
+               keep(.kind, mine: .string(here.kind.rawValue), theirs: .string(theirs.kind.rawValue)) {
+                incoming[j].kind = here.kind
+                incoming[j].aiPolicy = loosestPolicy(incoming[j], notLooserThan: aiLooseness(theirs))
+            }
+            let proposed = incoming[j]
+            if aiLooseness(proposed) > aiLooseness(here) {
+                // The loosest policy of the rule's kind that isn't looser than this Mac's rule.
+                let kept = loosestPolicy(proposed, notLooserThan: aiLooseness(here))
+                if keep(.aiPolicy, mine: .string(kept.rawValue), theirs: .string(proposed.aiPolicy.rawValue)) {
                     incoming[j].aiPolicy = kept
                 }
             }
@@ -704,10 +794,11 @@ package enum SettingsImporter {
     /// under `@lab.example.edu`, a domain under `@*.lab.example.edu` — wins for that mail
     /// (`SenderMatcher`: exact address > domain > wildcard), so its settings would replace the
     /// broader rule's there. Nothing gets looser: where the rule it takes over from (the one that
-    /// matches that mail here now) is stricter, the new rule gets its stricter value — a lower AI
-    /// policy (the loosest of the new rule's kind that isn't looser), automatic merge or attachment
-    /// storing off — and where this Mac's most specific rule for that mail is turned off, the new
-    /// rule arrives turned off, unless `acceptLooser` accepts `ImportLoosening.newSenderID(<file id>, field)`.
+    /// matches that mail here now) is stricter, the new rule gets its stricter value — a person's /
+    /// advisor's type instead of an alert's, a lower AI policy (the loosest of the new rule's kind
+    /// that isn't looser), automatic merge or attachment storing off — and where this Mac's most
+    /// specific rule for that mail is turned off, the new rule arrives turned off, unless
+    /// `acceptLooser` accepts `ImportLoosening.newSenderID(<file id>, field)`.
     static func keepNewSenderStricter(_ rule: inout SenderRule, current: [SenderRule], acceptLooser: LooserAcceptance,
                                       name: (SenderRule) -> String) -> [ImportLoosening] {
         guard rule.enabled, let probe = probeAddress(rule.pattern) else { return [] }
@@ -731,10 +822,16 @@ package enum SettingsImporter {
         }
         // The rule that reads that mail here now.
         guard let here = SenderMatcher.match(address: probe, rules: current) else { return out }
-        if aiLooseness(theirs) > aiLooseness(here) {
-            func with(_ p: MailAIPolicy) -> SenderRule { var r = theirs; r.aiPolicy = p; return r }
-            let kept = [MailAIPolicy.always, .ask, .never].first { aiLooseness(with($0)) <= aiLooseness(here) } ?? .never
-            if keep(.aiPolicy, over: here, mine: .string(kept.rawValue), theirs: .string(theirs.aiPolicy.rawValue)) {
+        // An alert rule taking over a person's / advisor's mail: it keeps that rule's type.
+        if isLooserKind(theirs, than: here),
+           keep(.kind, over: here, mine: .string(here.kind.rawValue), theirs: .string(theirs.kind.rawValue)) {
+            rule.kind = here.kind
+            rule.aiPolicy = loosestPolicy(rule, notLooserThan: aiLooseness(theirs))
+        }
+        let proposed = rule
+        if aiLooseness(proposed) > aiLooseness(here) {
+            let kept = loosestPolicy(proposed, notLooserThan: aiLooseness(here))
+            if keep(.aiPolicy, over: here, mine: .string(kept.rawValue), theirs: .string(proposed.aiPolicy.rawValue)) {
                 rule.aiPolicy = kept
             }
         }
@@ -766,9 +863,23 @@ package enum SettingsImporter {
     }
 
     /// Every guarded field of a sender (`SettingsRegistryLintTests`: each other field is reviewed).
-    package static var guardedSenderFields: [ImportEntryField] { [.aiPolicy] + guardedSenderSwitches.map(\.0) }
+    package static var guardedSenderFields: [ImportEntryField] { [.aiPolicy, .kind] + guardedSenderSwitches.map(\.0) }
     /// Every guarded field of a mail account.
-    package static var guardedAccountFields: [ImportEntryField] { [.enabled, .lookbackDays, .deleteProcessedFiles] }
+    package static var guardedAccountFields: [ImportEntryField] { [.enabled, .lookbackDays, .deleteProcessedFiles, .server] }
+
+    /// Whether `theirs` turns `here`, a person's, advisor's or dropped sender's rule, into an
+    /// alert's: alert mail is treated as public (no possibly-unpublished hold, no person-sourced
+    /// confirmation, its documents and share links not read as a person's).
+    static func isLooserKind(_ theirs: SenderRule, than here: SenderRule) -> Bool {
+        here.kind != .alert && theirs.kind == .alert
+    }
+
+    /// The loosest AI policy `r`'s kind can have that lets no more of its mail go to AI than `limit`
+    /// (`aiLooseness`).
+    static func loosestPolicy(_ r: SenderRule, notLooserThan limit: Int) -> MailAIPolicy {
+        func with(_ p: MailAIPolicy) -> SenderRule { var x = r; x.aiPolicy = p; return x }
+        return [MailAIPolicy.always, .ask, .never].first { aiLooseness(with($0)) <= limit } ?? .never
+    }
 
     /// How much of a sender's mail its rule lets go to AI: never < ask < an alert's always (its
     /// mailing-list mail only, `MailSyncActor.isBulk`) < a person's / advisor's always (every email).
@@ -781,25 +892,50 @@ package enum SettingsImporter {
     }
 
     /// The file's accounts folded into this Mac's (`current`): an account with the same id — else
-    /// the same mailbox (IMAP host and address, or the same watched folder; this Mac's id is kept
-    /// with its keychain item) — is replaced by the file's, keeping this Mac's mailbox address and
-    /// folder where the file has none (personal data left out, a folder not found here); the
-    /// file's other accounts are appended and accounts only this Mac has are kept. Nothing is
-    /// loosened: an account turned off here stays off and keeps its shorter look-back
-    /// (`guardedAccountFields`; `loosened` lists them) unless `acceptLooser` accepts
-    /// `ImportLoosening.accountID(<this Mac's id>, field)`.
-    /// `existingMailboxes`: indices into `imported` merged into a mailbox this Mac already had
-    /// under another id (set up here: no app-password or folder warning).
+    /// the account an earlier import moved to another server (`movedAccountID`), else the same
+    /// mailbox (IMAP host and address, or the same watched folder; this Mac's id is kept with its
+    /// keychain item) — is replaced by the file's, keeping this Mac's mailbox address and folder
+    /// where the file has none (personal data left out, a folder not found here); the file's other
+    /// accounts are appended and accounts only this Mac has are kept. Nothing is loosened:
+    /// - an account turned off here stays off and keeps its shorter look-back, a folder account
+    ///   keeps its files (`guardedAccountFields`; `loosened` lists them) unless `acceptLooser`
+    ///   accepts `ImportLoosening.accountID(<this Mac's id>, field)`;
+    /// - an IMAP account the file points at another server (host, port or address,
+    ///   `MailAccount.serverIdentity`) keeps this Mac's server, address, mailbox and name — the app
+    ///   password saved for it is never sent elsewhere — unless `accountID(<id>, .server)` is
+    ///   accepted: then it takes the file's server under a new id (`newIDs`), so the old keychain
+    ///   item is never read and the account needs its app password again;
+    /// - an entry of another kind under this Mac's id (a hand-made file) isn't merged into it: it is
+    ///   added under a new id.
+    /// `existingMailboxes`: indices into `imported` merged into an account this Mac already had
+    /// under another id (set up here: no app-password or folder warning). `sameAccounts`: indices
+    /// merged into this Mac's IMAP account with the same id on the same server (its keychain item
+    /// is found again: no app-password warning).
     package static func mergeAccounts(current: [MailAccount], imported: [MailAccount], acceptLooser: LooserAcceptance = .none)
-        -> (accounts: [MailAccount], merge: ImportListMerge, existingMailboxes: Set<Int>, loosened: [ImportLoosening]) {
+        -> (accounts: [MailAccount], merge: ImportListMerge, existingMailboxes: Set<Int>, sameAccounts: Set<Int>,
+            loosened: [ImportLoosening]) {
         func name(_ a: MailAccount) -> String { a.displayName.isEmpty ? a.id : a.displayName }
-        let matches = match(current: current, imported: imported, id: \.id, same: sameMailbox)
-        var existing: Set<Int> = []
+        var matches = match(current: current, imported: imported, id: \.id, same: [
+            { here, file in movedAccountIDs(of: file.id).contains(here.id) },
+            sameMailbox,
+        ])
+        var incoming = imported
+        var used = Set(current.map(\.id)).union(imported.map(\.id))
+        func newID(for id: String) -> String {
+            var next = movedAccountID(id)
+            while used.contains(next) { next = movedAccountID(next) }
+            used.insert(next)
+            return next
+        }
+        var renewed: Set<Int> = []                       // indices into `imported` given a new id
         for (j, i) in matches.enumerated() {
-            if let i, current[i].id != imported[j].id { existing.insert(j) }
+            guard let i, current[i].kind != imported[j].kind else { continue }
+            matches[j] = nil
+            incoming[j].id = newID(for: imported[j].id)
+            renewed.insert(j)
         }
         var loosened: [ImportLoosening] = []
-        var incoming = imported
+        var newIDs: [String: String] = [:]
         for (j, i) in matches.enumerated() {
             guard let i else { continue }
             let here = current[i], theirs = incoming[j]
@@ -824,15 +960,73 @@ package enum SettingsImporter {
                keep(.deleteProcessedFiles, mine: .bool(false), theirs: .bool(true)) {
                 incoming[j].deleteProcessedFiles = false
             }
+            // The app password saved here is keyed by this account's id alone: it signs in only to
+            // the server it was saved for (`MailAccount.mayReuseSavedPassword`).
+            if here.kind == .imap {
+                var signIn = theirs
+                signIn.id = here.id
+                if signIn.username?.isEmpty ?? true { signIn.username = here.username }    // as the fold fills it
+                if !MailAccount.mayReuseSavedPassword(original: here, edited: signIn) {
+                    if keep(.server, mine: .string(here.serverIdentity.summary), theirs: .string(signIn.serverIdentity.summary)) {
+                        incoming[j].imapPreset = here.imapPreset
+                        incoming[j].host = here.host
+                        incoming[j].port = here.port
+                        incoming[j].username = here.username
+                        incoming[j].mailbox = here.mailbox
+                        incoming[j].source = here.source
+                        incoming[j].displayName = here.displayName            // often "<provider> — <address>"
+                    } else {
+                        incoming[j].id = newID(for: here.id)
+                        renewed.insert(j)
+                        newIDs[here.id] = incoming[j].id
+                    }
+                }
+            }
         }
-        let (accounts, merge) = fold(current: current, imported: incoming, matches: matches, name: name) { mine, theirs in
+        var existing: Set<Int> = [], same: Set<Int> = []
+        for (j, i) in matches.enumerated() {
+            guard let i, !renewed.contains(j) else { continue }
+            if current[i].id != imported[j].id {
+                existing.insert(j)
+            } else if current[i].kind == .imap {
+                same.insert(j)
+            }
+        }
+        let renewedIDs = Set(renewed.map { incoming[$0].id })
+        var (accounts, merge) = fold(current: current, imported: incoming, matches: matches, name: name) { mine, theirs in
             var a = theirs
-            a.id = mine.id
+            if !renewedIDs.contains(theirs.id) { a.id = mine.id }
             if a.username?.isEmpty ?? true { a.username = mine.username }
             if a.folderPath?.isEmpty ?? true { a.folderPath = mine.folderPath }
             return a
         }
-        return (accounts, merge, existing, loosened)
+        merge.newIDs = newIDs
+        return (accounts, merge, existing, same, loosened)
+    }
+
+    /// The id an account gets when it can't keep its own: an IMAP account an import moves to
+    /// another server (its old keychain item, `<old id>.imap`, holds the password of the old one),
+    /// or an entry of another kind under an id this Mac uses. Derived from the old id
+    /// (name-based, UUID-shaped), so importing the same file again finds the moved account
+    /// (`movedAccountIDs`) instead of adding the old id back.
+    package static func movedAccountID(_ id: String) -> String {
+        let digest = SHA256.hash(data: Data("paperdeck.account.moved/1\u{0}\(id)".utf8))
+        var b = Array(digest.prefix(16))
+        b[6] = (b[6] & 0x0F) | 0x40
+        b[8] = (b[8] & 0x3F) | 0x80
+        let c = Array(b.map { String(format: "%02x", $0) }.joined())
+        return [0..<8, 8..<12, 12..<16, 16..<20, 20..<32].map { String(c[$0]) }.joined(separator: "-")
+    }
+
+    /// The ids `id` may have been given by earlier imports (`movedAccountID`, a few moves deep).
+    static func movedAccountIDs(of id: String) -> [String] {
+        var out: [String] = []
+        var next = id
+        for _ in 0..<8 {
+            next = movedAccountID(next)
+            out.append(next)
+        }
+        return out
     }
 
     /// The same mailbox: IMAP on the same host with the same address, or the same watched folder.
@@ -849,8 +1043,9 @@ package enum SettingsImporter {
     }
 
     /// For each imported entry, the index of the entry of `current` it stands for: the same id
-    /// first, then (`same`) among the entries no id claimed. Each entry of `current` is claimed once.
-    private static func match<T>(current: [T], imported: [T], id: KeyPath<T, String>, same: (T, T) -> Bool) -> [Int?] {
+    /// first, then (`same`, in order) among the entries no id claimed. Each entry of `current` is
+    /// claimed once.
+    private static func match<T>(current: [T], imported: [T], id: KeyPath<T, String>, same: [(T, T) -> Bool]) -> [Int?] {
         var out = [Int?](repeating: nil, count: imported.count)
         var taken: Set<Int> = []
         for (j, item) in imported.enumerated() {
@@ -859,11 +1054,13 @@ package enum SettingsImporter {
                 taken.insert(i)
             }
         }
-        for (j, item) in imported.enumerated() where out[j] == nil {
-            if current.contains(where: { $0[keyPath: id] == item[keyPath: id] }) { continue }   // a duplicate id
-            if let i = current.indices.first(where: { !taken.contains($0) && same(current[$0], item) }) {
-                out[j] = i
-                taken.insert(i)
+        for rule in same {
+            for (j, item) in imported.enumerated() where out[j] == nil {
+                if current.contains(where: { $0[keyPath: id] == item[keyPath: id] }) { continue }   // a duplicate id
+                if let i = current.indices.first(where: { !taken.contains($0) && rule(current[$0], item) }) {
+                    out[j] = i
+                    taken.insert(i)
+                }
             }
         }
         return out

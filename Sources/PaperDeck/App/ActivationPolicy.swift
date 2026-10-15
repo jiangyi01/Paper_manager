@@ -17,10 +17,17 @@ enum ActivationPolicy {
     /// `closing`: a window in `windowWillClose` (still visible at that moment).
     static func update(closing: NSWindow? = nil) {
         let regular = NSApp.windows.contains { w in
-            w !== closing && w.isVisible && w.identifier.map(regularWindows.contains) == true
+            w !== closing && keepsRegular(identifier: w.identifier, isVisible: w.isVisible, isMiniaturized: w.isMiniaturized)
         }
         let wanted: NSApplication.ActivationPolicy = regular ? .regular : .accessory
         if NSApp.activationPolicy() != wanted { NSApp.setActivationPolicy(wanted) }
+    }
+
+    /// A window that keeps PaperDeck a regular app: one of those windows, on screen or minimized
+    /// (AppKit reports a minimized window as not visible; it still has its Dock tile, which an
+    /// accessory app would lose together with the Dock icon and ⌘-Tab).
+    static func keepsRegular(identifier: NSUserInterfaceItemIdentifier?, isVisible: Bool, isMiniaturized: Bool) -> Bool {
+        (isVisible || isMiniaturized) && identifier.map(regularWindows.contains) == true
     }
 
     /// Before showing one of those windows.

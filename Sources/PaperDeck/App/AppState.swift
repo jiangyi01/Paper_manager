@@ -55,6 +55,9 @@ final class AppState {
     let dedupe = DedupeUIModel()
     /// Explain & Ask state shared by the assist surfaces (Slice A, Assist/AssistUIModel.swift).
     let assist = AssistUIModel()
+    /// Edits saved a moment later (the notes editor's 1 s debounce): quitting writes them first
+    /// (`AppDelegate.applicationShouldTerminate`).
+    @ObservationIgnored let pendingSaves = PendingSaves()
 
     // Library read model (refreshed on every committed change, debounced)
     private(set) var snapshot: LibrarySnapshot? { didSet { rowsGeneration &+= 1 } }
@@ -399,6 +402,8 @@ final class AppState {
         if let e = error as? PaperOperationError { message = e.message(settings.language) }
         else if let e = error as? MailOperationError { message = e.message(settings.language) }
         else if let e = error as? MailTriageError { message = e.message(settings.language) }
+        else if let e = error as? QAError { message = e.message(settings.language) }
+        else if let e = error as? ExplainOperationError { message = e.message(settings.language) }
         else { message = String(describing: error) }
         lastError = message
         post(Toast(kind: .error, message: message))

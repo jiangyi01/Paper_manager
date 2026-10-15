@@ -212,8 +212,8 @@ struct BatchContextMenu: View {
 // MARK: - Actions with their own UI (sheets, panels, alerts)
 
 enum BatchActions {
-    /// "Open N PDFs" is offered up to this many papers.
-    static let openLimit = 10
+    /// "Open N PDFs" is offered up to this many papers (the Paper menu's ⌘O too).
+    static let openLimit = PaperCommandRules.openLimit
 
     static func rereadTitle(_ rows: [PaperRow]) -> String {
         rows.contains { $0.paper.card != nil } ? L.Select.reread(rows.count) : L.Select.read(rows.count)

@@ -109,7 +109,7 @@ macOS 论文阅读管理工具：把论文 PDF 拖进来，它会入库、生成
 - 索引损坏或丢失时可从每篇的 `card.json` 完整重建（设置 ▸ 资料库与存储 ▸ 从文件夹重建索引）；「重建全文索引」会在本机重新读取 PDF，让搜索能找到正文（换 Mac 后有用，不耗额度）。
 - 启动时数据库打不开（磁盘已满、升级失败、已被更新版本的 PaperDeck 升级），或 PaperDeck 自己的数据文件夹无法创建时，会说明原因（不删除任何内容），按钮为「退出」「重试」等；论文库所在的磁盘没连接时提供「重试」「选择其他文件夹…」「退出」。
 - 元数据（标题、作者、期刊、年份）来自免费公开库 Crossref / arXiv / bioRxiv / OpenAlex，可在设置里关闭。
-- **换一台 Mac**：旧 Mac 上先「设置 ▸ 通用 ▸ 导出设置…」（不含任何密码），再退出 PaperDeck，把论文库文件夹复制过去；新 Mac 上「使用已有的 PaperDeck 论文库…」，再「导入设置…」（AI 解读和邮件保持关闭；IMAP 账户需要重新输入应用专用密码；发件人和账户按 id 合并，这台 Mac 已有的会保留；在隐私或 AI 额度上这台 Mac 更严格的设置保持不变，除非你逐项勾选），最后「重建全文索引」。见 [docs/guides/MOVE_TO_ANOTHER_MAC.md](docs/guides/MOVE_TO_ANOTHER_MAC.md)。
+- **换一台 Mac**：旧 Mac 上先「设置 ▸ 通用 ▸ 导出设置…」（不含任何密码），再退出 PaperDeck，把论文库文件夹复制过去；新 Mac 上「使用已有的 PaperDeck 论文库…」，再「导入设置…」（导入不会打开 AI 解读或邮件；IMAP 账户需要重新输入应用专用密码；发件人和账户按 id 合并，这台 Mac 已有的会保留；在隐私或 AI 额度上这台 Mac 更严格的设置保持不变，除非你逐项勾选），最后「重建全文索引」。见 [docs/guides/MOVE_TO_ANOTHER_MAC.md](docs/guides/MOVE_TO_ANOTHER_MAC.md)。
 - **两台 Mac 共用**：一次只在一台上用；换到另一台后在那台上「从文件夹重建索引」。邮件卡片、AI 记录和暂停状态留在各自的 Mac 上。
 
 ## 邮件
@@ -169,7 +169,7 @@ PaperDeck 可以从邮件里收集**阅读请求**：导师或同事请你读 / 
   - 个人邮件默认「每次询问」：导师 / 同事的邮件只用本机规则，直到你在那张卡片上点「让 AI 分析」；也可以把某个发件人设为「从不」，或在 设置 ▸ 邮件 ▸ AI 分拣 选「仅本地规则」；
   - 来自个人、又识别不出 DOI / arXiv 的 PDF（可能是未发表稿件）在 AI 解读前先暂停，等你确认；
   - 讲解、提问和 AI 查重在你打开「讲解与问答」之前关闭（设置文件永远不会替你打开），每次都要你亲手点按；可能未发表或保密的论文、邮件或聊天窗口里的内容先问你；讲解只使用你框选或点到的那部分（复制、服务菜单、拖入图片不需要屏幕录制权限），窗口标题只在本机使用；
-  - 导入设置文件从不悄悄放宽隐私或额度：这台 Mac 更严格的设置（仅本地规则、更低的每日上限或发送长度、关闭的通知或自动解读、更短的保留期、发件人更低的 AI 规则、关闭的发件人或账户、发件人关闭的自动合并或自动保存附件、账户更短的回溯、机构的「从不发给 AI」、邮件分拣换成另一家 AI 服务、文件夹账户的「处理后删除文件」、比这里更严格的规则更具体的新发件人等）保持不变，列在「保留更严格的设置」里，逐项勾选才采用文件中的值。超出范围的数值（如每日上限 1e300）不会导入；邮件分拣「给 AI 的说明」和读者描述一样，确认后才导入。
+  - 导入设置文件从不悄悄放宽隐私或额度：这台 Mac 更严格的设置（仅本地规则、更低的每日上限或发送长度、关闭的通知或自动解读、更短的保留期、发件人更低的 AI 规则、关闭的发件人或账户、发件人关闭的自动合并或自动保存附件、账户更短的回溯、机构的「从不发给 AI」、邮件分拣换成另一家 AI 服务、文件夹账户的「处理后删除文件」、个人或导师发件人被改成论文提醒、IMAP 账户被指向另一台邮件服务器（已保存的应用专用密码绝不会发过去）、比这里更严格的规则更具体的新发件人等）保持不变，列在「保留更严格的设置」里，逐项勾选才采用文件中的值。超出范围的数值（如每日上限 1e300）不会导入；邮件分拣「给 AI 的说明」和读者描述一样，确认后才导入。
 - **机密邮件保护**：很多机构的 AI 指引都要求机密或未发表的材料不能放进未经批准的 AI 平台，审稿的保密义务也要求审稿中的稿件不外传。所以下面这些邮件**永远不会被自动发给 AI，也不会被自动合并或下载**，无论发件人规则怎么设：
   - 审稿邀请和审稿请求；
   - 投稿 / 审稿系统发来的邮件（Editorial Manager、ScholarOne / Manuscript Central、eJournalPress、Elsevier EES / EVISE、Springer Nature SNAPP、Nature 投稿系统）；
@@ -189,7 +189,7 @@ PaperDeck 可以从邮件里收集**阅读请求**：导师或同事请你读 / 
 ```
 
 - 默认安装到 `/Applications/PaperDeck.app`（原地更新），用钥匙串里的自签名证书 **PaperDeck Local Signing** 签名（稳定签名 → 文稿授权、通知、小组件在重建后不失效）。证书只需创建一次：钥匙串访问 ▸ 证书助理 ▸ 创建证书…，类型「代码签名」，有效期 **3650 天**。缺证书时脚本会列出步骤；`--allow-adhoc` 可临时用 ad-hoc 签名。
-- **`build.local.env`**（不进版本库；从 `build.local.env.example` 复制）或环境变量可以改：`PAPERDECK_BUNDLE_ID`、`PAPERDECK_WIDGET_ID`、`PAPERDECK_SIGN_IDENTITY`、`PAPERDECK_INSTALL_DIR`（例如 `~/Applications`）、`PAPERDECK_KEYCHAIN_SERVICE`、`PAPERDECK_CHANNEL`、`PAPERDECK_JOBS`、`PAPERDECK_DEV_DIR`。优先级：脚本默认值 < `build.local.env` < 环境变量 < 命令行参数。`./build_app.sh --print-config` 不构建，只显示结果。更换 bundle id 会得到全新的设置、钥匙串、权限和小组件，原来的设置不会带过去。
+- **`build.local.env`**（不进版本库；从 `build.local.env.example` 复制）或环境变量可以改：`PAPERDECK_BUNDLE_ID`、`PAPERDECK_WIDGET_ID`、`PAPERDECK_SIGN_IDENTITY`、`PAPERDECK_INSTALL_DIR`（例如 `~/Applications`）、`PAPERDECK_KEYCHAIN_SERVICE`、`PAPERDECK_CHANNEL`、`PAPERDECK_JOBS`、`PAPERDECK_DEV_DIR`。优先级：脚本默认值 < `build.local.env` < 环境变量 < 命令行参数。`./build_app.sh --print-config` 不构建，只显示结果。更换 bundle id 会得到全新的设置、钥匙串、权限和小组件，原来的设置不会带过去；但它不是另一份独立的副本：所有 bundle id 共用同一个论文库、数据库、缓存、小组件数据、`paperdeck:` 链接和单实例锁，两份不能同时运行（见 [docs/BUILDING.md](docs/BUILDING.md)）。
 - 常用参数：`--no-install`（只在 `.build/stage` 中构建并校验，不安装、不停止正在运行的应用）、`--package`（生成发给别人的 zip 和 INSTALL.md 到 `dist/`，不在本机安装；绝不要把证书发出去）、`--jobs N`、`--test`。
 - 开发时用 `./build_app.sh --dev`：强制 `agent.mode=off`、`assist.mode=off`、`dedupe.ai.auto=false`，任何 GUI 调试都不会消耗 Claude / ChatGPT 额度。**日常使用的那份不要加 `--dev`。**
 - 测试：`./test.sh -j 8`（Swift Testing）。`tools/check_build_config.sh` 检查构建配置，`tools/verify_portability.sh` 运行全部可移植性检查。

@@ -274,6 +274,7 @@ package final class Engine: Sendable {
         await ctx.writeManifest()
         await enrich.resume()
         await restoreAssistCounters()
+        await assist.publishSnapshot()          // today's restored count reaches the Explain / Ask footers now
         await agents.start()
         await mailTriage.start()
         await mail.retentionDidRun()            // onLaunch ran today's mail retention

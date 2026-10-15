@@ -90,6 +90,9 @@ final class DerivedRefresher {
     private func timeChanged(catchUpAfter delay: Duration?) {
         state.scheduleRefresh()
         schedule()
+        // A new day (midnight, a wake, a clock or time-zone change): today's assist count starts again.
+        let engine = state.engine
+        Task { await engine.assist.publishSnapshot() }
         if let delay { catchUp(after: delay) }
     }
 

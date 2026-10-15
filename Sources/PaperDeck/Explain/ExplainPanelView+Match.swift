@@ -3,8 +3,9 @@ import PaperDeckCore
 
 /// The paper a capture was matched to, and the user's way to correct it (CUX-6): "Matched: <paper>
 /// · Change… · Not this paper" (or "You chose: …", or "Not matched to a library paper · Choose…").
-/// A correction is remembered for the window / excerpt (`PaperMatchCorrections`, in memory), the
-/// panel's stored explanations are filed accordingly, and the same capture is explained again — that
+/// A correction is remembered for the window, for the text the locator matched and for the excerpt
+/// shown (`correctionExcerpts`: a ⇧-clicked term's paragraph and the term; `PaperMatchCorrections`,
+/// in memory), the panel's stored explanations are filed accordingly, and the same capture is explained again — that
 /// send is the click's own (the panel view mints its ticket in `explainAgain`). Nothing for the
 /// built-in reader (its paper is exact). Never offered while a turn runs or the panel shows a
 /// privacy refusal (`ExplainCorrectionRules`: a correction must not be the click past a never-AI
@@ -108,7 +109,7 @@ struct ExplainMatchLine: View {
 
     private func notThisPaper(_ id: String) {
         guard let app, ExplainCorrectionRules.canCorrect(state.phase) else { return }
-        PaperMatchCorrections.shared.reject(id, windowTitle: state.capture.windowTitle, excerpt: state.excerpt,
+        PaperMatchCorrections.shared.reject(id, windowTitle: state.capture.windowTitle, excerpts: state.correctionExcerpts,
                                             scope: ObjectIdentifier(app.engine), now: app.engine.ctx.now())
         refile(nil)
         explainAgain()
@@ -116,7 +117,7 @@ struct ExplainMatchLine: View {
 
     private func choose(_ id: String) {
         guard let app, ExplainCorrectionRules.canCorrect(state.phase) else { return }
-        PaperMatchCorrections.shared.choose(id, windowTitle: state.capture.windowTitle, excerpt: state.excerpt,
+        PaperMatchCorrections.shared.choose(id, windowTitle: state.capture.windowTitle, excerpts: state.correctionExcerpts,
                                             scope: ObjectIdentifier(app.engine), now: app.engine.ctx.now())
         refile(id)
         explainAgain()

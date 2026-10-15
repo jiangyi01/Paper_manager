@@ -71,7 +71,9 @@ confirm a change.
    research interests, and your institution's AI policy — see [Your field and institution](#profile-field-institution).
 3. **AI reading (optional).** PaperDeck checks whether Claude Code and the Codex CLI are installed
    and signed in, without using any quota. Pick one, or **Not now**. Reading starts only when you
-   click **Turn On** — see [AI reading](#ai-reading).
+   click **Turn On** — see [AI reading](#ai-reading). Clicking a card only shows that service's
+   install and sign-in steps: when reading is already on with the other service, it moves only when
+   you click **Switch Reading to ‹service›**.
 4. **Library.** Choose where the library lives *before* it's created: a new library in Documents
    (or ~/PaperDeck when Documents is in iCloud), in another folder, or **Use an existing PaperDeck
    library…**. macOS asks once for access to Documents — click Allow.
@@ -468,6 +470,12 @@ under duplicate review — are left out and listed (as they are by **Read All No
 Papers** and **Read All** in the dialog after a large drop or a click on an *awaiting confirmation*
 badge, which confirms only the paper whose badge you clicked): open each one to confirm.
 
+The menu bar's **Paper** menu has the context menu's shortcuts for the selected paper (or the whole
+selection): ⌘O open the PDF, ⌥⌘O open in Preview, ⌘D mark as read / unread, ⌥⌘1 / ⌥⌘2 / ⌥⌘3
+priority, ⇧⌘P postpone one day, ⌥⌘R read with AI, ⇧⌘R show in Finder, ⌘⌫ move to Recently Deleted.
+They work while the library window is in front and you aren't typing in a field (there ⌘⌫ still
+deletes to the start of the line).
+
 ## Mail
 
 <a id="connect-mail"></a>
@@ -653,13 +661,14 @@ only — nothing is sent to AI.
 ### Moving to another Mac
 
 1. **Old Mac:** Settings ▸ General ▸ **Export Settings…** (preferences, senders, reading criteria and
-   mail accounts — never passwords). Then quit PaperDeck and copy the library folder to the new Mac,
-   or keep it in a cloud folder (one Mac at a time).
+   mail accounts — never passwords; keep **Include mailbox addresses** ticked so accounts arrive with
+   their addresses). Then quit PaperDeck and copy the library folder to the new Mac, or keep it in a
+   cloud folder (one Mac at a time).
 2. **New Mac:** put PaperDeck in Applications and open it; choose **Use an existing PaperDeck
    library…** and pick the copied folder.
-3. **Import Settings…** shows every change before it applies. AI reading and Mail stay off; IMAP
-   accounts need their app passwords again; a new person's "Always send to AI" arrives as "Ask each
-   time". Senders and accounts are merged by id — this Mac's own entries stay. A privacy or quota
+3. **Import Settings…** shows every change before it applies. An import never turns AI reading or
+   Mail on; IMAP accounts need their app passwords again (not one already set up here with the same
+   server); a new person's "Always send to AI" arrives as "Ask each time". Senders and accounts are merged by id — this Mac's own entries stay. A privacy or quota
    setting that is looser in the file than on this Mac is **kept stricter** unless you tick it.
 4. Sign in to Claude or ChatGPT, turn AI on; re-enter IMAP app passwords; allow notifications, add the
    widget, turn on Open at Login; **Re-index full text**.
@@ -696,11 +705,13 @@ These are the same for every institution and can't be loosened by a preset or an
   notifications or automatic reading off, email text kept for less time, a lighter model, a sender's
   lower AI policy, a sender or account turned off (or a sender's automatic merge / attachment storing
   off, an account's shorter look-back), the institution's "Never send to AI" for people, AI email
-  sorting on another AI service, a folder account's "Delete processed files", a new sender more
-  specific than a stricter rule here (it would take over that mail) — this Mac's value stays and is
-  listed under **Kept stricter**; that item's own checkbox (off by default) takes the file's value.
-  Values out of range (a daily limit of 1e300) aren't imported, and the instructions for AI email
-  sorting, like the reader description, only after you confirm them.
+  sorting on another AI service, a folder account's "Delete processed files", a person's or advisor's
+  sender turned into an alert, an IMAP account pointed at another mail server (its saved app password
+  is never sent there), a new sender more specific than a stricter rule here (it would take over that
+  mail) — this Mac's value stays and is listed under **Kept stricter**; that item's own checkbox
+  (off by default) takes the file's value. Values out of range (a daily limit of 1e300) aren't
+  imported, and the instructions for AI email sorting, like the reader description, only after you
+  confirm them.
 - **Confidential mail is never sent to AI or merged automatically**, whatever a sender's policy says:
   review invitations and requests, manuscript-system emails, decisions and proofs of your own
   submissions, and emails marked confidential. Titles of possibly unpublished manuscripts aren't
@@ -786,6 +797,10 @@ PD=/Applications/PaperDeck.app/Contents/MacOS/PaperDeck
 $PD --config                      # institution, field, stage, date order, bundle id, keychain service, channel
 $PD --doctor --mail-only          # mail accounts, senders and statuses (never a password)
 $PD --doctor                      # also the Claude / Codex CLIs (no quota), database, signing, widget
+                                  # (the database is only read: an older one says "open the app to upgrade")
+$PD --mail-dry-run message.eml --default-settings --now 2026-09-29T10:00:00
+                                  # parse + local sorting + the exact text that would go to AI, with the
+                                  # built-in mail settings (no AI, no network, nothing stored)
 $PD --migrate-dry-run --plist settings.plist --db-exists yes   # what a first launch would add to a defaults export
 $PD --export-settings out.json    # a settings file, like Export Settings…
 $PD --import-settings in.json --dry-run                        # what an import would change
@@ -794,8 +809,13 @@ $PD --selftest qa                 # Ask's strings (en / zh), notices, the estima
 $PD --ask-render OUT --root SCRATCH                            # PNGs of every Ask state (mock AI, no CLI probed)
 $PD --explain-render OUT --root SCRATCH                        # PNGs of every Explain state (mock AI, no CLI probed, no screen captured)
 $PD --render OUT --root SCRATCH --reader-only                  # PNGs of the reader (fixture PDF, no CLI probed)
+$PD --render OUT --root SCRATCH --library-only --widths "720, 1280"   # PNGs of the library at those window widths (no CLI probed)
 $PD --help
 ```
+
+A mistyped option (`--doctr`) stops with "unknown option" instead of opening the app. `--gui-root DIR`
+opens the app on an isolated library in DIR for testing; it isolates the library only, not
+settings, and refuses to start while PaperDeck is running.
 
 ### Institution notes
 

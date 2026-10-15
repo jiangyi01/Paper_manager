@@ -98,6 +98,21 @@ package struct AppLocationFact: Sendable, Equatable {
     package init(location: Location, quarantined: Bool) {
         self.location = location; self.quarantined = quarantined
     }
+
+    /// `QTN_FLAG_USER_APPROVED`: Gatekeeper's record that the user opened the app (Open Anyway or
+    /// the first approved open). macOS keeps `com.apple.quarantine` after approval and sets this bit.
+    package static let userApprovedFlag: UInt32 = 0x0040
+
+    /// Whether the app still counts as quarantined, from the value of its `com.apple.quarantine`
+    /// attribute (`"<hex flags>;<hex time>;<agent>;<uuid>"`, e.g. `"0083;66f1e2a0;Safari;"`): no
+    /// attribute → false; flags with the user-approved bit (`01c3;…`, `03c1`) → false; flags
+    /// without it (`0083;…`) or a value that doesn't parse → true.
+    package static func isQuarantined(attribute: String?) -> Bool {
+        guard let attribute else { return false }
+        let head = attribute.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+        guard let flags = UInt32(head.trimmingCharacters(in: .whitespaces), radix: 16) else { return true }
+        return flags & userApprovedFlag == 0
+    }
 }
 
 package struct SigningFact: Sendable, Equatable {
@@ -114,6 +129,7 @@ package struct SigningFact: Sendable, Equatable {
 package struct MailAccountFact: Sendable, Equatable {
     package var id: String
     package var source: MailSourceID
+    /// As the inbox pill and Settings ▸ Mail show it (`MailNoticePolicy.shownStatus`).
     package var status: MailSourceStatus?
     package var lastSuccessAt: Date?
     package var captured: Int
@@ -122,12 +138,29 @@ package struct MailAccountFact: Sendable, Equatable {
     package var passwordPresent: Bool?
     /// Folder: the watched folder exists; nil for IMAP.
     package var folderExists: Bool?
+    /// The last pass reached the server or folder (`MailNoticePolicy.reachable`): an `.unavailable`
+    /// status then words emails it skipped or couldn't download, not the connection.
+    package var reachable: Bool
 
     package init(id: String, source: MailSourceID, status: MailSourceStatus? = nil, lastSuccessAt: Date? = nil,
-                 captured: Int = 0, notEmailFiles: Int = 0, passwordPresent: Bool? = nil, folderExists: Bool? = nil) {
+                 captured: Int = 0, notEmailFiles: Int = 0, passwordPresent: Bool? = nil, folderExists: Bool? = nil,
+                 reachable: Bool = false) {
         self.id = id; self.source = source; self.status = status; self.lastSuccessAt = lastSuccessAt
         self.captured = captured; self.notEmailFiles = notEmailFiles; self.passwordPresent = passwordPresent
-        self.folderExists = folderExists
+        self.folderExists = folderExists; self.reachable = reachable
+    }
+
+    /// The fact for an account from the pipeline's sync state (nil: not synced yet): the status the
+    /// inbox and Settings show (a skipped-emails suffix the notice owns is left out) and whether the
+    /// last pass got through. `captured` adds the inbox's cards.
+    package init(id: String, source: MailSourceID, info: MailAccountSyncInfo?, cards: Int = 0,
+                 passwordPresent: Bool? = nil, folderExists: Bool? = nil) {
+        self.init(id: id, source: source,
+                  status: info.flatMap { MailNoticePolicy.shownStatus($0, active: $0.enabled) },
+                  lastSuccessAt: info?.lastSuccessAt,
+                  captured: (info?.totalCaptured ?? 0) + cards, notEmailFiles: info?.notEmailFiles ?? 0,
+                  passwordPresent: passwordPresent, folderExists: folderExists,
+                  reachable: info.map(MailNoticePolicy.reachable) ?? false)
     }
 }
 

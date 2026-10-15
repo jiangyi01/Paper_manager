@@ -129,6 +129,10 @@ extension L {
             zh ? "开启后，PaperDeck 会用你的订阅自动解读新论文。" : "Turning reading on lets PaperDeck read new papers automatically with your subscription."
         }
         static func readingOn(_ k: AIProviderKind) -> String { zh ? "\(k.shortName) 解读已开启" : "\(k.shortName) reading is on" }
+        /// Reading is on with another provider than the selected card's.
+        static func switchReading(to k: AIProviderKind) -> String {
+            zh ? "改用 \(k.shortName) 解读" : "Switch Reading to \(k.shortName)"
+        }
         static var turnOff: String { zh ? "关闭" : "Turn Off" }
         static var continueWithoutAITitle: String { zh ? "暂时不使用 AI 继续？" : "Continue without AI for now?" }
         static func continueWithoutAIBody(_ k: AIProviderKind) -> String {

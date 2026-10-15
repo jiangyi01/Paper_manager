@@ -50,21 +50,30 @@ import Testing
         let here = [MailSettings.Keys.senders: MailSettings.encode([Self.lab])]
         let file = Self.bundle([.mailSenders: [MailSettings.Keys.senders: Self.senders([Self.news])]])
         let p = Self.plan(file, current: here)
+        // The lab's person rule isn't taken over by an alert either (mail-ai-privacy-4): its type is
+        // kept stricter first, and the AI policy is compared for that type.
+        let kind = ImportLoosening.newSenderID("news", .kind)
         let ids = [ImportLoosening.newSenderID("news"), ImportLoosening.newSenderID("news", .autoMerge),
                    ImportLoosening.newSenderID("news", .autoDownload)]
-        #expect(p.keptStricter.map(\.id) == ids, "\(p.keptStricter.map(\.id))")
+        #expect(p.keptStricter.map(\.id) == [kind] + ids, "\(p.keptStricter.map(\.id))")
+        let k = try #require(p.loosenings.first { $0.id == kind })
+        #expect(k.mine == .string("person") && k.theirs == .string("alert") && k.overrides == "Lab" && k.field == .kind)
+        // A person's rule gets no more of that mail to AI than the file's alert rule would: "Ask".
         let ai = try #require(p.loosenings.first { $0.id == ids[0] })
-        #expect(ai.mine == .string("never") && ai.theirs == .string("always") && ai.overrides == "Lab" && ai.subject == "Lab news")
+        #expect(ai.mine == .string("never") && ai.theirs == .string("ask") && ai.overrides == "Lab" && ai.subject == "Lab news")
         // The new rule is added — with the broader rule's stricter values.
         let added = try #require(Self.written(p).first { $0.id == "news" })
-        #expect(added.aiPolicy == .never && !added.autoMerge && !added.autoDownload && added.enabled)
+        #expect(added.aiPolicy == .never && !added.autoMerge && !added.autoDownload && added.enabled && added.kind == .person)
         #expect(Self.written(p).first { $0.id == "lab" } == Self.lab)
         // Its mail is still read as this Mac reads the lab's mail now.
         #expect(SenderMatcher.match(address: "news@lab.example.edu", rules: Self.written(p))?.aiPolicy == .never)
         // Ticked one by one (or --accept-looser): the file's values.
         let one = Self.plan(file, current: here, accept: .only([ids[0]]))
         let tickedRule = try #require(Self.written(one).first { $0.id == "news" })
-        #expect(tickedRule.aiPolicy == .always && !tickedRule.autoMerge)
+        #expect(tickedRule.aiPolicy == .ask && tickedRule.kind == .person && !tickedRule.autoMerge)
+        let two = Self.plan(file, current: here, accept: .only([kind, ids[0]]))
+        let alertRule = try #require(Self.written(two).first { $0.id == "news" })
+        #expect(alertRule.aiPolicy == .always && alertRule.kind == .alert && !alertRule.autoMerge)
         let all = Self.plan(file, current: here, accept: .all)
         #expect(Self.written(all).first { $0.id == "news" } == Self.news && all.keptStricter.isEmpty)
     }
@@ -253,7 +262,7 @@ import Testing
         let domain = PersistedDomain([DedupeSettings.Keys.enabled: false, DedupeSettings.Keys.sensitivity: "strict",
                                       DedupeSettings.Keys.history: false, DedupeSettings.Keys.aiAuto: true,
                                       AssistSettings.Keys.mode: "claude", AssistSettings.Keys.consentVersion: 2])
-        let exported = SettingsExporter.export(domain, sections: Set(SettingsSection.allCases), includePersonal: true,
+        let exported = SettingsExporter.export(domain, sections: Set(SettingsSection.allCases), includePersonal: true, includeAddresses: true,
                                                home: Self.home, roots: [], app: "PaperDeck", now: Self.now)
         let library = try #require(exported.sections[SettingsSection.library.rawValue]?.objectValue)
         #expect(library[DedupeSettings.Keys.enabled] == .bool(false) && library[DedupeSettings.Keys.sensitivity] == .string("strict"))

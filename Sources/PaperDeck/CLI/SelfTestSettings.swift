@@ -265,7 +265,8 @@ enum SelfTestSettings {
         src.defaults.set(MailSettings.encode([a2, cRule]), forKey: MailSettings.Keys.senders)
         let home = FileManager.default.temporaryDirectory
         let bundle = SettingsExporter.export(PersistedDomain(suites.persisted(src.name)), sections: Set(SettingsSection.allCases),
-                                             includePersonal: true, home: home, roots: [], app: "PaperDeck selftest",
+                                             includePersonal: true, includeAddresses: true, home: home, roots: [],
+                                             app: "PaperDeck selftest",
                                              now: Date(timeIntervalSince1970: 1_800_000_000))
         let current = PersistedDomain(suites.persisted(dst.name))
         let plan = SettingsImporter.plan(bundle, current: current, sections: Set(SettingsSection.allCases), keepPeopleAlways: false,
@@ -339,11 +340,16 @@ enum SelfTestSettings {
                                       (MailSettings.Keys.accounts, SettingsImporter.guardedAccountFields, "a1")] {
                 for f in fields {
                     let isAccount = key == MailSettings.Keys.accounts
+                    let (mine, theirs): (JSONValue, JSONValue) = switch f {
+                    case .aiPolicy: (.string("never"), .string("always"))
+                    case .lookbackDays: (.number(14), .number(60))
+                    case .kind: (.string(SenderKind.advisor.rawValue), .string(SenderKind.alert.rawValue))
+                    case .server: (.string("me@example.com · imap.example.com:993"), .string("me@example.com · imap.example.org:993"))
+                    case .enabled, .autoMerge, .autoDownload, .deleteProcessedFiles: (.bool(false), .bool(true))
+                    }
                     let item = ImportLoosening(id: isAccount ? ImportLoosening.accountID(id, f) : ImportLoosening.senderID(id, f),
                                                key: key, section: isAccount ? .mailAccounts : .mailSenders, subject: "Lab", field: f,
-                                               mine: f == .aiPolicy ? .string("never") : f == .lookbackDays ? .number(14) : .bool(false),
-                                               theirs: f == .aiPolicy ? .string("always") : f == .lookbackDays ? .number(60) : .bool(true),
-                                               accepted: false)
+                                               mine: mine, theirs: theirs, accepted: false)
                     fieldLines["\(lang.rawValue) \(key) \(f.rawValue)", default: []].append(SettingsImportSheet.keptStricterLine(item))
                 }
             }
@@ -577,7 +583,8 @@ enum SelfTestSettings {
         src.defaults.set(9, forKey: "reminder.hour")
         src.defaults.set(senders, forKey: MailSettings.Keys.senders)
         let bundle = SettingsExporter.export(PersistedDomain(suites.persisted(src.name)), sections: Set(SettingsSection.allCases),
-                                             includePersonal: false, home: FileManager.default.temporaryDirectory, roots: [],
+                                             includePersonal: false, includeAddresses: false,
+                                             home: FileManager.default.temporaryDirectory, roots: [],
                                              app: "PaperDeck selftest", now: Date(timeIntervalSince1970: 1_800_000_000))
         let encoded = (try? SettingsExportSheet.encode(bundle)).flatMap { try? SettingsImporter.decode($0) }
         c.check("import: an exported file decodes again", encoded == bundle)

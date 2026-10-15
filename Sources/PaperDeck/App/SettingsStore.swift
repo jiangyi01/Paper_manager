@@ -74,9 +74,14 @@ final class SettingsStore {
         didSet {
             assist.save(to: d, previous: oldValue)
             if assist.mode != oldValue.mode { onAssistModeChange?() }
+            if assist.mode != oldValue.mode || assist.dailySoftCap != oldValue.dailySoftCap
+                || assist.dailyHardCap != oldValue.dailyHardCap { onAssistQuotaChange?() }
             if assist.explainHotKey != oldValue.explainHotKey { onExplainHotKeyChange?() }
         }
     }
+    /// Called after `assist.mode` or a daily cap changed: the footers' "today n/50" is published again
+    /// (`AssistLane.publishSnapshot`: the new provider's count, the new cap).
+    @ObservationIgnored var onAssistQuotaChange: (() -> Void)?
     /// Called after `assist.mode` changed (off, or another provider): the app closes the assist's
     /// warm / live processes (`AssistLane.closeAllSessions`) and registers or releases Explain's shortcut.
     @ObservationIgnored var onAssistModeChange: (() -> Void)?

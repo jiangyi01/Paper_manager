@@ -75,6 +75,18 @@ package enum MailNoticePolicy {
         return info.undownloadable > 0 ? .unavailable(rest) : .ready(detail: rest)
     }
 
+    /// The account's last pass reached its server or folder: it succeeded (no failure since), even
+    /// when it left allowlisted emails skipped or undownloadable — the `.unavailable` status the
+    /// pipeline gives such a pass (`ready detail · <sentence>`) words those emails, not the connection.
+    /// A sign-in or setup problem never counts.
+    package static func reachable(_ info: MailAccountSyncInfo) -> Bool {
+        guard info.consecutiveFailures == 0, info.lastSuccessAt != nil else { return false }
+        switch info.status {
+        case .ready?, .unavailable?: return true
+        case .authFailed?, .needsSetup?, nil: return false
+        }
+    }
+
     /// Whether the skipped notice is due: the account syncs, emails are skipped, the engine worded
     /// the hint, and the count grew past the one the user dismissed it at.
     package static func skippedNoticeDue(_ info: MailAccountSyncInfo, active: Bool) -> Bool {

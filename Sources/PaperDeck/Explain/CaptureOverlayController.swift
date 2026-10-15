@@ -50,6 +50,9 @@ final class CaptureOverlayController {
     private var noticeTask: Task<Void, Never>?
     /// The chosen capture being cropped and encoded off the main thread (CUX-7); closing cancels it.
     private var finishTask: Task<Void, Never>?
+    /// Which overlay session is up: every show and dismiss starts a new one, so a gesture queued
+    /// behind an earlier session's freeze is dropped, never delivered into a later session.
+    private var session = 0
 
     init(coordinator: ExplainCoordinator) { self.coordinator = coordinator }
 
@@ -68,8 +71,10 @@ final class CaptureOverlayController {
     func show(mode: AssistSettings.OverlayMode) {
         guard let coordinator else { return }
         dismiss()
+        session += 1
         frontApp = NSWorkspace.shared.frontmostApplication
         model.mode = mode
+        model.language = nil                            // Tab chooses for one request; each opening follows the setting
         model.hotkey = HotKeySpec.display(coordinator.app?.settings.assist.explainHotKey ?? .defaultExplain)
         model.offer = Self.currentOffer(lastConsumed: coordinator.lastClipboardChange)
         model.captureAllowed = coordinator.capturer.preflight()
@@ -117,6 +122,7 @@ final class CaptureOverlayController {
 
     func dismiss() {
         stopObservingSystem()
+        session += 1
         finishTask?.cancel()                           // a capture still being prepared is dropped: nothing sent
         finishTask = nil
         noticeTask?.cancel()
@@ -376,9 +382,12 @@ final class CaptureOverlayController {
         }
         guard let pending = freezeTask else { NSSound.beep(); return }
         model.capturing = true
+        let gen = session
         Task { [weak self] in
             await pending.value
-            guard let self, self.isShown else { return }
+            // The overlay closed (Esc, a Space switch…) while the freeze ran: this click was that
+            // session's, even if the overlay is up again by now.
+            guard let self, self.isShown, self.session == gen else { return }
             self.model.capturing = false
             guard let frozen = self.frozen else { NSSound.beep(); return }
             self.finish(choice, frozen: frozen, ticket: ticket, lens: lens, language: language, front: front)

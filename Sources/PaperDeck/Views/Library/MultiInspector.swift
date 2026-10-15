@@ -200,8 +200,10 @@ private struct Thumb: View {
                 Image(systemName: "doc.text").font(.system(size: 20, weight: .light)).foregroundStyle(.tertiary)
             }
         }
+        // A new (versioned) URL — the thumbnail was rewritten — loads again, never keeps the old image.
         .task(id: url) {
-            guard image == nil, let url else { return }
+            guard let url else { image = nil; return }
+            if let hit = CardThumbnailCache.shared.cached(url) { image = hit; return }
             image = await CardThumbnailCache.shared.load(url)
         }
     }

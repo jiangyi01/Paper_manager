@@ -18,7 +18,10 @@ import PaperDeckConfig
 ///   「立即同步」, sizes in the UI language, one launch-alert assembly for the launch and the renders;
 /// - portability fixes 2 (`SelfTestAppRulesPF2.swift`): the inspector draws the whole consent box;
 /// - mail privacy fixes (`SelfTestAppRulesPrivacy.swift`): every privacy reason and the confidential-
-///   email batch hold worded in both languages, "1 paper per alert", the preview's edited-subject forward.
+///   email batch hold worded in both languages, "1 paper per alert", the preview's edited-subject forward;
+/// - ui-runtime fixes (`SelfTestAppRulesUI.swift`): the mismatch alert's choices, versioned card
+///   thumbnails, Help's mail facts, the Paper menu, the quit flush of pending notes, minimized
+///   windows, the menu bar per language.
 /// Offline: scratch folders and a scratch defaults file under $TMPDIR (removed afterwards), fake
 /// mail sources, no keychain, no engine left open, nothing posted.
 enum SelfTestAppRules {
@@ -44,6 +47,7 @@ enum SelfTestAppRules {
         await runRound4(scratch: scratch, checker)
         await runPF2(scratch: scratch, checker)
         await runDocs(scratch: scratch, checker)
+        await runUIRuntime(scratch: scratch, checker)
 
         print(checker.ok ? "SELFTEST PASS" : "SELFTEST FAIL")
         return checker.ok ? 0 : 1

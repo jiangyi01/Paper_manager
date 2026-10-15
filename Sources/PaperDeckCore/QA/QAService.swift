@@ -248,8 +248,7 @@ package actor QAService {
         guard let library else { return 0 }
         let db = library.ctx.db
         guard let m = try await db.qaMessage(id: messageID) else { throw QAError.unknownMessage(messageID) }
-        guard m.role == .assistant, m.state == .done || m.state == .cancelled,
-              !m.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw QAError.notAnAnswer(messageID) }
+        guard m.canSaveToNotes else { throw QAError.notAnAnswer(messageID) }
         guard let thread = try await db.qaThread(id: m.threadID) else { throw QAError.unknownThread(m.threadID) }
         let all = try await db.qaMessages(threadID: thread.id)
         let question = all.last { $0.role == .user && $0.ord < m.ord }?.text

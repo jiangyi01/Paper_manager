@@ -128,13 +128,15 @@ import Testing
 
     /// The fields of the per-entry keys' entries reviewed as neither privacy- nor quota-sensitive
     /// (the guarded ones are the importer's: `SettingsImporter.guardedSenderFields` / `guardedAccountFields`).
+    /// A sender's `kind` is guarded (`ImportEntryField.kind`: a person's rule never silently becomes
+    /// an alert's, mail-ai-privacy-4); an account's host, port, address and preset are guarded together
+    /// (`ImportEntryField.server`: the saved app password never goes to another server, mail-ai-privacy-2).
     static let reviewedSenderFields: Set<String> = [
         "id", "pattern", "label",
-        "kind",                     // compared with the AI policy (`aiLooseness`: an alert's always < a person's)
         "defaultPriority", "defaultCategory", "useDueDateAsDDL",
     ]
     static let reviewedAccountFields: Set<String> = [
-        "id", "kind", "displayName", "folderPath", "imapPreset", "host", "port", "username", "mailbox", "source",
+        "id", "kind", "displayName", "folderPath", "mailbox", "source",
     ]
 
     /// Every field of a sender rule and of a mail account is guarded (an import never loosens it for
@@ -142,8 +144,8 @@ import Testing
     @Test func everyFieldOfASenderOrAnAccountIsClassified() {
         let sender = Set(Mirror(reflecting: SenderRule(pattern: "@x.example", kind: .alert)).children.compactMap(\.label))
         let account = Set(Mirror(reflecting: MailAccount(kind: .imap, displayName: "x")).children.compactMap(\.label))
-        let guardedSender = Set(SettingsImporter.guardedSenderFields.map(\.rawValue))
-        let guardedAccount = Set(SettingsImporter.guardedAccountFields.map(\.rawValue))
+        let guardedSender = Set(SettingsImporter.guardedSenderFields.flatMap(\.guardedProperties))
+        let guardedAccount = Set(SettingsImporter.guardedAccountFields.flatMap(\.guardedProperties))
         #expect(sender.subtracting(guardedSender).subtracting(Self.reviewedSenderFields).isEmpty,
                 "classify: \(sender.subtracting(guardedSender).subtracting(Self.reviewedSenderFields).sorted())")
         #expect(account.subtracting(guardedAccount).subtracting(Self.reviewedAccountFields).isEmpty,
@@ -151,7 +153,8 @@ import Testing
         #expect(guardedSender.isSubset(of: sender) && guardedAccount.isSubset(of: account))
         #expect(Self.reviewedSenderFields.isSubset(of: sender) && Self.reviewedAccountFields.isSubset(of: account))
         #expect(guardedSender.isDisjoint(with: Self.reviewedSenderFields) && guardedAccount.isDisjoint(with: Self.reviewedAccountFields))
-        #expect(Set(ImportEntryField.allCases.map(\.rawValue)) == guardedSender.union(guardedAccount))
+        #expect(Set(ImportEntryField.allCases) == Set(SettingsImporter.guardedSenderFields + SettingsImporter.guardedAccountFields))
+        #expect(SettingsImporter.guardedSenderFields.contains(.kind) && SettingsImporter.guardedAccountFields.contains(.server))
         // Both lists are compared per entry by the importer.
         #expect(SettingsRegistry.entry(MailSettings.Keys.senders)?.sensitivity?.order == .perEntry)
         #expect(SettingsRegistry.entry(MailSettings.Keys.accounts)?.sensitivity?.order == .perEntry)

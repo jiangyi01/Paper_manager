@@ -128,6 +128,10 @@ enum SelfTestOnboarding {
         c.check("preflight: About → AI", m.page == .ai)
         m.selectAI(.claude)
         m.turnOnAI()
+        // Opening ChatGPT's card afterwards (to read its help) doesn't move the draft to it.
+        m.selectAI(.codex)
+        c.check("preflight: a provider card after Turn On keeps the drafted provider",
+                m.readingProvider == .claude && m.aiIsOn && m.aiChoice == .codex)
         m.next()
         c.check("preflight: AI turned on → Library", m.page == .library)
         let held: [String] = ["library.path", "agent.mode", "agent.provider", ConfigKeys.onboardingAIDecision]
@@ -200,7 +204,7 @@ enum SelfTestOnboarding {
         }
     }
 
-    // MARK: 5. Live mode: selecting never turns AI on; Turn On does
+    // MARK: 5. Live mode: a card only shows help; Turn On / Switch Reading change reading
 
     static func liveAI(_ dir: URL, _ c: SelfTestAppRules.Checker) async {
         let s = Scratch(dir, "live-ai")
@@ -217,13 +221,28 @@ enum SelfTestOnboarding {
         }
         let state = AppState(engine: engine, settings: settings, guide: m.guide)
         m.facts.state = state
+        let provider = settings.agentProvider
         m.selectAI(.codex)
         try? await Task.sleep(for: .milliseconds(50))
-        c.check("live: selecting ChatGPT sets the provider only",
-                settings.agentProvider == .codex && settings.agentMode == "off" && s.persisted["agent.mode"] == nil)
+        c.check("live: selecting ChatGPT only shows its help (provider and mode unchanged)",
+                m.aiChoice == .codex && settings.agentProvider == provider && settings.agentMode == "off"
+                    && s.persisted["agent.mode"] == nil && s.persisted["agent.provider"] == nil && m.guide.aiDecision == nil)
         m.turnOnAI()
         c.check("live: Turn On writes agent.mode and the decision",
-                s.persisted["agent.mode"] as? String == "codex" && m.guide.aiDecision == "codex")
+                s.persisted["agent.mode"] as? String == "codex" && settings.agentProvider == .codex && m.guide.aiDecision == "codex")
+        // Reading is on (ChatGPT): opening Claude's card to read its help changes nothing…
+        m.selectAI(.claude)
+        try? await Task.sleep(for: .milliseconds(50))
+        c.check("live: with reading on, a provider card never switches the running provider",
+                m.aiChoice == .claude && settings.agentMode == "codex" && settings.agentProvider == .codex
+                    && s.persisted["agent.mode"] as? String == "codex" && m.readingProvider == .codex
+                    && m.guide.aiDecision == "codex")
+        // …until Switch Reading to Claude (the same action as Turn On) is clicked.
+        m.turnOnAI()
+        c.check("live: Switch Reading moves reading and records the decision",
+                settings.agentMode == "claude" && settings.agentProvider == .claude
+                    && s.persisted["agent.mode"] as? String == "claude" && m.readingProvider == .claude
+                    && m.guide.aiDecision == "claude")
         m.selectAI(.none)
         c.check("live: Not now turns reading off and records it",
                 settings.agentMode == "off" && m.guide.aiDecision == "none")
@@ -335,7 +354,8 @@ enum SelfTestOnboarding {
 
     static func strings(_ lang: UILang, _ c: SelfTestAppRules.Checker) {
         let texts = OnboardingPage.allCases.map(L.Onb.page) + [L.Onb.welcomeTitle, L.Onb.aiTitle, L.Onb.libraryTitle,
-                                                                L.Help.windowTitle, L.Help.gettingStarted, L.Help.howToFix]
+                                                                L.Help.windowTitle, L.Help.gettingStarted, L.Help.howToFix,
+                                                                L.Onb.switchReading(to: .claude), L.Onb.switchReading(to: .codex)]
         c.check("strings: setup and help chrome are present in \(lang.rawValue)", texts.allSatisfy { !$0.isEmpty })
         // The built-in preset's names come from the preset itself (no institution literal here).
         let generic = OrgStrings.aiPolicyLine(org: OrganizationPresets.generic, lang: lang)

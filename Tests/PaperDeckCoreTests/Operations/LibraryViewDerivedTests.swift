@@ -49,7 +49,9 @@ import Testing
             #expect(a.category?.name == "Custom Topic")
             #expect(a.doneCount == 1 && a.totalCount == 4 && a.remainingMinutes == 55)
             #expect(a.minutesToday == 55 && !a.atRisk && a.finish == Self.d(9, 29))
-            #expect(a.thumbnailURL == env.engine.ctx.thumbs.cardURL(for: lib.a.id))
+            // The card thumbnail's file, versioned (ui-runtime-2: `ThumbnailStore.versioned`).
+            #expect(a.thumbnailURL.map(ThumbnailStore.unversioned) == env.engine.ctx.thumbs.cardURL(for: lib.a.id))
+            #expect(a.thumbnailURL?.fragment?.hasPrefix("v=") == true)
             #expect(FileManager.default.fileExists(atPath: a.pdfURL.path))
             #expect(a.paper.status == .reading)
 

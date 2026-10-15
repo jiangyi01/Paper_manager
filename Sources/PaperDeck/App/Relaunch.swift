@@ -6,7 +6,7 @@ import PaperDeckCore
 @MainActor enum Relaunch {
     /// A detached `/bin/sh` waits until this process has exited (so the single-instance lock is
     /// free), then `open`s our own bundle path — nothing else. Then the app quits normally
-    /// (`applicationShouldTerminate` flushes the engine). A bare binary (no .app) only quits.
+    /// (`applicationShouldTerminate` flushes the engine; `quitSoon`). A bare binary (no .app) only quits.
     static func now() {
         if let command = command(pid: ProcessInfo.processInfo.processIdentifier, bundlePath: Bundle.main.bundlePath) {
             let p = Process()
@@ -21,7 +21,16 @@ import PaperDeckCore
                 Log.app.error("relaunch helper failed to start: \(String(describing: type(of: error)), privacy: .public)")
             }
         }
-        NSApp.terminate(nil)
+        quitSoon()
+    }
+
+    /// Quits from the run loop, never from inside the current call. Called from a main-queue
+    /// callout (the launch's library-mismatch alert runs inside the bootstrap task) a synchronous
+    /// `terminate` deadlocks: `applicationShouldTerminate` answers `.terminateLater` and replies from
+    /// a MainActor task that can't run while the callout is still on the main queue. From a button
+    /// action ("Restart Now") it only moves the quit to the next turn of the run loop.
+    static func quitSoon() {
+        NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)
     }
 
     /// The helper's script (nil for anything but an `.app` bundle). The path is single-quoted, so

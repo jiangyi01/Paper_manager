@@ -3,7 +3,9 @@ import PaperDeckCore
 
 /// 笔记: a TextEditor that saves 1 s after the last keystroke (`engine.setNotes`, which also
 /// rewrites notes.md). Pending text is flushed when the view goes away (paper switched,
-/// section collapsed, window closed). Give it `.id(paperID)` so each paper starts fresh.
+/// section collapsed, window closed) and when the app quits (`AppState.pendingSaves`, which
+/// holds the save of the latest unsaved text until it is written). Give it `.id(paperID)` so each
+/// paper starts fresh.
 struct NotesEditor: View {
     let state: AppState
     let paperID: String
@@ -19,6 +21,9 @@ struct NotesEditor: View {
     @State private var saveTask: Task<Void, Never>?
     /// Texts this editor is saving right now (their snapshot echo is ours, never merged).
     @State private var inFlight: [String] = []
+    /// The paper's entry in `AppState.pendingSaves`: one per paper, so the editor shown when the
+    /// paper is opened again replaces an earlier editor's entry (never an older text written last).
+    private var pendingKey: String { "notes-" + paperID }
 
     init(state: AppState, paperID: String, notes: String, readOnly: Bool = false) {
         self.state = state
@@ -90,9 +95,13 @@ struct NotesEditor: View {
         saveTask?.cancel()
         guard new != lastSaved else {
             phase = phase == .pending ? .idle : phase
+            // Back to the saved text; a save still on its way would write another one, so a quit
+            // then writes this text again.
+            if inFlight.isEmpty { state.pendingSaves.clear(pendingKey) } else { holdForQuit(new) }
             return
         }
         phase = .pending
+        holdForQuit(new)
         saveTask = Task {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
@@ -123,16 +132,29 @@ struct NotesEditor: View {
         if !readOnly, text != lastSaved { save(text) }
     }
 
+    /// Quitting before the debounce fires (or while a save is still on its way) writes `value`.
+    /// Returns the registration's token (`PendingSaves.clear(_:ifToken:)`).
+    @discardableResult
+    private func holdForQuit(_ value: String) -> Int {
+        let engine = state.engine, id = paperID
+        return state.pendingSaves.set(pendingKey) { _ = try? await engine.setNotes(paperID: id, value) }
+    }
+
     private func save(_ value: String) {
         phase = .saving
-        let id = paperID
+        let id = paperID, key = pendingKey, pending = state.pendingSaves
         inFlight.append(value)
+        let token = holdForQuit(value)
         Task {
             defer { if let i = inFlight.firstIndex(of: value) { inFlight.remove(at: i) } }
             do {
                 _ = try await state.engine.setNotes(paperID: id, value)
                 lastSaved = value
                 phase = text == value ? .saved : .pending
+                // Written: nothing left for a quit unless an edit was registered meanwhile (typing
+                // on, or this paper's editor shown again) — decided by the registration, not by
+                // this view's text, which may be gone (the paper was switched away).
+                pending.clear(key, ifToken: token)
             } catch {
                 phase = .failed
                 state.report(error)

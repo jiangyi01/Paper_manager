@@ -9,8 +9,10 @@ import PaperDeckConfig
 ///
 /// The plan is pure (`SettingsImporter.plan`); applying it (`SettingsStore.applyImport`) never
 /// writes `agent.mode`, `mail.enabled` or `setup.completed`, so AI reading and Mail stay as they
-/// are. Nothing is loosened silently: a privacy or quota setting the file has looser than this Mac
-/// (AI triage on, a higher cap, a sender's AI policy raised…) is listed under "Kept stricter" and
+/// are (the footer says so — never that they are off). Nothing is loosened silently: a privacy or
+/// quota setting the file has looser than this Mac (AI triage on, a higher cap, a sender's AI
+/// policy raised or a person made an alert, an IMAP account pointed at another server…) is listed
+/// under "Kept stricter" and
 /// keeps this Mac's value unless its own checkbox is ticked (`ImportPlan.loosenings`). A new
 /// person's "Always" arrives as "Ask" unless the opt-out is ticked; an imported reader
 /// description (it enters the AI's instructions) is used only after "Use this description". An
@@ -320,7 +322,8 @@ struct SettingsImportSheet: View {
         if case .string(let json)? = plan.writes[accounts] {
             out.append(impact(accounts, mine: MailSettings.list(current.values[accounts] as? String, MailAccount.self, what: "account"),
                               written: MailSettings.list(json, MailAccount.self, what: "account"),
-                              name: { $0.displayName.isEmpty ? $0.id : $0.displayName }))
+                              name: { $0.displayName.isEmpty ? $0.id : $0.displayName },
+                              newIDs: plan.merges[accounts]?.newIDs ?? [:]))
         }
         for i in out.indices {
             if let merge = plan.merges[out[i].key] {
@@ -333,8 +336,10 @@ struct SettingsImportSheet: View {
     }
 
     /// By id: `written` entries this Mac lacks are added, differing ones replaced, equal ones kept;
-    /// this Mac's entries `written` lacks are removed.
-    static func impact<T: Identifiable & Equatable>(_ key: String, mine: [T], written: [T], name: (T) -> String) -> ListImpact
+    /// this Mac's entries `written` lacks are removed — unless the plan replaced one under a new id
+    /// (`newIDs`: an account moved to the file's server) that `written` holds.
+    static func impact<T: Identifiable & Equatable>(_ key: String, mine: [T], written: [T], name: (T) -> String,
+                                                    newIDs: [String: String] = [:]) -> ListImpact
         where T.ID == String {
         var r = ListImpact(key: key)
         let byID = Dictionary(mine.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -346,7 +351,7 @@ struct SettingsImportSheet: View {
                 r.added.append(name(w))
             }
         }
-        r.removed = mine.filter { !seen.contains($0.id) }.map(name)
+        r.removed = mine.filter { !seen.contains($0.id) && !(newIDs[$0.id].map(seen.contains) ?? false) }.map(name)
         return r
     }
 

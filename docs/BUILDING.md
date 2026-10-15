@@ -62,14 +62,27 @@ Other flags: `--run` (open after installing), `--test` (run `./test.sh` first), 
 `--no-install`, `--package`, `--dev` (see below), `--help`.
 
 **Changing the bundle id starts a fresh settings domain, keychain service, permissions and widget —
-settings don't carry over** from a build with another id. Keep the default unless you need a second,
-separate copy (for example a test copy next to your daily one).
+settings don't carry over** from a build with another id. **It does not make a separate copy.** Every
+bundle id shares one library and database (`~/Library/Application Support/PaperDeck`, with its
+backups, text cache and mail files), `~/Library/Caches/PaperDeck`, the widget data, the
+`paperdeck:` URL scheme and the single-instance lock:
+
+- two copies can't run at the same time — the second one hands the first `paperdeck://today` and quits;
+- a copy with a fresh settings domain still opens the shared library, and a newer build upgrades the
+  shared database, after which an older build refuses to open it until it is updated too;
+- widgets and `paperdeck:` links may reach either copy.
+
+Keep the default id. To try a build next to your daily library, quit PaperDeck and run that build's
+binary with `--gui-root DIR` (for example `.build/debug/PaperDeck --gui-root ~/pd-test`): the
+library is an isolated one in DIR. `--gui-root` isolates the library only, not settings — run from
+an installed app it reads and writes that app's settings domain — and every copy shares the
+single-instance lock, so it refuses to start (exit 1, with a message) while PaperDeck is running.
 
 ### What the script stamps
 
 `Resources/Info.plist` and `Resources/PaperDeckWidget-Info.plist` keep their literal values. The
 staged copies get `CFBundleIdentifier` and the URL handler's name (the same values with the
-defaults), plus `PDHostBundleIdentifier` (both plists), `PDKeychainService`, `PDSigningIdentity`
+defaults), plus `PDHostBundleIdentifier` and `PDWidgetBundleIdentifier` (both plists), `PDKeychainService`, `PDSigningIdentity`
 (the certificate name or `adhoc`) and `PDBuildChannel` (the app). At run time `BuildIdentity` reads
 them; with nothing stamped it falls back to the same defaults, so the defaults domain, keychain
 service, log subsystem and widget id never change for an existing install.

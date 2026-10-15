@@ -331,7 +331,11 @@ struct AskAnswerRow: View {
     private var actions: some View {
         HStack(spacing: 10) {
             Button { copy() } label: { Label(L.QA.copy, systemImage: "doc.on.doc") }
-            if session.isMulti {
+            // Only what Save to Notes accepts (a finished or stopped answer): a failed or timed-out
+            // answer's partial text has Copy and the ⋯ menu, not a button that always fails.
+            if !message.canSaveToNotes {
+                EmptyView()
+            } else if session.isMulti {
                 Menu {
                     Button(L.QA.allPapers(session.paperIDs.count)) { session.saveToNotes(messageID: message.id) }
                     Divider()

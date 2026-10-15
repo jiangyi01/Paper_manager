@@ -26,7 +26,7 @@ struct AskNoticeView: View {
                         }
                     }
                     Spacer(minLength: 0)
-                    Button { session.notice = nil } label: { Image(systemName: "xmark") }
+                    Button { session.dismissNotice() } label: { Image(systemName: "xmark") }
                         .buttonStyle(.borderless)
                         .help(L.QA.dismiss)
                         .accessibilityLabel(L.QA.dismiss)
@@ -45,7 +45,7 @@ struct AskNoticeView: View {
             Spacer()
             switch notice {
             case .confirm:
-                Button(L.cancel) { session.notice = nil }
+                Button(L.cancel) { session.dismissNotice() }
                 Button(L.QA.confirmSend) { perform(.confirmPrivacy) }.buttonStyle(.borderedProminent)
             case .softCap:
                 Button(L.QA.continueAnyway) { perform(.continuePastCap) }.buttonStyle(.borderedProminent)

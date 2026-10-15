@@ -215,6 +215,11 @@ final class ExplainHistoryWindowController {
         Task { await model.load() }
     }
 
+    /// A language switch: the panel's title (its content is SwiftUI and follows by itself).
+    static func relocalizeTitle() {
+        panel?.title = L.Explain.historyTitle
+    }
+
     private static func makePanel() -> NSPanel {
         let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 520, height: 640),
                         styleMask: [.titled, .closable, .resizable, .nonactivatingPanel, .utilityWindow],

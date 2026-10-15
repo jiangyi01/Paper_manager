@@ -32,6 +32,12 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
     var isVisible: Bool { window?.isVisible == true }
 
+    /// A language switch (its own 中文 / English button, Settings): the window's title, as the
+    /// Window menu lists it.
+    func relocalizeTitle() {
+        window?.title = model?.mode == .revisit ? L.Onb.revisitTitle : L.Onb.windowTitle
+    }
+
     // MARK: Preflight
 
     /// Shows the preflight and waits for its commit (the keys are written; the engine opens next)

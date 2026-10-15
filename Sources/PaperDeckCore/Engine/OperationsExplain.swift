@@ -5,6 +5,16 @@ package enum ExplainOperationError: Error, Equatable, Sendable {
     case explanationNotFound(String)
     /// The explanation belongs to no paper yet (pick one first).
     case notMatched(String)
+
+    /// The toast's text (never the case's raw name or an id).
+    package func message(_ lang: UILang) -> String {
+        let zh = lang == .zh
+        switch self {
+        case .explanationNotFound: return zh ? "这条解释已不存在" : "This explanation no longer exists"
+        case .notMatched:
+            return zh ? "这条解释还没有归到某篇论文，请先选择论文" : "This explanation isn't filed under a paper yet — choose the paper first"
+        }
+    }
 }
 
 // Explain's engine operations (READING_ASSIST_PLAN §4 `ExplainOps`). Owned by Slice A. History

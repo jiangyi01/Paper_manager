@@ -19,6 +19,11 @@ final class HelpWindowController: NSObject, NSWindowDelegate {
 
     var isVisible: Bool { window?.isVisible == true }
 
+    /// A language switch: the window's title (its content is SwiftUI and follows by itself).
+    func relocalizeTitle() {
+        window?.title = L.Help.windowTitle
+    }
+
     /// nil: Getting Started.
     func show(topic: GuideTopicID?) {
         model.open(topic)

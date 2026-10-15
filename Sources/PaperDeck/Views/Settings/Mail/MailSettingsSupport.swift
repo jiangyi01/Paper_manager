@@ -21,30 +21,15 @@ enum MailSecrets {
 /// server as the same user. A changed host, port or username (the address) needs the password
 /// typed again, so the stored secret never goes to another host — a mistyped or pasted server name
 /// only needs a valid certificate for its own name to receive it. The keychain item is keyed by
-/// the account id alone, so this check is the only thing binding it to its server.
+/// the account id alone, so this check is the only thing binding it to its server. The rule itself
+/// is the engine's (`MailAccount.mayReuseSavedPassword`), shared with a settings import
+/// (`SettingsImporter.mergeAccounts`).
 enum MailAccountEditRules {
-    /// Where (and as whom) an IMAP account signs in, normalised the way the form saves it:
-    /// trimmed, case-insensitive host (an empty host means the preset's) and username, default port.
-    struct ServerIdentity: Equatable {
-        var host: String
-        var port: Int
-        var username: String
-    }
-
-    static func identity(_ a: MailAccount) -> ServerIdentity {
-        func clean(_ s: String?) -> String { (s ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-        var host = clean(a.host)
-        if host.isEmpty { host = clean(a.imapPreset?.host) }
-        while host.hasSuffix(".") { host.removeLast() }          // `imap.gmail.com.` is the same host
-        return ServerIdentity(host: host, port: a.port ?? a.imapPreset?.port ?? 993, username: clean(a.username))
-    }
-
     /// Whether 「测试并保存」 may sign in to `edited` with the password saved for `original` (the
     /// account as it was saved). False for a new account, a different account or another kind,
     /// and whenever the host, port or username changed.
     static func mayReuseSavedPassword(original: MailAccount?, edited: MailAccount) -> Bool {
-        guard let original, original.id == edited.id, original.kind == .imap, edited.kind == .imap else { return false }
-        return identity(original) == identity(edited)
+        MailAccount.mayReuseSavedPassword(original: original, edited: edited)
     }
 }
 

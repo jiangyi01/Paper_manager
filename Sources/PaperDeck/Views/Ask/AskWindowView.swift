@@ -9,8 +9,9 @@ import PaperDeckCore
 struct AskWindowView: View {
     let state: AppState
     let session: AskSession
-    /// How many papers were selected (more than the cap: a note says which were kept).
-    let selectedCount: Int
+    /// The selection was larger than the cap when the window opened: how many papers it kept of how
+    /// many (nil: not capped). The note says so while the list is still that selection's.
+    let capped: (kept: Int, selected: Int)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -22,7 +23,7 @@ struct AskWindowView: View {
             }
             .frame(minWidth: 420)
         }
-        .task(id: session.key) { await session.load() }
+        .task { await session.load() }                  // a paper removed reloads in `setPapers`
     }
 
     private var rows: [PaperRow] { session.paperIDs.compactMap { state.snapshot?.row(id: $0) } }
@@ -38,8 +39,10 @@ struct AskWindowView: View {
                     }
                 }
             }
-            if selectedCount > session.paperIDs.count {
-                Text(L.QA.capNote(session.paperIDs.count, selectedCount))
+            // Only the cap's own note: after "Remove from This Question" the list is no longer the
+            // capped selection (the old comparison blamed the cap for the user's removal).
+            if let capped, session.paperIDs.count == capped.kept {
+                Text(L.QA.capNote(capped.kept, capped.selected))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

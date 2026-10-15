@@ -16,7 +16,9 @@ package struct PaperRow: Sendable, Equatable, Identifiable {
     package var atRisk: Bool
     package var finish: LocalDate?                 // simulated finish day (at-risk tooltip)
     package var minutesToday: Int?                 // today's share when the paper is in today's set
-    package var thumbnailURL: URL?                 // caches/thumbs/<id>@2x.jpg when present
+    /// caches/thumbs/<id>@2x.jpg when present, versioned by the file (`ThumbnailStore.versioned`):
+    /// a replaced PDF's new thumbnail (same path) is a new URL, so the card loads it again.
+    package var thumbnailURL: URL?
     package var pdfURL: URL
 
     package var id: String { paper.id }
@@ -92,7 +94,7 @@ extension Engine {
         let today = TodaySet.compute(items, scheduler: scheduler)
 
         let thumbs = ctx.thumbs
-        let thumbIDs = await BlockingIO.run { LibrarySnapshotRead.cardThumbnailIDs(in: thumbs.cardDirectory) }
+        let thumbVersions = await BlockingIO.run { LibrarySnapshotRead.cardThumbnailVersions(in: thumbs.cardDirectory) }
         let categoriesByPK = Dictionary(read.categories.map { ($0.pk, $0) }, uniquingKeysWith: { a, _ in a })
 
         func row(_ p: Paper, live: Bool) -> PaperRow {
@@ -106,7 +108,7 @@ extension Engine {
                 atRisk: live && today.atRisk.contains(p.id),
                 finish: live ? today.finish[p.id] : nil,
                 minutesToday: live ? today.minutesToday[p.id] : nil,
-                thumbnailURL: thumbIDs.contains(p.id) ? thumbs.cardURL(for: p.id) : nil,
+                thumbnailURL: thumbVersions[p.id].map { ThumbnailStore.versioned(thumbs.cardURL(for: p.id), version: $0) },
                 pdfURL: ctx.pdfURL(p))
         }
 
@@ -144,9 +146,19 @@ struct LibrarySnapshotRead: Sendable {
         return Set(list)
     }
 
-    /// Ids that have `<id>@2x.jpg` in the card-thumbnail cache (one directory listing).
-    static func cardThumbnailIDs(in dir: URL) -> Set<String> {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
-        return Set(names.compactMap { $0.hasSuffix("@2x.jpg") ? String($0.dropLast("@2x.jpg".count)) : nil })
+    /// Ids that have `<id>@2x.jpg` in the card-thumbnail cache → that file's version (its
+    /// modification time and size, `ThumbnailStore.version`): one directory listing.
+    static func cardThumbnailVersions(in dir: URL) -> [String: String] {
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey]
+        let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys)) ?? []
+        var out: [String: String] = [:]
+        for file in files {
+            let name = file.lastPathComponent
+            guard name.hasSuffix("@2x.jpg") else { continue }
+            let values = try? file.resourceValues(forKeys: Set(keys))
+            out[String(name.dropLast("@2x.jpg".count))] = ThumbnailStore.version(modified: values?.contentModificationDate,
+                                                                                  size: values?.fileSize)
+        }
+        return out
     }
 }

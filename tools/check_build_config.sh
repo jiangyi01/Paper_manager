@@ -173,10 +173,12 @@ if [ "$STAGING" = 1 ]; then
   PL="$ST/Contents/Info.plist"
   stamp() { plutil -extract "$1" raw -o - "$2" 2>/dev/null; }
   if [ "$(stamp PDHostBundleIdentifier "$PL")" = "$B" ] && [ "$(stamp PDKeychainService "$PL")" = "$K" ] \
+     && [ "$(stamp PDWidgetBundleIdentifier "$PL")" = "$WID" ] \
      && [ "$(stamp PDBuildChannel "$PL")" = local ] && [ -n "$(stamp PDSigningIdentity "$PL")" ] \
      && [ "$(stamp PDHostBundleIdentifier "$ST/Contents/PlugIns/PaperDeckWidget.appex/Contents/Info.plist")" = "$B" ] \
+     && [ "$(stamp PDWidgetBundleIdentifier "$ST/Contents/PlugIns/PaperDeckWidget.appex/Contents/Info.plist")" = "$WID" ] \
      && [ "$(stamp CFBundleIdentifier "$ST/Contents/PlugIns/PaperDeckWidget.appex/Contents/Info.plist")" = "$WID" ]; then
-    ok "PD* stamps: host $B, keychain $K, channel local, signing $(stamp PDSigningIdentity "$PL")"
+    ok "PD* stamps: host $B, widget $WID, keychain $K, channel local, signing $(stamp PDSigningIdentity "$PL")"
   else
     bad "PD* stamps" "$(plutil -p "$PL" | grep PD)"
   fi

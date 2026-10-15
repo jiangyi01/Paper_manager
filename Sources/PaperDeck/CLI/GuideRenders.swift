@@ -135,7 +135,8 @@ enum GuideRenders {
         values[MailSettings.Keys.triageDailyMax] = 200
         let home = FileManager.default.temporaryDirectory
         let bundle = SettingsExporter.export(PersistedDomain(values), sections: Set(SettingsSection.allCases),
-                                             includePersonal: false, home: home, roots: [], app: "PaperDeck 1.0 (27)",
+                                             includePersonal: false, includeAddresses: false, home: home, roots: [],
+                                             app: "PaperDeck 1.0 (27)",
                                              now: Date(timeIntervalSince1970: 1_790_000_000))
         try await PreviewRenderer.captureView(SettingsImportSheet(settings: settings, fileURL: nil, preloaded: (bundle, []),
                                                                   onClose: { _ in }),

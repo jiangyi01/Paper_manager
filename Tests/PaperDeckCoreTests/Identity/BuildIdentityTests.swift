@@ -29,6 +29,7 @@ struct BuildIdentityTests {
         // What `./build_app.sh` stamps with no configuration (`--print-config` shows the same).
         let stamped: [String: Any] = [
             "PDHostBundleIdentifier": Self.legacyBundle,
+            "PDWidgetBundleIdentifier": Self.legacyBundle + ".widget",
             "PDKeychainService": Self.legacyBundle + ".mail",
             "PDSigningIdentity": BuildIdentity.defaultSigningIdentityName,
             "PDBuildChannel": "local",
@@ -78,6 +79,37 @@ struct BuildIdentityTests {
         #expect(BuildIdentity.resolve(info: ["PDHostBundleIdentifier": 42], mainBundleID: nil).bundleID == Self.legacyBundle)
         #expect(BuildIdentity.resolve(info: nil, mainBundleID: "single").bundleID == Self.legacyBundle)
         #expect(BuildIdentity.resolve(info: nil, mainBundleID: ".widget").bundleID == Self.legacyBundle)
+    }
+
+    /// portability-cli-8: a custom `PAPERDECK_WIDGET_ID` (`PDWidgetBundleIdentifier`) is the widget
+    /// id Settings ▸ Widget, Help and `--doctor` query; the default stays `<bundle id>.widget`.
+    @Test func aStampedWidgetIDUnderTheBundleIDIsUsed() {
+        let info: [String: Any] = ["PDHostBundleIdentifier": "org.example.paperdeck",
+                                   "PDWidgetBundleIdentifier": "org.example.paperdeck.desk"]
+        let id = BuildIdentity.resolve(info: info, mainBundleID: "org.example.paperdeck")
+        #expect(id.widgetBundleID == "org.example.paperdeck.desk")
+        #expect(id.bundleID == "org.example.paperdeck" && id.keychainService == "org.example.paperdeck.mail")
+        // The widget extension itself (its own id is the custom one) resolves the same identity.
+        #expect(BuildIdentity.resolve(info: info, mainBundleID: "org.example.paperdeck.desk") == id)
+        // Deeper labels are fine too (build_app.sh accepts any reverse-DNS id under '<bundle id>.').
+        let deep = BuildIdentity.resolve(info: ["PDHostBundleIdentifier": "org.example.paperdeck",
+                                                "PDWidgetBundleIdentifier": "org.example.paperdeck.widgets.desk"], mainBundleID: nil)
+        #expect(deep.widgetBundleID == "org.example.paperdeck.widgets.desk")
+        // The script's defaults stamp `<bundle id>.widget`: identical to the unstamped identity.
+        let defaults: [String: Any] = ["PDHostBundleIdentifier": Self.legacyBundle,
+                                       "PDWidgetBundleIdentifier": Self.legacyBundle + ".widget"]
+        #expect(BuildIdentity.resolve(info: defaults, mainBundleID: Self.legacyBundle) == BuildIdentity.resolve(info: nil, mainBundleID: nil))
+    }
+
+    @Test func aWidgetIDOutsideTheBundleIDIsIgnored() {
+        for bad in ["org.other.widget", "org.example.paperdeck", "org.example.paperdeck.", "org.example.paperdecks.widget",
+                    "org.example.paperdeck..x", "org.example.paperdeck.de sk", "  ", ""] {
+            let info: [String: Any] = ["PDHostBundleIdentifier": "org.example.paperdeck", "PDWidgetBundleIdentifier": bad]
+            #expect(BuildIdentity.resolve(info: info, mainBundleID: nil).widgetBundleID == "org.example.paperdeck.widget", "\(bad)")
+        }
+        #expect(BuildIdentity.resolve(info: ["PDWidgetBundleIdentifier": 7], mainBundleID: nil).widgetBundleID == Self.legacyBundle + ".widget")
+        #expect(BuildIdentity.isValidWidgetID("org.example.paperdeck.desk", bundleID: "org.example.paperdeck"))
+        #expect(!BuildIdentity.isValidWidgetID("org.example.paperdeck", bundleID: "org.example.paperdeck"))
     }
 
     @Test func bundleIDValidationMatchesTheBuildScript() {

@@ -4,8 +4,8 @@ import PaperDeckCore
 
 /// Right-click menu content for a card / Today row (§8 右键菜单). Use as
 /// `.contextMenu { PaperContextMenu(state: state, row: row) }`.
-/// The shortcuts shown here are display hints inside the menu; the window-level
-/// commands for the selected paper are the shell's. On a card that is part of a
+/// The shortcuts shown here also work with the menu closed: the menu bar's Paper menu
+/// (`PaperMenu`) runs the same actions on the selected papers. On a card that is part of a
 /// multi-selection the menu acts on the whole selection (`BatchContextMenu`); on any other
 /// card on that card alone, like Finder.
 struct PaperContextMenu: View {
