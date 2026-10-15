@@ -425,7 +425,8 @@ IntakeActor（串行；绝不 await 网络；保证约 1 s 出卡片并在 drop 
 [接收] file URL | promise → Caches/incoming/<uuid>/ | .pdf data → incoming/<uuid>/Dropped.pdf(toast: 可能只含所选页)
        | http(s) → URLImporter（仅接受 *.pdf 直链，以及 arXiv abs|html → /pdf/<id> 改写；其他链接 toast「无法下载 PDF [在浏览器打开]」）
        文件夹递归找 *.pdf（跳过隐藏项和包，上限 500）；同文件夹另有主 PDF 时，文件名匹配
-       (?i)(^|[_\-\s.])(supp|suppl|supplement(ary)?|SI|extended[_\s-]?data)([_\-\s.]|$) 的跳过，并在 toast 中列出
+       (?i)(^|[_\-\s.])(supp|suppl|supplement(ary)?|extended[_\s-]?data)([_\-\s.]|$) 或（区分大小写，只认大写）
+       (^|[_\-\s.])SI([_\-\s.]|$) 的跳过，并在 toast 中列出（「Si」「si」是姓氏或硅，不算补充材料）
 [摄取] NSFileCoordinator().coordinate(with:[.readingIntent(with:src,.withoutChanges)], queue: ingestQueue(maxConcurrent=2))；
        120 s 定时器调用 cancel()。ubiquitous 项显示「从 OneDrive 下载中」行，不阻塞本地项。accessor 内（用 intent.url）：
        首 1 KB 含 %PDF- → SHA-256(1 MB 块) → sha 查重 → copyItem → .partial/<uuid>.pdf(APFS clone) → chmod u+w

@@ -220,7 +220,6 @@ public enum SharedStrings {
     /// Weekday math must use the Gregorian calendar even when the user's system
     /// calendar is e.g. Buddhist; only the time zone is taken from `calendar`.
     static func gregorian(like calendar: Calendar) -> Calendar {
-        if calendar.identifier == .gregorian { return calendar }
-        return LocalDate.gregorian(calendar.timeZone)
+        LocalDate.gregorian(like: calendar)
     }
 }

@@ -25,9 +25,11 @@ public struct LocalDate: Hashable, Comparable, Sendable, Codable, CustomStringCo
         self.init(year: y, month: m, day: d)
     }
 
-    /// The local day containing `date`.
+    /// The local day containing `date`, in `calendar`'s time zone. The numbers are always
+    /// Gregorian: a Buddhist, Hebrew, Japanese, Islamic or ROC system calendar only lends its
+    /// time zone (otherwise "today" would be 2569-…, 5787-… and match no stored day).
     public init(_ date: Date, calendar: Calendar = .current) {
-        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        let c = LocalDate.gregorian(like: calendar).dateComponents([.year, .month, .day], from: date)
         self.init(year: c.year!, month: c.month!, day: c.day!)
     }
 
@@ -49,13 +51,14 @@ public struct LocalDate: Hashable, Comparable, Sendable, Codable, CustomStringCo
         var comps = DateComponents()
         comps.year = year; comps.month = month; comps.day = day
         comps.hour = hour; comps.minute = minute
-        return calendar.date(from: comps)!
+        return LocalDate.gregorian(like: calendar).date(from: comps)!
     }
 
     /// Calendar-day arithmetic (never 86400-second steps).
     public func adding(days: Int, calendar: Calendar = .current) -> LocalDate {
-        let noon = date(hour: 12, minute: 0, calendar: calendar)
-        return LocalDate(calendar.date(byAdding: .day, value: days, to: noon)!, calendar: calendar)
+        let cal = LocalDate.gregorian(like: calendar)
+        let noon = date(hour: 12, minute: 0, calendar: cal)
+        return LocalDate(cal.date(byAdding: .day, value: days, to: noon)!, calendar: cal)
     }
 
     /// Whole days from `other` to self (positive when self is later).
@@ -68,7 +71,15 @@ public struct LocalDate: Hashable, Comparable, Sendable, Codable, CustomStringCo
 
     /// 1 = Sunday … 7 = Saturday (Foundation convention).
     public func weekday(calendar: Calendar = .current) -> Int {
-        calendar.component(.weekday, from: date(hour: 12, minute: 0, calendar: calendar))
+        let cal = LocalDate.gregorian(like: calendar)
+        return cal.component(.weekday, from: date(hour: 12, minute: 0, calendar: cal))
+    }
+
+    /// The first day of the week containing this day. Weeks start on `calendar.firstWeekday` (the
+    /// user's setting); the days themselves are counted on the Gregorian calendar.
+    public func startOfWeek(calendar: Calendar = .current) -> LocalDate {
+        let offset = (weekday(calendar: calendar) - calendar.firstWeekday + 7) % 7
+        return adding(days: -offset, calendar: calendar)
     }
 
     public static func < (lhs: LocalDate, rhs: LocalDate) -> Bool {
@@ -95,4 +106,16 @@ public struct LocalDate: Hashable, Comparable, Sendable, Codable, CustomStringCo
         cal.timeZone = tz
         return cal
     }
+
+    /// `calendar` itself when it is Gregorian, else a Gregorian calendar in its time zone. Every
+    /// LocalDate number goes through this, so a non-Gregorian system calendar can never produce
+    /// (or misread) a day: only its time zone is used.
+    public static func gregorian(like calendar: Calendar) -> Calendar {
+        if calendar.identifier == .gregorian { return calendar }
+        return gregorian(calendar.timeZone)
+    }
+
+    /// The engine's and the app's calendar: Gregorian, in the Mac's current time zone (it follows
+    /// a time-zone change, e.g. travel), whatever calendar the system is set to.
+    public static var localGregorian: Calendar { gregorian(.autoupdatingCurrent) }
 }

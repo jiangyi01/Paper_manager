@@ -26,6 +26,9 @@ package final class Engine: Sendable {
     package let qa: QAService
     /// Papers opened from PaperDeck recently (Explain's paper locator).
     package let recentOpens = RecentOpens()
+    /// When each paper was last opened from PaperDeck, kept across launches (kv `paper.lastOpened`):
+    /// Select ▾ ▸ Recently Opened ranks by it.
+    package let lastOpened = LastOpenedTimes()
     /// The reader the assist prompts are written for (the card profile's `reader`, re-read per request).
     package let loadAssistReader: @Sendable () -> String
     /// Real CLI spawns allowed — `claude -p` and `codex exec` together (CLI `--max-runs N` →
@@ -41,7 +44,8 @@ package final class Engine: Sendable {
     package struct Dependencies: Sendable {
         package var loadSettings: @Sendable () -> EngineSettings
         package var now: @Sendable () -> Date
-        /// `Calendar.autoupdatingCurrent` by default: follows time-zone changes (travel).
+        /// Gregorian in the autoupdating time zone by default (`LocalDate.localGregorian`): follows
+        /// time-zone changes (travel), never the system's Buddhist / Hebrew / … calendar.
         package var calendar: Calendar
         package var fetcher: (any HTTPFetching)?          // nil → metadata lookup disabled
         package var claude: (any AgentProvider)?          // nil → a ClaudeCodeProvider is built
@@ -68,7 +72,7 @@ package final class Engine: Sendable {
         package var assistBackends: [any AssistBackend]?
 
         package init(loadSettings: @escaping @Sendable () -> EngineSettings = { EngineSettings.load() },
-                     now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .autoupdatingCurrent,
+                     now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = LocalDate.localGregorian,
                      fetcher: (any HTTPFetching)? = URLSessionHTTPFetcher(), claude: (any AgentProvider)? = nil,
                      codex: (any AgentProvider)? = nil,
                      mock: any AgentProvider = MockAgentProvider(), sidecarDelay: Duration = .seconds(1),
@@ -219,15 +223,12 @@ package final class Engine: Sendable {
         // One housekeeping path for launch and the sync loop (daily retention, snooze wake-up).
         await mail.setHousekeeping(MailSyncActor.Housekeeping(
             dailyRetention: { [weak engine] in
-                guard let engine else { return }
-                // The assist's daily pass (explanations past their history days, earlier days'
-                // counters) never keeps the mail retention from running.
-                do { _ = try await engine.maintenance.assistRetention() } catch {
-                    Log.storage.error("assist retention failed: \(String(describing: type(of: error)), privacy: .public)")
-                }
-                _ = try await engine.maintenance.mailRetention()
+                // Today's backup, the 30-day purge, assist and mail retention (each on its own):
+                // PaperDeck usually stays open for weeks, so launch alone is not "daily".
+                try await engine?.maintenance.dailyHousekeeping()
             },
             unsnooze: { [weak engine] in _ = try await engine?.unsnoozeDue() }))
+        await engine.restoreLastOpened()            // Select ▾ ▸ Recently Opened after a relaunch
         return engine
     }
 

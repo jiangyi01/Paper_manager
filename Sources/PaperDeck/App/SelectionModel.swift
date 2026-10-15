@@ -125,14 +125,16 @@ final class SelectionModel {
     /// Select ▾ ▸ N most recently added / oldest unread / recently opened (nil: every match).
     func select(_ kind: SelectN.Kind, n: Int?) {
         guard supportsMulti, let state else { return }
-        let picked = SelectN.pick(kind, n: n, from: state.visibleRows.map(\.paper), recentOpens: recentOpens)
+        let picked = SelectN.pick(kind, n: n, from: state.visibleRows.map(\.paper), recentOpens: recentOpens,
+                                  lastOpened: state.engine.lastOpened.snapshot())
         commit(SelectionLogic.select(picked, order: order, current))
     }
 
     /// How many papers Select ▾ ▸ `kind` can pick in this view (0: disabled).
     func available(_ kind: SelectN.Kind) -> Int {
         guard let state else { return 0 }
-        return SelectN.available(kind, from: state.visibleRows.map(\.paper), recentOpens: recentOpens)
+        return SelectN.available(kind, from: state.visibleRows.map(\.paper), recentOpens: recentOpens,
+                                 lastOpened: state.engine.lastOpened.snapshot())
     }
 
     /// Edit ▸ Select ▸ Deselect All, Esc in the grid, a click on empty space, the bar's ✕: nothing

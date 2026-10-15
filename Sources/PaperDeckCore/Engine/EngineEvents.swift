@@ -93,6 +93,10 @@ package struct Toast: Sendable, Equatable, Identifiable {
         case undoMailLink(token: String)
         /// Opens the duplicate decision sheet of a review (dedupe, Slice B).
         case openDuplicateReview(id: String)
+        /// A review toast's quick answer ([Keep New] / [Skip]): applied through the review
+        /// (`Engine.resolveDuplicate`) like the decision sheet's [Apply], so the parked file is kept
+        /// for Undo and the result toast offers Undo for 30 s.
+        case resolveDuplicate(reviewID: String, choice: DupChoice)
     }
     package struct Button: Sendable, Equatable {
         package var title: String

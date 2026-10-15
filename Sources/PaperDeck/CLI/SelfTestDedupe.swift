@@ -43,12 +43,14 @@ enum SelfTestDedupe {
         }
         let newer = review(.newerVersion)
         check("toast: a newer version offers Keep New",
-              actions(newer) == [.openDuplicateReview(id: newer.id), .replaceKeepingChecklist(pendingID: "p")])
+              actions(newer) == [.openDuplicateReview(id: newer.id),
+                                 .resolveDuplicate(reviewID: newer.id, choice: .keepNew(reread: false))])
         let supplement = review(.supplement)
         check("toast: a supplement is never offered as a replacement",
-              actions(supplement) == [.openDuplicateReview(id: supplement.id), .ignorePending(pendingID: "p")])
+              actions(supplement) == [.openDuplicateReview(id: supplement.id),
+                                      .resolveDuplicate(reviewID: supplement.id, choice: .skip)])
         let copy = review(.sameVersion)
-        check("toast: the same version offers Skip", actions(copy).last == .ignorePending(pendingID: "p"))
+        check("toast: the same version offers Skip", actions(copy).last == .resolveDuplicate(reviewID: copy.id, choice: .skip))
         check("toast: a paper in Recently Deleted gets the sheet only",
               actions(newer, live: false) == [.openDuplicateReview(id: newer.id)])
         let reviewToast = DupExplainer.reviewToast(newer, newTitle: "N", existingTitle: "E", existingIsLive: true, lang: lang)

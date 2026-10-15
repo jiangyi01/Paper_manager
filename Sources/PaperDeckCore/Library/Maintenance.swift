@@ -277,12 +277,14 @@ package struct Maintenance: Sendable {
         return report
     }
 
-    /// `<prefix>.<yyyy-mm-dd>[.<provider>]` with a day before `today` (a malformed key is kept).
+    /// `<prefix>.<yyyy-mm-dd>[.<provider>]` with a day before `today` (a malformed key is kept) —
+    /// or after tomorrow: a day no clock reaches, written under a non-Gregorian system calendar
+    /// (`assist.count.2569-…`), which would otherwise stay forever.
     package static func isEarlierCounterDay(_ key: String, prefix: String, today: LocalDate) -> Bool {
         guard key.hasPrefix(prefix + ".") else { return false }
         let day = key.dropFirst(prefix.count + 1).prefix(10)
         guard day.count == 10, let parsed = LocalDate(iso: String(day)) else { return false }
-        return parsed < today
+        return parsed < today || parsed > today.adding(days: 1, calendar: LocalDate.gregorian(.gmt))
     }
 
     @discardableResult
@@ -405,6 +407,28 @@ package struct Maintenance: Sendable {
         }
     }
 
+    // MARK: Daily
+
+    /// The once-a-day housekeeping of a PaperDeck that stays open for weeks (the mail loop's
+    /// `dailyRetention`, every local day after launch; `onLaunch` runs the same steps): today's
+    /// backup (idempotent per day), the 30-day 最近删除 purge, the assist's retention, then mail
+    /// retention. Each step has its own do/catch, so one failure never keeps the next from running;
+    /// a mail retention failure is rethrown for the loop's log.
+    package func dailyHousekeeping() async throws {
+        do { _ = try await dailyBackup() } catch {
+            Log.storage.error("daily backup failed: \(String(describing: type(of: error)), privacy: .public)")
+        }
+        do { _ = try await engine.purgeExpired(trash: trash) } catch {
+            Log.storage.error("daily purge failed: \(String(describing: type(of: error)), privacy: .public)")
+        }
+        // The assist's daily pass (explanations past their history days, earlier days' counters)
+        // never keeps the mail retention from running.
+        do { _ = try await assistRetention() } catch {
+            Log.storage.error("assist retention failed: \(String(describing: type(of: error)), privacy: .public)")
+        }
+        _ = try await mailRetention()
+    }
+
     // MARK: Temporary files
 
     /// `.partial` files older than this launch (a pending "same work" choice doesn't survive
@@ -460,16 +484,40 @@ package struct Maintenance: Sendable {
 
     private func pruneBackups() async -> [String] {
         let dir = engine.paths.backups
+        let calendar = engine.ctx.calendar
+        let today = LocalDate(engine.ctx.now(), calendar: calendar)
         return await BlockingIO.run {
-            let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [])
+            let fm = FileManager.default
+            let entries = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? [])
                 .filter { $0.hasPrefix(Maintenance.backupPrefix) && $0.hasSuffix(".sqlite") }
-                .sorted(by: >)                                     // ISO dates: newest first
+                .map { name in
+                    (name: name, modified: (try? fm.attributesOfItem(atPath: dir.appendingPathComponent(name).path))?[.modificationDate] as? Date)
+                }
             var removed: [String] = []
-            for name in names.dropFirst(Maintenance.backupsKept) {
-                if (try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))) != nil { removed.append(name) }
+            for name in Maintenance.backupsToPrune(entries, today: today, calendar: calendar) {
+                if (try? fm.removeItem(at: dir.appendingPathComponent(name))) != nil { removed.append(name) }
             }
             return removed
         }
+    }
+
+    /// The backups past the newest `keep`, newest first by the day each was taken. That is the
+    /// day in its name (`library-YYYY-MM-DD…`) when the name is a plausible Gregorian day (from
+    /// 2000 up to tomorrow); names written under a non-Gregorian system calendar (library-2569-…,
+    /// 5787-…, 1448-…, 0008-…) say nothing about their age, so their modification day counts.
+    /// Ties (a day's daily backup and its 立即备份 snapshots) keep the name order.
+    package static func backupsToPrune(_ entries: [(name: String, modified: Date?)], today: LocalDate,
+                                       calendar: Calendar, keep: Int = backupsKept) -> [String] {
+        let latest = today.adding(days: 1, calendar: calendar)
+        func day(_ e: (name: String, modified: Date?)) -> LocalDate {
+            let iso = String(e.name.dropFirst(backupPrefix.count).prefix(10))
+            if let named = LocalDate(iso: iso), named.year >= 2000, named <= latest { return named }
+            if let m = e.modified { return LocalDate(m, calendar: calendar) }
+            return LocalDate(year: 1970, month: 1, day: 1)
+        }
+        let ordered = entries.map { (day: day($0), name: $0.name) }
+            .sorted { ($0.day, $0.name) > ($1.day, $1.name) }       // newest first
+        return ordered.dropFirst(max(0, keep)).map(\.name)
     }
 
     private func hasSidecars() async -> Bool {

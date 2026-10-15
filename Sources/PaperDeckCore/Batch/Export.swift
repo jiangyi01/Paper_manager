@@ -52,14 +52,24 @@ package enum BatchExport {
         }
     }
 
-    package static func text(_ entries: [Entry], format: Format) -> String {
+    /// `calendar` gives the CSV `added` column its local day (the engine's calendar in the App).
+    package static func text(_ entries: [Entry], format: Format, calendar: Calendar = LocalDate.localGregorian) -> String {
         switch format {
         case .bibtex: return bibtex(entries)
         case .ris: return ris(entries)
-        case .csv: return csv(entries)
+        case .csv: return csv(entries, calendar: calendar)
         case .markdown: return markdown(entries)
         }
     }
+
+    /// The bytes of a saved export file. A CSV file starts with a UTF-8 byte order mark, so a
+    /// spreadsheet opened by double-click (Excel) reads Chinese or accented cells as UTF-8 instead
+    /// of the legacy code page. The clipboard copy and the BibTeX, RIS and Markdown files get none.
+    package static func fileData(_ text: String, format: Format) -> Data {
+        format == .csv ? Data(utf8BOM + text.utf8) : Data(text.utf8)
+    }
+
+    package static let utf8BOM: [UInt8] = [0xEF, 0xBB, 0xBF]
 
     // MARK: BibTeX
 
@@ -85,9 +95,10 @@ package enum BatchExport {
             if let y = e.year { fields.append(("year", String(y))) }
             let isArticle = e.venue.map { !oneLine($0).isEmpty } ?? false
             if let v = e.venue, isArticle { fields.append(("journal", latex(oneLine(v)))) }
-            if let doi = e.doi { fields.append(("doi", latex(oneLine(doi)))) }
+            // biblatex reads doi and eprint verbatim, like url: "…24574-4_28" must not become "…4\_28".
+            if let doi = e.doi { fields.append(("doi", latexURL(oneLine(doi)))) }
             if let arxiv = e.arxivID {
-                fields.append(("eprint", latex(oneLine(arxiv))))
+                fields.append(("eprint", latexURL(oneLine(arxiv))))
                 fields.append(("archiveprefix", "arXiv"))
             }
             if let url = url(e) { fields.append(("url", latexURL(url))) }
@@ -160,7 +171,8 @@ package enum BatchExport {
         return out
     }
 
-    /// URLs keep their characters (biblatex reads `url` verbatim); only braces are unsafe there.
+    /// URLs, DOIs and eprint ids keep their characters (biblatex reads `url`, `doi` and `eprint`
+    /// verbatim); only braces are unsafe there.
     private static func latexURL(_ s: String) -> String {
         s.replacingOccurrences(of: "{", with: "%7B").replacingOccurrences(of: "}", with: "%7D")
     }
@@ -211,17 +223,16 @@ package enum BatchExport {
                                     "deadline", "category", "tags", "added"]
 
     /// RFC 4180 (CRLF, quotes doubled). A cell that a spreadsheet would run as a formula (`=` `+` `-`
-    /// `@` first) gets a leading apostrophe.
-    package static func csv(_ entries: [Entry]) -> String {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withFullDate]
+    /// `@` first) gets a leading apostrophe. `added` is the local day in `calendar`'s time zone, the
+    /// same kind of day as `deadline` (not UTC, which is a day off near midnight).
+    package static func csv(_ entries: [Entry], calendar: Calendar = LocalDate.localGregorian) -> String {
         var rows = [csvHeader]
         for e in entries {
             rows.append([
                 oneLine(e.title), e.authors.map(oneLine).joined(separator: "; "), e.year.map(String.init) ?? "",
                 e.venue.map(oneLine) ?? "", e.doi ?? "", e.arxivID ?? "", e.status.rawValue, priorityName(e.priority),
                 e.deadline?.iso ?? "", e.category.map(oneLine) ?? "", e.tags.joined(separator: "; "),
-                iso.string(from: e.addedAt),
+                LocalDate(e.addedAt, calendar: calendar).iso,
             ])
         }
         return rows.map { $0.map(csvCell).joined(separator: ",") }.joined(separator: "\r\n") + "\r\n"

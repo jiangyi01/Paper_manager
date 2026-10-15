@@ -12,14 +12,16 @@ package struct EngineContext: Sendable {
     /// Fresh settings snapshot (UserDefaults; skipDays are merged from the DB by `settings()`).
     package let loadSettings: @Sendable () -> EngineSettings
     package let now: @Sendable () -> Date
-    /// `Calendar.autoupdatingCurrent` in the app, so a time-zone change (travel) moves "today".
+    /// Gregorian in the Mac's autoupdating time zone in the app (`LocalDate.localGregorian`), so a
+    /// time-zone change (travel) moves "today" and a Buddhist / Hebrew / … system calendar never
+    /// turns day numbers into 2569-… or 5787-….
     package let calendar: Calendar
     /// Removals that wait out an undo window (shared by the intake and the duplicate decisions).
     package let undoCleanups = UndoCleanups()
 
     package init(paths: AppPaths, db: Database, sidecars: SidecarWriter, texts: TextStore, thumbs: ThumbnailStore,
                  events: EventHub<EngineEvent>, loadSettings: @escaping @Sendable () -> EngineSettings,
-                 now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = .autoupdatingCurrent) {
+                 now: @escaping @Sendable () -> Date = Date.init, calendar: Calendar = LocalDate.localGregorian) {
         self.paths = paths; self.db = db; self.sidecars = sidecars; self.texts = texts; self.thumbs = thumbs
         self.events = events; self.loadSettings = loadSettings; self.now = now; self.calendar = calendar
     }

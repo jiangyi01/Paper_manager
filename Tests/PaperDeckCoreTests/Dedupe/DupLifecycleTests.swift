@@ -206,8 +206,9 @@ import Testing
             let classic = try #require(env.events.toasts.first { DupExplainer.classicSameWorkPendingID($0) != nil })
             let worded = try #require(await env.engine.duplicateToast(replacing: classic))
             #expect(worded.id == "dup-" + review.id)
+            #expect(review.pendingID != nil)
             #expect(worded.buttons.map(\.action) == [.openDuplicateReview(id: review.id),
-                                                     .replaceKeepingChecklist(pendingID: try #require(review.pendingID))])
+                                                     .resolveDuplicate(reviewID: review.id, choice: .keepNew(reread: false))])
             #expect(worded.message.hasPrefix("A newer version of “"))
             // A toast without an open review stays as it is.
             let plain = Toast(kind: .info, message: "x", buttons: [.init(title: "a", action: .replaceKeepingChecklist(pendingID: "nope")),

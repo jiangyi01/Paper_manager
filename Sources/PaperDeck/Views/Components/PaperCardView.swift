@@ -388,7 +388,7 @@ enum CardText {
     /// `3/7 · 剩 40′`, `剩 40′` (no checklist yet) or `已读 · 9/28`.
     static func progress(_ row: PaperRow, lang: UILang) -> String {
         if row.paper.status == .done {
-            return L.cardsReadOn(row.paper.doneAt.map { SharedStrings.monthDay(LocalDate($0, calendar: .current)) })
+            return L.cardsReadOn(row.paper.doneAt.map { SharedStrings.monthDay(LocalDate($0, calendar: LocalDate.localGregorian)) })
         }
         if row.totalCount > 0 {
             return L.cardsProgress(done: row.doneCount, total: row.totalCount, remaining: row.remainingMinutes)

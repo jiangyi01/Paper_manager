@@ -58,8 +58,9 @@ enum OpsTestKit {
         return root
     }
 
+    /// `calendar`: the engine's (a test may pass a Buddhist or Hebrew one, as a Mac set to it would).
     static func make(_ settings: EngineSettings = OpsTestKit.settings(), root: URL? = nil,
-                     now: Date = OpsTestKit.start) async throws -> Env {
+                     now: Date = OpsTestKit.start, calendar: Calendar = OpsTestKit.calendar) async throws -> Env {
         let root = try root ?? newRoot()
         let clock = Box(now)
         let box = Box(settings)
@@ -72,8 +73,8 @@ enum OpsTestKit {
 
     /// Runs `body` with a fresh engine and always cleans up (engine shut down, temp root removed).
     static func run(_ settings: EngineSettings = OpsTestKit.settings(), now: Date = OpsTestKit.start,
-                    _ body: (Env) async throws -> Void) async throws {
-        let env = try await make(settings, now: now)
+                    calendar: Calendar = OpsTestKit.calendar, _ body: (Env) async throws -> Void) async throws {
+        let env = try await make(settings, now: now, calendar: calendar)
         do {
             try await body(env)
         } catch {

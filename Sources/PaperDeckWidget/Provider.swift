@@ -7,7 +7,8 @@ struct SnapshotEntry: TimelineEntry {
     let snapshot: WidgetSnapshot?
 
     var lang: UILang { snapshot?.lang ?? SnapshotProvider.systemLang }
-    var today: LocalDate { LocalDate(date) }
+    /// Gregorian like the snapshot's days, whatever calendar the Mac is set to.
+    var today: LocalDate { LocalDate(date, calendar: LocalDate.localGregorian) }
 
     /// The day list for this entry's date (after midnight the snapshot's second day applies).
     var day: WidgetSnapshot.Day? { snapshot?.day(today) }
@@ -37,7 +38,7 @@ struct SnapshotProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
         let snap = Self.loadSnapshot()
         let now = Date()
-        let cal = Calendar.current
+        let cal = LocalDate.localGregorian
         let midnight = cal.nextDate(after: now, matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime) ?? now.addingTimeInterval(86_400)
         var dates = [now]
         if let r = snap?.reminder,

@@ -110,7 +110,7 @@ struct AskNoticeView: View {
 
     /// `15:45`, or `10/2 15:45` when not today (the provider pill's form).
     static func time(_ d: Date, now: Date = Date()) -> String {
-        let cal = Calendar.current
+        let cal = LocalDate.localGregorian      // month/day as everywhere else, whatever the system calendar
         let c = cal.dateComponents([.month, .day, .hour, .minute], from: d)
         let clock = String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
         return cal.isDate(d, inSameDayAs: now) ? clock : "\(c.month ?? 0)/\(c.day ?? 0) \(clock)"

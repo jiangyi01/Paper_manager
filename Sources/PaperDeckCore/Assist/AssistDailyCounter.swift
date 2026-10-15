@@ -16,7 +16,7 @@ package final class AssistDailyCounter: @unchecked Sendable {
     package static let assistPrefix = "assist.count"
     package static let dedupeJudgePrefix = "dedupe.ai.count"
 
-    package init(prefix: String = AssistDailyCounter.assistPrefix, calendar: Calendar = .autoupdatingCurrent,
+    package init(prefix: String = AssistDailyCounter.assistPrefix, calendar: Calendar = LocalDate.localGregorian,
                  persist: (@Sendable (_ key: String, _ value: Int) -> Void)? = nil) {
         self.prefix = prefix; self.calendar = calendar; self.persist = persist
     }

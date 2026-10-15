@@ -321,7 +321,7 @@ enum BatchActions {
 
     /// Export ▸ Copy as / Save as: metadata of the papers in the order drawn.
     static func export(_ state: AppState, rows: [PaperRow], format: BatchExport.Format, toFile: Bool) {
-        let text = BatchExport.text(rows.map(BatchExport.Entry.init), format: format)
+        let text = BatchExport.text(rows.map(BatchExport.Entry.init), format: format, calendar: state.engine.ctx.calendar)
         let n = rows.count
         guard toFile else {
             CardActions.copy(text)
@@ -334,7 +334,7 @@ enum BatchActions {
         panel.canCreateDirectories = true
         let write: (URL) -> Void = { url in
             do {
-                try Data(text.utf8).write(to: url, options: .atomic)
+                try BatchExport.fileData(text, format: format).write(to: url, options: .atomic)
                 state.post(Toast(kind: .success, message: L.Select.saved(n, url.lastPathComponent)))
             } catch {
                 state.post(Toast(kind: .error, message: L.Select.saveFailed))

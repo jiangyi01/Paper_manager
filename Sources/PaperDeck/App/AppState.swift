@@ -380,6 +380,8 @@ final class AppState {
             }
         case .openDuplicateReview(let id):
             dedupe.openReview(id: id)
+        case .resolveDuplicate(let reviewID, let choice):
+            dedupe.resolveFromToast(reviewID, choice)
         }
     }
 
@@ -414,6 +416,17 @@ final class AppState {
         perform {
             let result = try await self.engine.toggleChecklistItem(paperID: paperID, itemID: itemID)
             if result.becameDone {
+                self.post(Toast(id: "done-\(paperID)", kind: .success, message: L.markedDone(result.paper.title)))
+            }
+        }
+    }
+
+    /// Deleting the last open item of an otherwise ticked checklist marks the paper read, with the
+    /// same toast as ticking it.
+    func deleteChecklistItem(paperID: String, itemID: String) {
+        perform {
+            let result = try await self.engine.deleteChecklistItem(paperID: paperID, itemID: itemID)
+            if result.markedDone {
                 self.post(Toast(id: "done-\(paperID)", kind: .success, message: L.markedDone(result.paper.title)))
             }
         }

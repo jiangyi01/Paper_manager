@@ -115,16 +115,31 @@ extension Engine {
         return item
     }
 
-    package func deleteChecklistItem(paperID: String, itemID: String) async throws {
+    /// Deletes one item. When every item left is ticked (and 全部勾选后自动标记已读 is on), the
+    /// paper is marked done (+ `done_at`, `opened_at` if unset) exactly as ticking the last one
+    /// would — deleting the last open item must not leave it "reading" at 100 % in Today and the
+    /// reminder. `markedDone` lets the UI show the same「已标记为已读」toast as a tick.
+    @discardableResult
+    package func deleteChecklistItem(paperID: String, itemID: String) async throws -> (paper: Paper, markedDone: Bool) {
         let pk = try await PaperOpsSupport.livePK(db, paperID)
-        try await db.transaction { db in
-            _ = try PaperOpsSupport.live(db, pk: pk, id: paperID)
-            guard try db.checklist(paperPK: pk).contains(where: { $0.id == itemID }) else {
+        let autoDone = (await ctx.settings()).autoMarkDone
+        let now = ctx.now()
+        let outcome = try await db.transaction { db -> (Paper, Bool) in
+            var p = try PaperOpsSupport.live(db, pk: pk, id: paperID)
+            var items = try db.checklist(paperPK: pk)
+            guard items.contains(where: { $0.id == itemID }) else {
                 throw PaperOperationError.checklistItemNotFound(itemID)
             }
             try db.deleteChecklistItem(id: itemID)
+            items.removeAll { $0.id == itemID }
+            guard autoDone, p.status != .done, !items.isEmpty, items.allSatisfy(\.isDone) else { return (p, false) }
+            p.status = .done
+            p.doneAt = now
+            if p.openedAt == nil { p.openedAt = now }
+            return (try db.updatePaper(p, now: now), true)
         }
         await ctx.syncSidecar(pk: pk)
+        return (outcome.0, outcome.1)
     }
 
     /// Drag-reorder: moves the item to `toIndex` (clamped), renumbers `ord` 0…n−1 and
@@ -191,12 +206,21 @@ extension Engine {
     }
 
     /// The PDF was opened through the app: stamps `opened_at` once and moves to_read → reading.
+    /// Every open is also recorded as the paper's last open (kv `paper.lastOpened`), which Select ▾
+    /// ▸ Recently Opened ranks by after a relaunch.
     @discardableResult
     package func markOpened(paperID: String) async throws -> Paper {
-        try await PaperOpsSupport.modifyLive(self, paperID) { p, now in
+        let paper = try await PaperOpsSupport.modifyLive(self, paperID) { p, now in
             if p.openedAt == nil { p.openedAt = now }
             if p.status == .toRead { p.status = .reading }
         }
+        let at = ctx.now()
+        do {
+            lastOpened.replace(with: try await db.recordOpened(paperID: paper.id, at: at))
+        } catch {
+            Log.db.error("last-opened record failed: \(String(describing: type(of: error)), privacy: .public)")
+        }
+        return paper
     }
 
     // MARK: Estimate

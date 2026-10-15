@@ -327,7 +327,7 @@ struct ChecklistView: View {
 
     private func delete(_ item: ChecklistItem) {
         let paperID = row.id
-        state.perform { try await state.engine.deleteChecklistItem(paperID: paperID, itemID: item.id) }
+        state.deleteChecklistItem(paperID: paperID, itemID: item.id)
     }
 
     // MARK: Add row

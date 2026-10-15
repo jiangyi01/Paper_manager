@@ -11,7 +11,8 @@ package enum SelectN {
         /// then the longest waiting.
         case oldestUnread
         /// The N papers opened most recently: this session's opens from PaperDeck first (newest
-        /// first), then the others by when they were first opened.
+        /// first), then the others by when they were last opened (`Engine.lastOpened`, kept across
+        /// launches; a paper without a record by its first open).
         case recentlyOpened
     }
 
@@ -19,8 +20,10 @@ package enum SelectN {
     package static let counts = [5, 10, 20]
 
     /// Up to `n` ids (nil: every match), best first. `recentOpens`: ids opened from PaperDeck in
-    /// this session, newest first (`RecentOpens`). Deleted papers never count as unread.
-    package static func pick(_ kind: Kind, n: Int?, from papers: [Paper], recentOpens: [String] = []) -> [String] {
+    /// this session, newest first (`RecentOpens`); `lastOpened`: paper id → its last open from
+    /// PaperDeck (`Engine.lastOpened`). Deleted papers never count as unread.
+    package static func pick(_ kind: Kind, n: Int?, from papers: [Paper], recentOpens: [String] = [],
+                             lastOpened: [String: Date] = [:]) -> [String] {
         let ranked: [Paper]
         switch kind {
         case .mostRecentlyAdded:
@@ -43,10 +46,12 @@ package enum SelectN {
             for id in recentOpens {
                 if let p = byID[id], seen.insert(id).inserted { out.append(p) }
             }
-            let rest = papers.filter { $0.openedAt != nil && !seen.contains($0.id) }.sorted { a, b in
-                a.openedAt! != b.openedAt! ? a.openedAt! > b.openedAt! : a.id < b.id
+            var timed: [(paper: Paper, at: Date)] = []
+            for p in papers where !seen.contains(p.id) {
+                if let at = lastOpened[p.id.lowercased()] ?? p.openedAt { timed.append((p, at)) }
             }
-            ranked = out + rest
+            timed.sort { a, b in a.at != b.at ? a.at > b.at : a.paper.id < b.paper.id }
+            ranked = out + timed.map(\.paper)
         }
         let ids = ranked.map(\.id)
         guard let n else { return ids }
@@ -54,7 +59,8 @@ package enum SelectN {
     }
 
     /// How many papers `kind` can pick at most (0: the menu entry is disabled).
-    package static func available(_ kind: Kind, from papers: [Paper], recentOpens: [String] = []) -> Int {
-        pick(kind, n: nil, from: papers, recentOpens: recentOpens).count
+    package static func available(_ kind: Kind, from papers: [Paper], recentOpens: [String] = [],
+                                  lastOpened: [String: Date] = [:]) -> Int {
+        pick(kind, n: nil, from: papers, recentOpens: recentOpens, lastOpened: lastOpened).count
     }
 }

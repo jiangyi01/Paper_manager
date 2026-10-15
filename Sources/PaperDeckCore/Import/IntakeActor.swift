@@ -1529,10 +1529,15 @@ package actor IntakeActor {
         var cleanupRoots: [URL] = []          // promised folders to remove after the batch
     }
 
-    private static let supplementPattern = #"(^|[_\-\s.])(supp|suppl|supplement(ary)?|SI|extended[_\s-]?data)([_\-\s.]|$)"#
+    /// Supplement words in any case: `supp`, `Suppl`, `Supplementary`, `extended data`.
+    private static let supplementPattern = #"(^|[_\-\s.])(supp|suppl|supplement(ary)?|extended[_\s-]?data)([_\-\s.]|$)"#
+    /// `SI` in capitals only: `Si` / `si` is a surname ("Si_2023_CellReports.pdf",
+    /// "Li-Si-2020-Nature.pdf") or silicon ("Strain engineering in Si nanowires.pdf").
+    private static let supplementSIPattern = #"(^|[_\-\s.])SI([_\-\s.]|$)"#
 
     static func isSupplementName(_ name: String) -> Bool {
         name.range(of: supplementPattern, options: [.regularExpression, .caseInsensitive]) != nil
+            || name.range(of: supplementSIPattern, options: .regularExpression) != nil
     }
 
     private static func expand(_ items: [IntakeItem], incoming: URL, library: URL, lang: UILang) -> Expansion {

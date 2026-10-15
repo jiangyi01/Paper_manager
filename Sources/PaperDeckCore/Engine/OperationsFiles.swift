@@ -289,6 +289,7 @@ enum OpsFiles {
                 let history = try remember && db.mayRemember(current) ? db.writeTombstone(current, at: now) : nil
                 let released = try db.retargetOpenDupReviews(existing: current.pk, to: nil, history: history, now: now)
                 try db.setTrashedJob(nil, paperID: current.id)
+                try db.forgetOpened(paperIDs: [current.id])
                 try db.hardDelete(pk: current.pk)
                 for url in folders where !trash(url) { throw TrashRefused(name: url.lastPathComponent) }
                 return (.removed, released)
@@ -299,6 +300,7 @@ enum OpsFiles {
         let (outcome, released) = result
         switch outcome {
         case .removed:
+            engine.lastOpened.forget(p.id)
             if !released.isEmpty { await engine.releaseDuplicateHolds(released) }
             await engine.ctx.sidecars.discard(paperID: p.id)
             let texts = engine.ctx.texts, thumbs = engine.ctx.thumbs, id = p.id

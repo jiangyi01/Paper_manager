@@ -282,8 +282,8 @@ private enum ToReadBucket: Int, CaseIterable, Identifiable, Sendable {
 
     /// Groups rows (keeping their order) into non-empty buckets, in bucket order.
     static func group(_ rows: [PaperRow], today: LocalDate, calendar: Calendar = .current) -> [ToReadGroup] {
-        let noon = today.date(hour: 12, minute: 0, calendar: calendar)
-        let weekStart = calendar.dateInterval(of: .weekOfYear, for: noon).map { LocalDate($0.start, calendar: calendar) } ?? today
+        // Gregorian day numbers whatever the system calendar; only the first weekday is the user's.
+        let weekStart = today.startOfWeek(calendar: calendar)
         let nextWeek = weekStart.adding(days: 7, calendar: calendar)
         let afterNext = weekStart.adding(days: 14, calendar: calendar)
         var buckets: [ToReadBucket: [PaperRow]] = [:]

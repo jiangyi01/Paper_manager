@@ -98,6 +98,16 @@ package struct ReminderSpec: Sendable, Equatable {
     package var fireComponents: DateComponents {
         DateComponents(year: day.year, month: day.month, day: day.day, hour: hour, minute: minute)
     }
+
+    /// `fireComponents` for a trigger the system reads in `system` (the Mac's calendar). The numbers
+    /// are Gregorian; a Buddhist / Hebrew / Japanese / … Mac would read year 2026 in its own era and
+    /// never fire, so it gets a Gregorian calendar (still no time zone). A Gregorian Mac keeps the
+    /// plain components.
+    package func triggerComponents(system: Calendar = .current) -> DateComponents {
+        var c = fireComponents
+        if system.identifier != .gregorian { c.calendar = LocalDate.localGregorian }
+        return c
+    }
 }
 
 /// Composes the single daily reminder (§6.5, §8 通知文案) and diffs the rolling
@@ -190,6 +200,14 @@ package enum ReminderComposer {
             compose(day: first.adding(days: i, calendar: cal), papers: papers, settings: settings, lang: lang, calendar: cal,
                     mail: mail)
         }
+    }
+
+    /// The stored "last delivered" day, never later than `today`. Macs with a Buddhist or Hebrew
+    /// system calendar used to store 2569-… / 5787-… days, which only ever move forward and kept
+    /// catch-up from recognising today's delivery; clamping heals them without ringing twice today.
+    package static func clampedLastDelivered(_ stored: LocalDate?, today: LocalDate) -> LocalDate? {
+        guard let stored else { return nil }
+        return min(stored, today)
     }
 
     /// Reconciles the plan with the notification center. Never re-adds a

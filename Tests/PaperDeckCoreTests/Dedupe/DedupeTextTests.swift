@@ -305,6 +305,6 @@ import Testing
         let r = DupReview(newPaperID: nil, existingPaperID: "e", band: .certain, score: 1, createdAt: Date(),
                           relation: .supplement, pendingID: "p")
         let t = DupExplainer.reviewToast(r, newTitle: "mmc1.pdf", existingTitle: "Paper", existingIsLive: true, lang: .en)
-        #expect(t.buttons.map(\.action) == [.openDuplicateReview(id: r.id), .ignorePending(pendingID: "p")])
+        #expect(t.buttons.map(\.action) == [.openDuplicateReview(id: r.id), .resolveDuplicate(reviewID: r.id, choice: .skip)])
     }
 }

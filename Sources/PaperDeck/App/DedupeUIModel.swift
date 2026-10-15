@@ -11,7 +11,8 @@ import PaperDeckCore
 /// ([Review…] plus the one quick answer that never throws the library's version away). With
 /// the duplicate check off (`dedupe.enabled = false`) it consumes nothing, so today's
 /// two-button same-work toast reaches the user unchanged. Nothing here applies a choice by
-/// itself: every change goes through the decision sheet's [Apply], undoable for 30 s.
+/// itself: every change goes through `Engine.resolveDuplicate` (the decision sheet's [Apply], a
+/// review toast's quick answer), undoable for 30 s.
 @Observable
 final class DedupeUIModel {
     /// The UI ships (menu item, sidebar row, ribbon, chip, settings section).
@@ -354,6 +355,27 @@ final class DedupeUIModel {
             state.mailBusy.remove(key)
             state.scheduleMailRefresh(delay: .zero)
             self?.scheduleRefresh(delay: .zero)
+        }
+    }
+
+    // MARK: Applying (the review toast)
+
+    /// A review toast's quick answer ([Keep New] / [Skip]): the same path as the sheet's [Apply]
+    /// (`resolve`), so the result toast offers Undo for 30 s. A review answered meanwhile, or a
+    /// parked file that expired, says so in a toast.
+    func resolveFromToast(_ reviewID: String, _ choice: DupChoice) {
+        guard let state else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await self.resolve(reviewID, choice)
+            } catch let e as DupResolutionError {
+                state.post(Toast(id: "dup-result-" + reviewID, kind: .error, message: e.message(L.lang)))
+                self.scheduleRefresh(delay: .zero)
+            } catch {
+                state.report(error)
+                self.scheduleRefresh(delay: .zero)
+            }
         }
     }
 

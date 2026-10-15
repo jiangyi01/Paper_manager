@@ -125,16 +125,16 @@ extension PaperRow {
         DeadlineLabel.chip(
             deadline: paper.scheduleMode == .none ? nil : paper.deadline,
             done: paper.status == .done,
-            doneAt: paper.doneAt.map { LocalDate($0, calendar: .current) },
+            doneAt: paper.doneAt.map { LocalDate($0, calendar: LocalDate.localGregorian) },
             pinned: paper.scheduleMode == .pinned,
             provisional: paper.provisional,
             atRisk: atRisk,
-            today: today, lang: lang, calendar: .current)
+            today: today, lang: lang, calendar: LocalDate.localGregorian)
     }
 
     /// Tooltip text for the at-risk triangle (nil when the paper is not at risk).
     func cardAtRiskHint(today: LocalDate, lang: UILang) -> String? {
         guard atRisk else { return nil }
-        return DeadlineLabel.atRiskHint(finish: finish, today: today, lang: lang, calendar: .current)
+        return DeadlineLabel.atRiskHint(finish: finish, today: today, lang: lang, calendar: LocalDate.localGregorian)
     }
 }

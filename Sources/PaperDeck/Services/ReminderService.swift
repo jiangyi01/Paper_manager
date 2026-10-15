@@ -180,7 +180,7 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
             }
             var added = 0
             for spec in add {
-                let trigger = UNCalendarNotificationTrigger(dateMatching: spec.fireComponents, repeats: false)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: spec.triggerComponents(), repeats: false)
                 do {
                     try await center.add(Self.request(spec: spec, trigger: trigger))
                     fires[spec.day.iso] = spec.fireDate.timeIntervalSince1970
@@ -232,8 +232,9 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
     private func catchUpNow() async {
         guard let state = stateProvider(), state.settings.reminderEnabled else { return }
         let now = Date()
-        let cal = Calendar.current
+        let cal = LocalDate.localGregorian
         let today = LocalDate(now, calendar: cal)
+        healLastDelivered(today: today)
         guard lastDeliveredDay != today, Self.inCatchUpWindow(now: now, today: today, settings: state.settings, calendar: cal)
         else { return }
         guard let center else { await fallbackTick(); return }
@@ -262,6 +263,17 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
             Log.reminder.notice("catch-up: delivered \(id, privacy: .public) (was \(isPending ? "pending" : "never scheduled", privacy: .public))")
         } catch {
             Log.reminder.error("catch-up failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// A stored day after today (written under a non-Gregorian system calendar, e.g. 2569-…) is
+    /// pulled back to today, so catch-up and the fallback recognise today's delivery again.
+    private func healLastDelivered(today: LocalDate) {
+        let stored = lastDeliveredDay
+        let healed = ReminderComposer.clampedLastDelivered(stored, today: today)
+        if healed != stored {
+            lastDeliveredDay = healed
+            Log.reminder.notice("lastDelivered \(stored?.iso ?? "-", privacy: .public) clamped to \(today.iso, privacy: .public)")
         }
     }
 
@@ -355,7 +367,7 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
 
     /// REMIND_1H: today's content recomputed now, delivered in an hour.
     private func remindLater(state: AppState) async {
-        let today = LocalDate(Date(), calendar: .current)
+        let today = LocalDate(Date(), calendar: LocalDate.localGregorian)
         do {
             guard let spec = try await state.engine.composeReminder(day: today, now: Date()) else { return }
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3600, repeats: false)
@@ -372,7 +384,7 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
     /// nothing to list), delivered immediately.
     func sendTest() async {
         guard let state = stateProvider() else { return }
-        let today = LocalDate(Date(), calendar: .current)
+        let today = LocalDate(Date(), calendar: LocalDate.localGregorian)
         let spec = try? await state.engine.composeReminder(day: today, now: Date())
         let title = spec?.title ?? L.Pref.testTitle
         let subtitle = spec?.subtitle ?? ""
@@ -445,7 +457,7 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
 
     private func debugRemind(in seconds: Int) async {
         guard let state = stateProvider() else { return }
-        let today = LocalDate(Date(), calendar: .current)
+        let today = LocalDate(Date(), calendar: LocalDate.localGregorian)
         do {
             let spec = try await state.engine.composeReminder(day: today, now: Date())
             guard let spec else { Log.reminder.notice("debug remind: nothing to remind today"); return }
@@ -485,8 +497,9 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
     private func fallbackTick() async {
         guard let state = stateProvider(), state.settings.reminderEnabled else { return }
         let now = Date()
-        let cal = Calendar.current
+        let cal = LocalDate.localGregorian
         let today = LocalDate(now, calendar: cal)
+        healLastDelivered(today: today)
         guard lastDeliveredDay != today, fallbackCheckedDay != today else { return }
         let (h, m) = Self.reminderTime(state.settings)
         guard now >= today.date(hour: h, minute: m, calendar: cal),

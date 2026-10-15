@@ -92,9 +92,13 @@ package enum DedupeIndex {
     /// stored fingerprint may have it computed here (their text read and hashed); the others are
     /// compared without their page text. The import passes a few (it runs inside the commit lock,
     /// after `prepare` computed them outside it); the library check computes them all.
+    /// `liveOnly` (Check for Duplicates, `--dedupe-report`): only live papers are candidates — a
+    /// copy in Recently Deleted (or a tombstone) that would win the match must not hide a live
+    /// twin. Intake and mail lookups leave it off, so they still find Recently Deleted copies.
     package static func match(_ n: DupSubject, ids: PaperIDs, extraDOIs: [String] = [], excluding pk: Int64?,
                               settings: DedupeSettings, ctx: EngineContext, fuzzy: Bool = true,
-                              pages: [String]? = nil, computeMissing: Int = .max) async -> DupMatch? {
+                              pages: [String]? = nil, computeMissing: Int = .max,
+                              liveOnly: Bool = false) async -> DupMatch? {
         let db = ctx.db
         await backfillOnce(db)
         var decided: Set<[Int64]> = []
@@ -117,7 +121,8 @@ package enum DedupeIndex {
             let prints = (try? await db.dupFingerprints(paperPKs: pks)) ?? [:]
             // In candidate order (identity, then best bm25 first): the budget goes to the likeliest.
             let order = Dictionary(pks.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
-            for p in papers.sorted(by: { (order[$0.pk] ?? 0) < (order[$1.pk] ?? 0) }) where !isDecided(p.pk) {
+            for p in papers.sorted(by: { (order[$0.pk] ?? 0) < (order[$1.pk] ?? 0) })
+            where !isDecided(p.pk) && (!liveOnly || p.isLive) {
                 let fp: (page: [UInt32]?, abstract: [UInt32]?, sha256Prefix: String?)?? = .some(prints[p.pk])
                 let compute = budget > 0 && isStale(prints[p.pk], sha256: p.sha256)
                 if compute { budget -= 1 }
@@ -137,7 +142,7 @@ package enum DedupeIndex {
         if let b = best, b.candidate.band == .certain { return b }
 
         // 2. Tombstones with the bytes or an identity token.
-        if settings.history {
+        if settings.history, !liveOnly {
             let rows = (try? await db.historyMatching(sha256: n.sha256, tokens: tokens, dois: dois,
                                                       arxivID: ids.arxivID)) ?? []
             for h in rows { consider(h.subject, paper: nil, history: h) }
@@ -153,7 +158,7 @@ package enum DedupeIndex {
         // normalized titles are read alone and filtered by a cheap bound of the title score
         // (`TitleBound`, D6) and the detector's "contained" rule (D6-1); only the few that can
         // still match — at most `historyTitleHitLimit` — are loaded and compared.
-        if settings.history, !n.titleNorm.isEmpty {
+        if settings.history, !liveOnly, !n.titleNorm.isEmpty {
             let titles = (try? await db.historyTitles(limit: historyTitleLimit)) ?? []
             let picked = tombstoneTitleHits(n.titleNorm, among: titles)
             for h in (try? await db.historyRows(pks: picked)) ?? [] { consider(h.subject, paper: nil, history: h) }

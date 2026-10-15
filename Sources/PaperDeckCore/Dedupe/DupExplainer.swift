@@ -191,15 +191,18 @@ package enum DupExplainer {
     /// The toast of a review (the app's duplicate model posts it in place of the import's classic
     /// same-work / lookalike toast): [Review…] plus, for a parked file, the one quick answer that
     /// never throws the library's version away — "Keep New" only for a newer version (never a
-    /// supplement), "Skip" otherwise. A paper in Recently Deleted gets the sheet only.
+    /// supplement), "Skip" otherwise. A paper in Recently Deleted gets the sheet only. The quick
+    /// answer is resolved through the review (`Engine.resolveDuplicate`), so it can be undone for
+    /// 30 s like the sheet's — the import's own Replace / Ignore could not.
     package static func reviewToast(_ r: DupReview, newTitle: String, existingTitle: String, existingIsLive: Bool,
                                     lang: UILang) -> Toast {
         var buttons: [Toast.Button] = [.init(title: reviewButton(lang), action: .openDuplicateReview(id: r.id))]
-        if existingIsLive, let pending = r.pendingID {
+        if existingIsLive, r.pendingID != nil {
             if r.relation == .newerVersion {
-                buttons.append(.init(title: keepNewButton(lang), action: .replaceKeepingChecklist(pendingID: pending)))
+                buttons.append(.init(title: keepNewButton(lang),
+                                     action: .resolveDuplicate(reviewID: r.id, choice: .keepNew(reread: false))))
             } else {
-                buttons.append(.init(title: skipButton(lang), action: .ignorePending(pendingID: pending)))
+                buttons.append(.init(title: skipButton(lang), action: .resolveDuplicate(reviewID: r.id, choice: .skip)))
             }
         }
         return Toast(id: "dup-" + r.id, kind: .info,

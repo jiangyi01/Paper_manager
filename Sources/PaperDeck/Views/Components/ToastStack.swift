@@ -116,7 +116,7 @@ extension Toast {
         return buttons.contains { button in
             switch button.action {
             case .replaceKeepingChecklist, .ignorePending, .restorePaper, .openInBrowser, .openSettings, .linkMailItem,
-                 .openDuplicateReview:
+                 .openDuplicateReview, .resolveDuplicate:
                 return true
             case .openPaper, .setHighPriority, .undo, .openMail, .undoMailLink: return false
             }

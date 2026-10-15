@@ -886,7 +886,9 @@ extension Engine {
         let subject = await DedupeIndex.subject(for: p, ctx: ctx)
         var dedupe = settings
         dedupe.history = false
-        guard let m = await DedupeIndex.match(subject, ids: p.ids, excluding: p.pk, settings: dedupe, ctx: ctx),
+        // Live papers only: a Recently Deleted copy that matches better must not hide the live twin.
+        guard let m = await DedupeIndex.match(subject, ids: p.ids, excluding: p.pk, settings: dedupe, ctx: ctx,
+                                              liveOnly: true),
               let other = m.existing, other.isLive else { return nil }
         if p.addedAt >= other.addedAt { return (p, other, m.candidate) }
         // Re-orient: compare the other way so "newer" and the relation read from the later paper.
