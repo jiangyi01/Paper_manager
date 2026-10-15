@@ -558,8 +558,9 @@ extension L {
 
         // MARK: Formatting
 
-        /// `14:05` today, `9/29 14:05` this year, `2025/9/29` before.
-        static func received(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        /// `14:05` today, `9/29 14:05` this year, `2025/9/29` before. Gregorian numbers like every
+        /// other date in PaperDeck, whatever calendar the Mac is set to (only its time zone is used).
+        static func received(_ date: Date, now: Date = Date(), calendar: Calendar = LocalDate.localGregorian) -> String {
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_US_POSIX")
             f.calendar = calendar
@@ -574,8 +575,8 @@ extension L {
             return f.string(from: date)
         }
 
-        /// `明天 9:00`, `周一 9:00`, `10/14 9:00`.
-        static func when(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        /// `明天 9:00`, `周一 9:00`, `10/14 9:00` (Gregorian, like `received`).
+        static func when(_ date: Date, now: Date = Date(), calendar: Calendar = LocalDate.localGregorian) -> String {
             let f = DateFormatter()
             f.locale = Locale(identifier: "en_US_POSIX")
             f.calendar = calendar
