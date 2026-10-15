@@ -122,6 +122,37 @@ struct DatabaseInspectionTests {
         #expect(try Data(contentsOf: url) == before)
     }
 
+    /// A library the shipped build left (every table and mark of this build but the mail
+    /// confidentiality column and its 'mail_confidential' row — or only that row lost): the app's
+    /// next launch adds them (with a backup), so the inspection says an upgrade is due, changes
+    /// nothing, and after that launch says nothing is due.
+    @Test(arguments: [true, false])
+    func aFileWithoutTheMailConfidentialityFeatureNeedsAnUpgrade(columnMissing: Bool) async throws {
+        let dir = try Self.tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("library.sqlite")
+        do {
+            let raw = try SQLiteConnection(path: url.path)
+            try Migrations.prepare(raw, backupsDir: nil)
+            if columnMissing { try raw.exec("ALTER TABLE mail_message DROP COLUMN confidential") }
+            try raw.run("DELETE FROM schema_feature WHERE name = ?", [.text(Migrations.mailConfidentialFeature)])
+            raw.close()
+        }
+        let before = try Data(contentsOf: url)
+        let db = try await Database.openForInspection(url: url)
+        #expect(db.inspection == Migrations.Inspection(level: Migrations.latestVersion, needsUpgrade: true))
+        #expect(db.inspection?.upgradeNote == "schema v\(Migrations.latestVersion) needs this build's additions (open the app to upgrade)")
+        _ = try await db.mailCounts()                     // the mail tables are there
+        await db.close()
+        #expect(try Data(contentsOf: url) == before, "the inspection open changed the database file")
+
+        let opened = try await Database.open(url: url, backupsDir: nil)     // the app's launch
+        await opened.close()
+        let again = try await Database.openForInspection(url: url)
+        #expect(again.inspection == Migrations.Inspection(level: Migrations.latestVersion, needsUpgrade: false))
+        await again.close()
+    }
+
     @Test func aNewerFileIsRefusedUntouched() async throws {
         let dir = try Self.tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

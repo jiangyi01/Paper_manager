@@ -79,8 +79,8 @@ package enum Migrations {
         /// `level` of the file: 0 (empty), 1 (library), 2 (library + mail).
         package var level: Int
         /// This build's `prepare` would change the file: a level migration, the assist tables, the
-        /// mail marks or the pre-release columns. The app does that (with its pre-migration backup)
-        /// at its next launch; a diagnostic never does.
+        /// mail marks, the pre-release columns or the mail confidentiality column (or its marker).
+        /// The app does that (with its pre-migration backup) at its next launch; a diagnostic never does.
         package var needsUpgrade: Bool
 
         package init(level: Int, needsUpgrade: Bool) {
@@ -108,6 +108,10 @@ package enum Migrations {
         if level >= 2 {
             if try db.userVersion() != coreUserVersion || featureVersion(db, mailFeature) < mailFeatureVersion { needs = true }
             if try !missingPrereleaseColumns(db).isEmpty { needs = true }
+        }
+        // `ensureMailConfidentialFeature`'s own condition: the column and its marker (or just the marker).
+        if try featureVersion(db, mailConfidentialFeature) < mailConfidentialFeatureVersion, try tableExists(db, "mail_message") {
+            needs = true
         }
         return Inspection(level: level, needsUpgrade: needs)
     }
