@@ -175,30 +175,39 @@ import Testing
     // MARK: runtime-5
 
     @Test func joinNeverWaitsOnATaskThatIgnoresCancellation() async {
-        // Load-tolerant (ENV-1): the stubborn tasks run 20 s and the join returns while they still
-        // run — that is the proof it didn't wait for them, however slow or throttled (a background-QoS
-        // test process under load fires a 400 ms timer seconds late) the machine is. The wall clock
-        // only bounds it loosely.
-        let clock = ContinuousClock()
+        // Deterministic (flaky-join-test): no wall clock. The deadline is the injected sleep's — one
+        // that has already passed, or one that never does — and the stubborn tasks ignore
+        // cancellation and end only when the test opens their gate, after the joins returned.
+        let gate = RFB.Gate()
         let stubbornDone = RFB.K.Box(false)
-        let t0 = clock.now
-        await MailSyncActor.join(RFB.stubbornTask(20, finished: stubbornDone), within: .milliseconds(400))
-        #expect(!stubbornDone.value)
-        #expect(clock.now - t0 < .seconds(19))
-        // A cooperative task is waited for until it finished.
+        let asked = RFB.K.Box<[Duration]>([])
+        let stubborn = RFB.stubbornTask(until: gate, finished: stubbornDone)
+        await MailSyncActor.join(stubborn, within: .milliseconds(400), sleep: RFB.deadlinePassed(asked))
+        #expect(!stubbornDone.value)                       // it returned while the task still ran
+        #expect(asked.value == [.milliseconds(300), .milliseconds(100)])   // the deadline, then the grace
+        // A cooperative task is waited for until it finished: it can only finish once the join is
+        // already waiting (its deadline started), and that deadline never passes.
         let quickDone = RFB.K.Box(false)
+        let joining = RFB.Gate()
         let quick = Task<Void, Never> {
-            try? await Task.sleep(for: .milliseconds(50))
+            await joining.wait()
             quickDone.value = true
         }
-        await MailSyncActor.join(quick, within: .seconds(15))
+        await MailSyncActor.join(quick, within: .seconds(15), sleep: { d in
+            joining.open()
+            await RFB.deadlineNeverPasses(d)
+        })
         #expect(quickDone.value)
-        // Several tasks share one deadline.
+        // Several tasks share one deadline: two waits in all (limit − grace, then grace), not one per task.
         let first = RFB.K.Box(false), second = RFB.K.Box(false)
-        let t2 = clock.now
-        await MailSyncActor.joinAll([RFB.stubbornTask(20, finished: first), RFB.stubbornTask(20, finished: second)],
-                                    within: .milliseconds(400))
+        let shared = RFB.K.Box<[Duration]>([])
+        let pair = [RFB.stubbornTask(until: gate, finished: first), RFB.stubbornTask(until: gate, finished: second)]
+        await MailSyncActor.joinAll(pair, within: .milliseconds(400), sleep: RFB.deadlinePassed(shared))
         #expect(!first.value && !second.value)
-        #expect(clock.now - t2 < .seconds(19))
+        #expect(shared.value == [.milliseconds(300), .milliseconds(100)])
+        // Let the stubborn tasks end (nothing left running after the test).
+        gate.open()
+        for t in [stubborn] + pair { await t.value }
+        #expect(stubbornDone.value && first.value && second.value)
     }
 }

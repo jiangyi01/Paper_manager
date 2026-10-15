@@ -63,14 +63,40 @@ extension MailHeuristics {
         return false
     }
 
-    /// The stored message (`subject`, `fromAddress`, `bodyText`): what the send gate re-checks.
+    /// A stored message: its capture-time verdict (`MailMessage.confidential`, which a retention
+    /// purge or a cut history can't take back) or what the guard finds in the subject and the body
+    /// as stored now. Every reader goes through here: the send gate (`permission`), the initial
+    /// triage state of a re-evaluation, automatic merges, title lookups, the privacy inputs of
+    /// Explain / Ask / the judge, tombstones (`mayRemember`), the merge options.
     package static func isConfidential(_ m: MailMessage) -> Bool {
-        isConfidential(subject: m.subject, fromAddress: m.fromAddress, body: m.bodyText)
+        if m.confidential == true { return true }
+        return isConfidential(subject: m.subject, fromAddress: m.fromAddress, body: m.bodyText)
     }
 
-    /// A parsed email and its extracted body (the capture, and Settings ▸ Mail's triage preview).
+    /// The email a paper came from: its stored message (`isConfidential(_ m:)`, the capture-time
+    /// verdict first), or — the message is gone (「清除所有邮件数据」) — the subject and sender its
+    /// provenance row kept.
+    package static func isConfidential(source: PaperProvenance, message: MailMessage?) -> Bool {
+        if let message { return isConfidential(message) }
+        return isConfidential(subject: source.subject ?? "", fromAddress: source.fromAddress ?? "", body: nil)
+    }
+
+    /// A parsed email and its extracted body only (tests; capture and the triage preview use
+    /// `isConfidential(_:extraction:)`, which also reads the history the body cut).
     package static func isConfidential(_ content: MailContent, bodyText: String) -> Bool {
         isConfidential(subject: content.header.subject, fromAddress: content.header.fromAddress, body: bodyText)
+    }
+
+    /// The capture-time verdict (stored as `mail_message.confidential`): the subject with the first
+    /// lines of the body as kept — and, on their own, the first lines of the quoted history or
+    /// forwarded section the body cut (`MailExtraction.historyHead`). An Outlook forward whose
+    /// subject was edited (no "FW:") loses its forwarded text from the body, but the reviewer
+    /// invitation it quotes is still what the email is. Also Settings ▸ Mail's triage preview, so
+    /// both decide alike.
+    package static func isConfidential(_ content: MailContent, extraction: MailExtraction) -> Bool {
+        if isConfidential(content, bodyText: extraction.bodyText) { return true }
+        guard let head = extraction.historyHead, !head.isEmpty else { return false }
+        return isConfidential(subject: content.header.subject, fromAddress: content.header.fromAddress, body: head)
     }
 
     // MARK: - Pieces

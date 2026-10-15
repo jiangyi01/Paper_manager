@@ -197,7 +197,13 @@ package struct MailExtraction: Sendable, Equatable {
     package var snippet: String
     package var candidates: [MailCandidate]
     package var isForwarded: Bool
-    package init(bodyText: String, snippet: String, candidates: [MailCandidate], isForwarded: Bool = false) {
+    /// The first lines (`MailHeuristics.leadingLines`) of the quoted history or forwarded section
+    /// the body cut off, nil when nothing was cut. Read by the capture's confidentiality guard
+    /// only (`MailHeuristics.isConfidential(_:extraction:)`) — never stored, never sent to an AI.
+    package var historyHead: String?
+    package init(bodyText: String, snippet: String, candidates: [MailCandidate], isForwarded: Bool = false,
+                 historyHead: String? = nil) {
         self.bodyText = bodyText; self.snippet = snippet; self.candidates = candidates; self.isForwarded = isForwarded
+        self.historyHead = historyHead
     }
 }

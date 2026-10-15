@@ -44,6 +44,13 @@ package enum DatabaseError: Error, Equatable, Sendable, CustomStringConvertible 
 /// unchanged). An existing file gets the pre-migration backup first, as for any migration; a file
 /// that already has every assist table but lost its marker is adopted without one. A marker newer
 /// than this build understands is refused like a newer schema, before anything is written.
+///
+/// The capture-time confidentiality verdict is another additive feature, the row
+/// ('mail_confidential', 1): the nullable column `mail_message.confidential`, backfilled for every
+/// message whose body is still stored (`MailHeuristics.isConfidential` on its subject and body; a
+/// purged one stays NULL and is judged as before). Same rules: backup first, one transaction,
+/// adopted without a backup when the column is already there, refused when newer. An older build
+/// names its columns, so it keeps reading and writing the file (its new rows get NULL).
 package enum Migrations {
     package static let latestVersion = 2
     /// `PRAGMA user_version` of the library core this build writes.
@@ -56,6 +63,9 @@ package enum Migrations {
     /// The reading-assist tables' row in `schema_feature` (`SchemaAssist.swift`), and its version.
     package static let assistFeature = "assist"
     package static let assistFeatureVersion = 1
+    /// The capture-time confidentiality verdict's row (`mail_message.confidential`), and its version.
+    package static let mailConfidentialFeature = "mail_confidential"
+    package static let mailConfidentialFeatureVersion = 1
 
     /// What `prepare` did, for logging.
     package struct Outcome: Sendable, Equatable {
@@ -113,8 +123,61 @@ package enum Migrations {
         }
         if features, targetVersion == latestVersion {
             try ensureAssistFeature(db, backupsDir: backupsDir, fromLevel: from, now: now, outcome: &outcome)
+            try ensureMailConfidentialFeature(db, backupsDir: backupsDir, fromLevel: from, now: now, outcome: &outcome)
         }
         return outcome
+    }
+
+    /// `mail_message.confidential` and its marker, in one transaction, with the backfill: every
+    /// message whose body is still stored gets the guard's verdict on its subject and body (a purged
+    /// one keeps NULL — `MailHeuristics.isConfidential(_ m:)` then reads what is left, as before). A
+    /// file that existed before this prepare is backed up first unless this prepare already did; a
+    /// file whose column is there (its marker was lost) only gets the marker back.
+    private static func ensureMailConfidentialFeature(_ db: SQLiteConnection, backupsDir: URL?, fromLevel: Int, now: Date,
+                                                      outcome: inout Outcome) throws {
+        guard try featureVersion(db, mailConfidentialFeature) < mailConfidentialFeatureVersion,
+              try tableExists(db, "mail_message") else { return }
+        if try columnExists(db, table: "mail_message", column: "confidential") {
+            try db.transaction(immediate: true) { try markFeature(db, mailConfidentialFeature, mailConfidentialFeatureVersion) }
+            Log.db.info("Mail confidentiality column recorded in schema_feature")
+            return
+        }
+        if fromLevel >= 1, outcome.backup == nil, let backupsDir {
+            outcome.backup = try backup(db, to: backupsDir, fromVersion: fromLevel, now: now, tag: mailConfidentialFeature)
+        }
+        let filled = try db.transaction(immediate: true) { () throws -> Int in
+            try db.exec("ALTER TABLE mail_message ADD COLUMN confidential INTEGER")
+            let n = try backfillMailConfidential(db)
+            try markFeature(db, mailConfidentialFeature, mailConfidentialFeatureVersion)
+            return n
+        }
+        Log.db.info("Added mail_message.confidential (schema_feature \(mailConfidentialFeature, privacy: .public) = \(mailConfidentialFeatureVersion, privacy: .public), \(filled, privacy: .public) messages judged)")
+    }
+
+    /// The verdict for every message with a stored body and no verdict yet (idempotent: only NULL
+    /// rows are written; `updated_at` is left alone — nothing about the message changed). Returns how
+    /// many rows were judged. Bodies never leave this function (nothing is logged).
+    package static func backfillMailConfidential(_ db: SQLiteConnection) throws -> Int {
+        var after: Int64 = 0, judged = 0
+        while true {
+            // In pages (bodies are up to 20 000 characters each): only one page is in memory.
+            let rows = try db.query("""
+                SELECT pk, subject, from_address, body_text FROM mail_message
+                WHERE confidential IS NULL AND body_purged = 0 AND pk > ? ORDER BY pk LIMIT 200
+                """, [.integer(after)]) { (pk: $0.int64(0), subject: $0.string(1), from: $0.string(2), body: $0.optionalString(3)) }
+            guard let last = rows.last else { return judged }
+            for r in rows {
+                let verdict = MailHeuristics.isConfidential(subject: r.subject, fromAddress: r.from, body: r.body)
+                try db.run("UPDATE mail_message SET confidential = ? WHERE pk = ? AND confidential IS NULL",
+                           [.bool(verdict), .integer(r.pk)])
+            }
+            judged += rows.count
+            after = last.pk
+        }
+    }
+
+    private static func columnExists(_ db: SQLiteConnection, table: String, column: String) throws -> Bool {
+        try db.query("SELECT name FROM pragma_table_info(?)", [.text(table)]) { $0.string(0) }.contains(column)
     }
 
     /// The reading-assist tables and their marker, in one transaction. A file that existed before
@@ -160,6 +223,11 @@ package enum Migrations {
             if assist > assistFeatureVersion {
                 throw DatabaseError.newerSchema(found: latestVersion + assist,
                                                 supported: latestVersion + assistFeatureVersion)
+            }
+            let confidential = try featureVersion(db, mailConfidentialFeature)
+            if confidential > mailConfidentialFeatureVersion {
+                throw DatabaseError.newerSchema(found: latestVersion + confidential,
+                                                supported: latestVersion + mailConfidentialFeatureVersion)
             }
             if mail >= 1 { return 2 }
             return try hasMailTables(db) ? 2 : 1

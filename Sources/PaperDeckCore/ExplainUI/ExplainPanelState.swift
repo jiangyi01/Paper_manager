@@ -298,7 +298,8 @@ package final class ExplainPanelState: Identifiable {
         guard let prepared, !prepared.isEmpty else { phase = .refused(.emptyCapture); return }
         // Privacy, re-read for every turn (a policy toggle may have changed); fail closed. The
         // located paper's verdict, every paper PaperDeck's own windows show in the capture (F2), and
-        // a mail / chat window anywhere under what is sent (F1: native, webmail, the copied-from app).
+        // a mail / chat window anywhere under what is sent (F1: native, webmail, the copied-from app)
+        // — or a browser page that can't be told (no Screen Recording: it may be webmail).
         let surroundings = prepared.surroundings ?? capture.surroundings
         var verdicts: [AssistPrivacy.Verdict?] = [await services.privacy(paperID: paperID, hostBundleID: capture.hostBundleID)]
         for shown in ExplainPrivacyRules.shownPapers(surroundings, besides: paperID) {
@@ -306,7 +307,9 @@ package final class ExplainPanelState: Identifiable {
             verdicts.append(await services.privacy(paperID: shown, hostBundleID: nil))
         }
         guard live() else { return }
-        guard let verdict = ExplainPrivacyRules.combine(verdicts, messaging: ExplainPrivacyRules.showsMessaging(capture, surroundings: surroundings)) else {
+        guard let verdict = ExplainPrivacyRules.combine(
+            verdicts, messaging: ExplainPrivacyRules.showsMessaging(capture, surroundings: surroundings),
+            unknownBrowserPage: ExplainPrivacyRules.showsUnidentifiedBrowserPage(capture, surroundings: surroundings)) else {
             hold(kind, .refused(.privacyUnchecked))
             return
         }

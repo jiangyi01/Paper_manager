@@ -525,7 +525,9 @@ extension L {
         static var minConfidenceHint: String {
             zh ? "AI 判断的阅读请求低于此置信度时归入「无阅读需求」。" : "AI-detected requests below this confidence go to “No reading request”."
         }
-        static func maxAlertPapers(_ n: Int) -> String { zh ? "每封提醒最多 \(n) 篇" : "At most \(n) papers per alert" }
+        static func maxAlertPapers(_ n: Int) -> String {
+            zh ? "每封提醒最多 \(n) 篇" : (n == 1 ? "At most 1 paper per alert" : "At most \(n) papers per alert")
+        }
         static var maxAlertPapersHint: String {
             zh ? "只突出最相关的几篇，其余折叠。" : "Only the most relevant are highlighted; the rest stay collapsed."
         }

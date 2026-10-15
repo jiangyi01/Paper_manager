@@ -93,9 +93,10 @@ extension Engine {
     /// off (every paper is reported skipped). No undo; the jobs can be cancelled per paper.
     ///
     /// A paper that waits for the user's own confirmation is never sent by a batch (`RereadHold`:
-    /// marked "Never use AI" or "Unpublished / confidential", held as possibly unpublished, under an
-    /// open duplicate review): it keeps its held job and note and is reported in `held` — the user
-    /// opens it and confirms there.
+    /// marked "Never use AI" or "Unpublished / confidential", held as possibly unpublished, from a
+    /// confidential email or a person's email without a DOI / arXiv id — whatever Explain and Ask
+    /// would confirm first —, under an open duplicate review): it keeps its held job and note and
+    /// is reported in `held` — the user opens it and confirms there.
     package func requestReread(paperIDs: [String]) async throws -> BatchOutcome {
         let ids = BatchSupport.unique(paperIDs)
         guard ctx.loadSettings().agentMode != .off else { return BatchOutcome(skipped: ids) }
@@ -135,7 +136,8 @@ extension Engine {
 
     /// "Read All Now (N)" in the AI queue: every held reading starts (those held while
     /// `agent.mode` was off too) — except the ones a batch must never send (`rereadHolds`:
-    /// never-AI, possibly unpublished, confidential, held by a duplicate review), which keep their
+    /// never-AI, possibly unpublished, confidential, from a confidential email or a person's email
+    /// without a DOI / arXiv id, held by a duplicate review), which keep their
     /// held job and note for the user's own confirmation in the paper. When the holds can't be
     /// read, nothing is released. Returns how many started and which stayed held, and why.
     @discardableResult
@@ -199,12 +201,28 @@ extension Engine {
                 out[p.pk] = .possiblyUnpublished
             } else if policy?.confidential == true {
                 out[p.pk] = .confidential
+            } else if let hold = try await provenanceHold(p) {
+                out[p.pk] = hold
             } else if let review = try await db.openDupReview(newPaperPK: p.pk), review.hold != .none {
                 // Only a review that actually holds the paper (intake); a library-check review holds nothing.
                 out[p.pk] = .duplicateReview
             }
         }
         return out
+    }
+
+    /// What Explain and Ask would confirm first about where the paper came from (`AssistPrivacy`
+    /// inside PaperDeck: a confidential email, a person's email without a DOI / arXiv id — with the
+    /// hold note gone too), as a batch hold; nil when they would send without asking.
+    private func provenanceHold(_ p: Paper) async throws -> RereadHold? {
+        switch try await assistPrivacy(paperID: p.id, hostBundleID: nil) {
+        case .ok: return nil
+        case .blocked: return .neverAI
+        case .confirm(let reasons):
+            if reasons.contains(.mailConfidential) { return .confidentialEmail }
+            if reasons.contains(.markedConfidential) { return .confidential }
+            return .possiblyUnpublished                 // personSourcedNoID, mailUnpublished
+        }
     }
 
     // MARK: Field operations (one transaction)

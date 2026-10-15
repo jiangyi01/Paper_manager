@@ -194,14 +194,56 @@ enum RFB {
         }
     }
 
-    /// Ignores cancellation: finishes after `seconds` whatever happens.
-    /// `finished` turns true once the task is done.
-    static func stubbornTask(_ seconds: Double, finished: K.Box<Bool>? = nil) -> Task<Void, Never> {
-        Task.detached {
+    /// A one-way gate: `wait()` returns once the test calls `open()` (at once after that).
+    /// Cancellation does not open it.
+    final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var opened = false
+        private var waiting: [CheckedContinuation<Void, Never>] = []
+
+        func wait() async {
             await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-                DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { c.resume() }
+                let now = lock.withLock { () -> Bool in
+                    if opened { return true }
+                    waiting.append(c)
+                    return false
+                }
+                if now { c.resume() }
             }
+        }
+
+        func open() {
+            let resume = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+                opened = true
+                defer { waiting = [] }
+                return waiting
+            }
+            resume.forEach { $0.resume() }
+        }
+    }
+
+    /// Ignores cancellation: finishes only once `gate` is opened, whatever happens meanwhile.
+    /// `finished` turns true once the task is done.
+    static func stubbornTask(until gate: Gate, finished: K.Box<Bool>? = nil) -> Task<Void, Never> {
+        Task.detached {
+            await gate.wait()
             finished?.value = true
+        }
+    }
+
+    /// A join deadline that has already passed: returns at once, noting the wait it was asked for.
+    static func deadlinePassed(_ asked: K.Box<[Duration]>) -> MailSyncActor.JoinSleep {
+        { d in asked.update { $0.append(d) } }
+    }
+
+    /// A join deadline that never passes: returns only when its timer is cancelled (every task
+    /// finished first).
+    static let deadlineNeverPasses: MailSyncActor.JoinSleep = { _ in
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        await withTaskCancellationHandler {
+            for await _ in stream {}
+        } onCancel: {
+            continuation.finish()
         }
     }
 }

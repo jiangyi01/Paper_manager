@@ -116,7 +116,9 @@ struct P3FPrivacySourceLintTests {
         #expect(!p.contains("it never captures until the user draws a box"), "F11: the overlay freezes the screens when it opens")
         let state = try Self.text("Sources/PaperDeckCore/ExplainUI/ExplainPanelState.swift")
         #expect(state.contains("let surroundings = prepared.surroundings ?? capture.surroundings"))
-        #expect(state.contains("ExplainPrivacyRules.combine(verdicts, messaging: ExplainPrivacyRules.showsMessaging(capture, surroundings: surroundings))"))
+        #expect(state.contains("ExplainPrivacyRules.combine(\n            verdicts, messaging: ExplainPrivacyRules.showsMessaging(capture, surroundings: surroundings),"))
+        // mail-ai-privacy-5: a browser page whose title can't be read (no Screen Recording) asks too.
+        #expect(state.contains("unknownBrowserPage: ExplainPrivacyRules.showsUnidentifiedBrowserPage(capture, surroundings: surroundings))"))
     }
 
     @Test func theConsentStringsAnswerInBothLanguages() throws {

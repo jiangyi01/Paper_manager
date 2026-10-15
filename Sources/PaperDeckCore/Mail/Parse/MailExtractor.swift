@@ -23,6 +23,8 @@ package enum MailExtractor {
     package static let snippetLimit = 255
     package static let forwardedCap = 8_000
     package static let defaultBodyCap = 20_000
+    /// Lines of cut history kept for the confidentiality guard (it reads the first 25 non-empty ones).
+    static let historyLines = 400
 
     package static func extract(_ content: MailContent, senderKind: SenderKind, bodyCap: Int) -> MailExtraction {
         let cap = bodyCap > 0 ? bodyCap : defaultBodyCap
@@ -109,8 +111,13 @@ package enum MailExtractor {
             }
         }
         let snippetSource = unique.isEmpty ? (forwarded ?? "") : unique
+        // The first lines of what was cut (a reply's quoted history is dropped from the body; a
+        // forwarded section may not fit it): the confidentiality guard reads them too, so an
+        // Outlook forward whose subject lost its "FW:" still counts as the invitation it quotes.
+        let historyHead = split.history.map(MailHeuristics.leadingLines)
+            .flatMap { $0.isEmpty ? nil : $0 }
         return MailExtraction(bodyText: body, snippet: snippet(snippetSource), candidates: candidates,
-                              isForwarded: isForwarded)
+                              isForwarded: isForwarded, historyHead: historyHead)
     }
 
     // MARK: - Candidate bookkeeping
@@ -270,6 +277,15 @@ package enum MailExtractor {
     package struct HistorySplit: Sendable, Equatable {
         package var unique: String
         package var forwarded: String?
+        /// The lines from the cut on (a reply's quoted history, or the forwarded section before its
+        /// cleanup; at most `historyLines`), nil when nothing was cut. Local only: the
+        /// confidentiality guard reads its first lines (`MailExtraction.historyHead`); it is never
+        /// stored or sent.
+        package var history: String?
+
+        package init(unique: String, forwarded: String?, history: String? = nil) {
+            self.unique = unique; self.forwarded = forwarded; self.history = history
+        }
     }
 
     private static func rx(_ p: String) -> NSRegularExpression {
@@ -312,9 +328,10 @@ package enum MailExtractor {
         }
         let uniqueLines = cut.map { Array(lines[..<$0]) } ?? lines
         let unique = cleanUnique(uniqueLines)
-        guard let c = cut, forward else { return HistorySplit(unique: unique, forwarded: nil) }
+        let history = cut.map { lines[$0...].prefix(historyLines).joined(separator: "\n") }
+        guard let c = cut, forward else { return HistorySplit(unique: unique, forwarded: nil, history: history) }
         let f = cleanForwarded(Array(lines[c...]))
-        return HistorySplit(unique: unique, forwarded: f.isEmpty ? nil : f)
+        return HistorySplit(unique: unique, forwarded: f.isEmpty ? nil : f, history: history)
     }
 
     private static func nextNonEmpty(_ lines: [String], after i: Int) -> Int? {

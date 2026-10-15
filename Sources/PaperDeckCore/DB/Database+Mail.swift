@@ -19,19 +19,23 @@ extension Database {
         "state", "user_touched", "snoozed_until", "triage_state", "triage_source", "triage_json",
         "triage_attempt", "triage_not_before", "triage_error", "triage_provider", "triage_model", "triage_ms",
         "triage_in_tokens", "triage_out_tokens", "triage_stdin_bytes", "seen", "created_at", "updated_at",
-        "handled_at", "triage_consented", "triage_consent_provider", "is_bulk",
+        "handled_at", "triage_consented", "triage_consent_provider", "is_bulk", "confidential",
     ]
     private static let mailSelect = "SELECT pk, " + mailColumns.joined(separator: ", ") + " FROM mail_message"
     private static let mailInsert = "INSERT INTO mail_message(" + mailColumns.joined(separator: ", ") + ") VALUES("
         + Array(repeating: "?", count: mailColumns.count).joined(separator: ", ") + ")"
     /// Positional parameters ?1…?n follow `mailColumns`; ?(n+1) is the pk. Purging is sticky:
-    /// the right-hand sides see the OLD row, so a purged row keeps NULL body/snippet.
+    /// the right-hand sides see the OLD row, so a purged row keeps NULL body/snippet. So is the
+    /// capture-time `confidential` verdict: once 1 it stays, and a copy without one (nil) keeps
+    /// the stored value.
     private static let mailUpdate: String = {
         let n = mailColumns.count
         let purged = "?\(mailColumns.firstIndex(of: "body_purged")! + 1)"
         let sets = mailColumns.enumerated().map { i, col -> String in
             switch col {
             case "body_purged": return "body_purged = MAX(body_purged, \(purged))"
+            case "confidential":
+                return "confidential = CASE WHEN ?\(i + 1) IS NULL OR confidential = 1 THEN confidential ELSE ?\(i + 1) END"
             case "body_text", "snippet":
                 return "\(col) = CASE WHEN body_purged = 1 OR \(purged) = 1 THEN NULL ELSE ?\(i + 1) END"
             default: return "\(col) = ?\(i + 1)"
@@ -261,7 +265,7 @@ extension Database {
             .int(m.triageInputTokens), .int(m.triageOutputTokens), .int(m.triageStdinBytes),
             .bool(m.seen), .text(Database.timestamp(m.createdAt)), .text(Database.timestamp(m.updatedAt)),
             .string(m.handledAt.map(Database.timestamp)), .bool(m.triageConsented), .string(m.triageConsentProvider),
-            .int(m.isBulk.map { $0 ? 1 : 0 }),
+            .int(m.isBulk.map { $0 ? 1 : 0 }), .int(m.confidential.map { $0 ? 1 : 0 }),
         ]
         assert(values.count == Database.mailColumns.count)
         return values
@@ -287,6 +291,7 @@ extension Database {
         let seen = c.bool(), createdAt = c.date(), updatedAt = c.date(), handledAt = c.optDate()
         let consented = c.bool(), consentProvider = c.optString()
         let isBulk = c.optInt().map { $0 != 0 }
+        let confidential = c.optInt().map { $0 != 0 }
 
         var triage: MailTriage?
         if let triageJSON {
@@ -302,7 +307,8 @@ extension Database {
             triageAttempt: attempt, triageNotBefore: notBefore, triageError: error, triageProvider: provider,
             triageModel: model, triageMs: ms, triageInputTokens: inTokens, triageOutputTokens: outTokens,
             triageStdinBytes: stdinBytes, seen: seen, createdAt: createdAt, updatedAt: updatedAt,
-            handledAt: handledAt, triageConsented: consented, triageConsentProvider: consentProvider, isBulk: isBulk)
+            handledAt: handledAt, triageConsented: consented, triageConsentProvider: consentProvider, isBulk: isBulk,
+            confidential: confidential)
     }
 
     // MARK: - Items

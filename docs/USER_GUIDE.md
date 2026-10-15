@@ -241,12 +241,15 @@ GPT-5.6-Luna) is the default; **Thorough** (Sonnet / GPT-5.6-Terra) uses more of
 
 **Limits and privacy:** after 50 explanations and questions a day (Explain & Ask together) PaperDeck
 asks before continuing; 150 is the limit. A paper marked *Never use AI for this paper* is never sent;
-one marked unpublished or confidential and one from a person's email without a DOI or arXiv id ask
+one marked unpublished or confidential, one from a confidential email (a review invitation or a
+manuscript under review, whoever sent it) and one from a person's email without a DOI or arXiv id ask
 first (**Send Anyway** is a separate click). So does anything that shows a **mail or chat window**:
 a mail or chat app, webmail or web chat in a browser (Gmail, Outlook, Slack, Teams, WhatsApp and
 the like, recognised from the window's title on your Mac), a notification banner, a box that covers
 any part of such a window, text copied in such an app, a Services request from one, and PaperDeck's
-own **Mail** inbox. A box or a
+own **Mail** inbox. Window titles can be read only with [Screen Recording](#screen-recording) on:
+without it PaperDeck can't tell webmail from any other web page, so text copied in a browser (or a
+browser's web app) or sent from one through Services always asks first. A box or a
 click over **PaperDeck's own reader or library** uses the settings of the papers shown there: the
 reader's paper is the one explained, a *Never use AI* paper on screen stops it, a confidential one
 asks first. **Ask before every send** confirms each one. Pressing the same button twice quickly
@@ -267,7 +270,9 @@ reader at that spot.
 ### Screen Recording (only for the box and the lens)
 
 macOS calls it **Screen & System Audio Recording**. Only Explain's box and lens need it; copying,
-Services, screenshots and dropped images never do.
+Services, screenshots and dropped images never do. Without it, though, PaperDeck can't read a
+browser's window title, so text copied in a browser or sent from one through Services asks first
+(it may be webmail).
 
 1. Press ⌃⌥E. While it's off, the overlay shows *Screen capture is off* with the ways that need
    nothing, **Open System Settings** and **Enable Screen Capture…**.
@@ -456,7 +461,11 @@ recently added, the oldest unread (by deadline) or the recently opened. The sele
 context menu then change status, priority, category or tags, pin or postpone deadlines, move papers
 to Recently Deleted (or restore them), check them for duplicates, or **export** BibTeX, RIS, CSV or
 Markdown — metadata only. Every batch change is one step to undo (30 seconds); papers you changed
-since are left alone. Reading the selection with AI asks first and queues only while AI reading is on.
+since are left alone. Reading the selection with AI asks first and queues only while AI reading is on;
+papers that wait for your own confirmation — marked unpublished / confidential or *Never use AI*,
+possibly unpublished, from a confidential email or from a person's email without a DOI / arXiv id, or
+under duplicate review — are left out and listed (as they are by **Read All Now** and **Queue Existing
+Papers**): open each one to confirm.
 
 ## Mail
 
@@ -702,8 +711,8 @@ These are the same for every institution and can't be loosened by a preset or an
 - **Explain, Ask and the AI duplicate check are off until you turn them on** (Settings ▸ Explain &
   Ask, which a settings file never turns on), and every explanation, question or check is sent only
   by your click. A paper marked *Never use AI for this paper* is never sent; one that may be
-  unpublished or confidential, and text from a mail or chat window, ask first. Private papers keep no
-  `qa.json` beside them.
+  unpublished or confidential, text from a mail or chat window, and text from a browser page
+  PaperDeck can't identify (no Screen Recording) ask first. Private papers keep no `qa.json` beside them.
 - **Explain sees the screen only when you ask it to.** Copying, Services and dropped images need no
   permission. With Screen Recording on, the overlay takes one still when you open it and sends only
   the box you draw (or the paragraph you click); window titles stay on your Mac, and nothing is kept

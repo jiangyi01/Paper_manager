@@ -7,9 +7,12 @@ package struct PaperSourceSummary: Sendable, Equatable {
     package var personSourced: Bool
     /// The paper has a DOI or an arXiv id (published / posted work, not a manuscript).
     package var identified: Bool
+    /// The email is confidential (`MailHeuristics.isConfidential`: a manuscript under review, a
+    /// reviewer invitation, a submission system's mail) — from any sender, an alert preset's domain too.
+    package var confidential: Bool
 
-    package init(personSourced: Bool, identified: Bool) {
-        self.personSourced = personSourced; self.identified = identified
+    package init(personSourced: Bool, identified: Bool, confidential: Bool = false) {
+        self.personSourced = personSourced; self.identified = identified; self.confidential = confidential
     }
 }
 
@@ -23,10 +26,17 @@ package enum AssistPrivacy {
         case markedConfidential
         /// A person's or a confidential email's PDF held as possibly unpublished (`ai_note = mail_unpublished`).
         case mailUnpublished
+        /// Came from a confidential email (`PaperSourceSummary.confidential`: a manuscript under
+        /// review, a reviewer invitation…), whoever sent it — identified or not.
+        case mailConfidential
         /// Came from a person's email and has no DOI / arXiv id.
         case personSourcedNoID
         /// The capture comes from a mail or chat app.
         case messagingHost
+        /// Captured in a browser (or a browser's web app) whose page can't be told — its window
+        /// title is unreadable without Screen Recording — so it may be webmail
+        /// (`MailWindow.isUnidentifiedBrowserPage`).
+        case unknownBrowserPage
     }
 
     package enum Verdict: Sendable, Equatable {
@@ -52,6 +62,7 @@ package enum AssistPrivacy {
         var reasons: Set<Reason> = []
         if policy?.confidential == true { reasons.insert(.markedConfidential) }
         if aiNote == ImportAnnotation.unpublishedHoldNote { reasons.insert(.mailUnpublished) }
+        if provenance.contains(where: \.confidential) { reasons.insert(.mailConfidential) }
         if provenance.contains(where: { $0.personSourced && !$0.identified }) { reasons.insert(.personSourcedNoID) }
         if let host = hostBundleID?.lowercased(), messagingHosts.contains(where: { $0.lowercased() == host }) {
             reasons.insert(.messagingHost)

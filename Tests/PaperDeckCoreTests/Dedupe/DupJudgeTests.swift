@@ -207,12 +207,12 @@ import Testing
             #expect(await env.engine.duplicateJudgeStatus(reviewID: review.id).block == .privateNew)
             _ = try await env.db.modifyPaper(pk: newPaper.pk, now: env.clock.now) { $0.aiNote = nil }
             // A paper that came with a confidential email (a manuscript under review) — even from an
-            // alert sender, where the other surfaces would only ask: never sent to the judge.
+            // alert sender, where Explain and Ask ask first (mail-ai-privacy-1): never sent to the judge.
             let (message, _) = try await env.db.insertMailMessage(
                 MailMergeKit.message(kind: .alert, subject: "Confidential: manuscript under review", from: "alerts@example.org",
                                      triage: nil), items: [])
             try await env.db.insertPaperSource(paperPK: existing.pk, .email(message, addedAt: env.clock.now))
-            #expect(try await env.engine.assistPrivacy(paperID: existing.id, hostBundleID: nil) == .ok)
+            #expect(try await env.engine.assistPrivacy(paperID: existing.id, hostBundleID: nil) == .confirm([.mailConfidential]))
             await #expect(throws: DupJudgeError.blocked(.privateExisting)) {
                 _ = try await env.engine.askDuplicateJudge(reviewID: review.id, ticket: Self.ticket(env))
             }

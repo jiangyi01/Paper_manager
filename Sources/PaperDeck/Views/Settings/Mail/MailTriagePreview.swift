@@ -95,7 +95,7 @@ nonisolated enum MailTriagePreview {
         // invitations, manuscript / submission systems) never (MailSyncActor passes the same facts).
         let authState = MIMEParser.authState(content.header.authResults ?? content.headers["authentication-results"])
         let bulk = Self.isBulk(content.headers)
-        let confidential = MailHeuristics.isConfidential(content, bodyText: extraction.bodyText)
+        let confidential = MailHeuristics.isConfidential(content, extraction: extraction)
         let syncedTriage = MailTriageCoordinator.initialState(senderKind: kind, rule: rule,
                                                               candidates: extraction.candidates.count, settings: settings,
                                                               authState: authState, isBulk: bulk, confidential: confidential)
@@ -106,7 +106,8 @@ nonisolated enum MailTriagePreview {
                                   ruleID: rule?.id, senderKind: kind, subject: content.header.subject,
                                   receivedAt: content.header.receivedAt,
                                   snippet: extraction.snippet.isEmpty ? nil : extraction.snippet,
-                                  bodyText: extraction.bodyText, state: synced, triage: heuristic)
+                                  bodyText: extraction.bodyText, state: synced, triage: heuristic,
+                                  confidential: confidential)
         let body = message.bodyText ?? ""
         let forwarded = body.hasPrefix(MailExtractor.forwardedLabel + "\n")
             || body.contains("\n" + MailExtractor.forwardedLabel + "\n")

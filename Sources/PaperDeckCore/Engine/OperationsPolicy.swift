@@ -24,7 +24,8 @@ extension Engine {
     }
 
     /// The pure inputs of `AssistPrivacy.verdict` for one paper: its policy, its `ai_note` and one
-    /// summary per email it came from (a person's email: advisor, person, a dropped .eml).
+    /// summary per email it came from (a person's email: advisor, person, a dropped .eml; a
+    /// confidential one — a manuscript under review, a reviewer invitation — whoever sent it).
     package func privacyInputs(paperID: String) async throws -> (policy: PaperPolicy?, aiNote: String?,
                                                                  provenance: [PaperSourceSummary]) {
         guard let paper = try await db.paper(id: paperID) else { throw PaperOperationError.paperNotFound(paperID) }
@@ -33,12 +34,13 @@ extension Engine {
         let identified = paper.ids.doi != nil || paper.ids.arxivID != nil || paper.ids.publishedDOI != nil
         var summaries: [PaperSourceSummary] = []
         for source in sources {
-            var kind: SenderKind?
-            if let id = source.mailMessageID, let m = try await db.mailMessage(id: id) { kind = m.senderKind }
-            else if let mid = source.internetMessageID, let m = try await db.mailMessage(internetMessageID: mid) { kind = m.senderKind }
+            var message: MailMessage?
+            if let id = source.mailMessageID { message = try await db.mailMessage(id: id) }
+            if message == nil, let mid = source.internetMessageID { message = try await db.mailMessage(internetMessageID: mid) }
             // A purged or unknown message counts as a person's: the stricter reading.
-            let person = kind.map { $0 != .alert } ?? true
-            summaries.append(PaperSourceSummary(personSourced: person, identified: identified))
+            let person = message.map { $0.senderKind != .alert } ?? true
+            summaries.append(PaperSourceSummary(personSourced: person, identified: identified,
+                                                confidential: MailHeuristics.isConfidential(source: source, message: message)))
         }
         return (policy, paper.aiNote, summaries)
     }

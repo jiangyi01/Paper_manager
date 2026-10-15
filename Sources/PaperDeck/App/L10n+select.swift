@@ -141,8 +141,11 @@ extension L {
             if n(.confidential) > 0 {
                 parts.append(zh ? "\(n(.confidential)) 篇标为保密" : "\(n(.confidential)) marked confidential")
             }
+            if n(.confidentialEmail) > 0 {
+                parts.append(zh ? "\(n(.confidentialEmail)) 篇来自保密邮件" : "\(n(.confidentialEmail)) from a confidential email")
+            }
             var lines: [String] = []
-            let waiting = n(.possiblyUnpublished) + n(.duplicateReview) + n(.confidential)
+            let waiting = n(.possiblyUnpublished) + n(.duplicateReview) + n(.confidential) + n(.confidentialEmail)
             if waiting > 0 {
                 let list = parts.joined(separator: zh ? "、" : ", ")
                 lines.append(zh ? "\(waiting) 篇暂缓（\(list)）——请逐篇打开确认。"

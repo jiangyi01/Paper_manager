@@ -781,28 +781,34 @@ package actor MailSyncActor {
         accountOrder = order
     }
 
+    /// How a join waits out a deadline: `Task.sleep` (cancelled when the tasks finish first).
+    /// Tests pass their own to decide when a deadline passes, without the wall clock.
+    typealias JoinSleep = @Sendable (Duration) async -> Void
+    static let joinSleep: JoinSleep = { try? await Task.sleep(for: $0) }
+
     /// Waits for `task`; when it outlives `limit` it is cancelled and given a short grace, then
     /// no longer waited for (a task that ignores cancellation cannot hold the caller).
-    static func join(_ task: Task<Void, Never>, within limit: Duration) async {
-        await joinAll([task], within: limit)
+    static func join(_ task: Task<Void, Never>, within limit: Duration, sleep: @escaping JoinSleep = joinSleep) async {
+        await joinAll([task], within: limit, sleep: sleep)
     }
 
-    /// `join` for several tasks sharing one deadline (the total wait is at most `limit`).
-    static func joinAll(_ tasks: [Task<Void, Never>], within limit: Duration) async {
+    /// `join` for several tasks sharing one deadline (the total wait is at most `limit`: two
+    /// sleeps, `limit - grace` then `grace`, whatever the number of tasks).
+    static func joinAll(_ tasks: [Task<Void, Never>], within limit: Duration, sleep: @escaping JoinSleep = joinSleep) async {
         guard !tasks.isEmpty else { return }
         let grace = min(.milliseconds(250), limit / 4)
-        if await waitAll(tasks, upTo: limit - grace) { return }
+        if await waitAll(tasks, upTo: limit - grace, sleep: sleep) { return }
         for t in tasks { t.cancel() }
-        _ = await waitAll(tasks, upTo: grace)
+        _ = await waitAll(tasks, upTo: grace, sleep: sleep)
     }
 
     /// True when every task finished within `limit`; false at the deadline otherwise.
-    private static func waitAll(_ tasks: [Task<Void, Never>], upTo limit: Duration) async -> Bool {
+    private static func waitAll(_ tasks: [Task<Void, Never>], upTo limit: Duration, sleep: @escaping JoinSleep) async -> Bool {
         let once = JoinOnce()
         return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
             once.install(c)
             let timer = Task {
-                try? await Task.sleep(for: limit)
+                await sleep(limit)
                 once.finish(false)
             }
             Task {
@@ -1281,10 +1287,12 @@ package actor MailSyncActor {
                                        senderKind: kind, criteria: criteria)
         let authState = MIMEParser.authState(content.header.authResults ?? content.headers["authentication-results"])
         let bulk = Self.isBulk(content.headers)
+        // On the uncut text (the body's history cut can drop a forwarded invitation) and stored with
+        // the message: a later purge of the body can't make it look harmless.
+        let confidential = MailHeuristics.isConfidential(content, extraction: extraction)
         let triageState = MailTriageCoordinator.initialState(
             senderKind: kind, rule: rule, candidates: extraction.candidates.count, settings: settings,
-            authState: authState, isBulk: bulk,
-            confidential: MailHeuristics.isConfidential(content, bodyText: extraction.bodyText))
+            authState: authState, isBulk: bulk, confidential: confidential)
         let message = MailMessage(
             id: messageID, accountID: account?.id ?? Self.manualAccountID, sourceRef: ref.isEmpty ? nil : ref,
             internetMessageID: messageKey, fromAddress: content.header.fromAddress.lowercased(),
@@ -1295,7 +1303,7 @@ package actor MailSyncActor {
             snippet: extraction.snippet.isEmpty ? nil : extraction.snippet,
             bodyText: extraction.bodyText, state: state, triageState: triageState, triageSource: .heuristic,
             triage: heuristic, createdAt: now, updatedAt: now, handledAt: state == .noRequest ? now : nil,
-            isBulk: bulk)
+            isBulk: bulk, confidential: confidential)
         let rows = items
         do {
             // The message, its rows and its post-processing marker commit together: a quit before
@@ -1605,7 +1613,8 @@ package actor MailSyncActor {
                                     store: rule?.autoDownload ?? true, truncated: truncated, settings: settings,
                                     lang: uiLang, now: now)
         let keep = MailHeuristics.keepsDocumentPending(heuristic, candidates: extraction.candidates, senderKind: kind)
-        let confidential = MailHeuristics.isConfidential(content, bodyText: extraction.bodyText)
+        // The message read again in full: its stored verdict, or what the guard finds now.
+        let confidential = m.confidential == true || MailHeuristics.isConfidential(content, extraction: extraction)
         let offer = MailTriageCoordinator.initialState(senderKind: kind, rule: rule, candidates: extraction.candidates.count,
                                                        settings: settings, authState: m.authState, isBulk: m.isBulk ?? false,
                                                        confidential: confidential) == .awaitingConsent
@@ -1625,6 +1634,8 @@ package actor MailSyncActor {
                     cur.triage = heuristic
                     cur.triageSource = .heuristic
                 }
+                if confidential { cur.confidential = true }          // sticky (`updateMailMessage`)
+                else if cur.confidential == nil { cur.confidential = false }
                 if renumber, !cur.bodyPurged {
                     cur.bodyText = extraction.bodyText
                     cur.snippet = extraction.snippet.isEmpty ? nil : extraction.snippet

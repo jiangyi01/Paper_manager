@@ -53,6 +53,15 @@ package enum MailWindow {
         return titleShowsMessaging(title)
     }
 
+    /// A browser (or a browser's web app) whose window title can't be read — without Screen
+    /// Recording every other app's title is nil — so the page it shows can't be told: it may be
+    /// webmail (`AssistPrivacy.Reason.unknownBrowserPage`, asks first). Native mail and chat apps
+    /// are known by their bundle id, and a readable title is judged by `isMessaging`.
+    package static func isUnidentifiedBrowserPage(bundleID: String?, windowTitle: String?) -> Bool {
+        guard let id = bundleID, showsSites(id) else { return false }
+        return (windowTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+    }
+
     /// A browser or a browser's web app (its title names the site).
     package static func showsSites(_ bundleID: String) -> Bool {
         let id = bundleID.lowercased()
@@ -81,18 +90,24 @@ extension ExplainContext {
     /// The privacy verdict for a turn about this context, captured from `hostBundleID` with
     /// `windowTitle` (nil: inside PaperDeck / exact text with no window): the located paper's
     /// policy and provenance (`AssistPrivacy`), plus `.messagingHost` for a mail / chat window —
-    /// native or in a browser. A never-AI paper stays blocked. When the paper's inputs couldn't
-    /// be read (`privacyUnchecked`), the caller must not send without asking.
+    /// native or in a browser — and `.unknownBrowserPage` for a browser whose title can't be read.
+    /// A never-AI paper stays blocked. When the paper's inputs couldn't be read
+    /// (`privacyUnchecked`), the caller must not send without asking.
     package func privacy(hostBundleID: String?, windowTitle: String?) -> AssistPrivacy.Verdict {
         let base = AssistPrivacy.verdict(policy: policy, aiNote: aiNote, provenance: provenance, hostBundleID: hostBundleID)
-        guard MailWindow.isMessaging(bundleID: hostBundleID, windowTitle: windowTitle) else { return base }
+        var extra = Set<AssistPrivacy.Reason>()
+        if MailWindow.isMessaging(bundleID: hostBundleID, windowTitle: windowTitle) { extra.insert(.messagingHost) }
+        if MailWindow.isUnidentifiedBrowserPage(bundleID: hostBundleID, windowTitle: windowTitle) {
+            extra.insert(.unknownBrowserPage)
+        }
+        guard !extra.isEmpty else { return base }
         switch base {
         case .blocked:
             return .blocked
         case .ok:
-            return .confirm([.messagingHost])
+            return .confirm(AssistPrivacy.Reason.allCases.filter(extra.contains))
         case .confirm(let reasons):
-            let all = Set(reasons).union([.messagingHost])
+            let all = Set(reasons).union(extra)
             return .confirm(AssistPrivacy.Reason.allCases.filter(all.contains))
         }
     }
@@ -133,6 +148,12 @@ package struct CaptureSurroundings: Sendable, Equatable {
             if case .mail? = shows { return true }
             return MailWindow.isMessaging(bundleID: bundleID, windowTitle: title)
         }
+
+        /// A browser window whose page can't be told (no readable title: Screen Recording is off) —
+        /// it may be webmail (`MailWindow.isUnidentifiedBrowserPage`).
+        package var isUnidentifiedBrowserPage: Bool {
+            shows == nil && MailWindow.isUnidentifiedBrowserPage(bundleID: bundleID, windowTitle: title)
+        }
     }
 
     /// The windows showing part of the capture, each once (in the order the samples met them).
@@ -163,6 +184,10 @@ package struct CaptureSurroundings: Sendable, Equatable {
 
     /// A mail or chat window shows part of the capture.
     package var showsMessaging: Bool { hosts.contains(where: \.isMessaging) }
+
+    /// A browser window whose page can't be told shows part of the capture (or, for a text
+    /// trigger, is the front window or the app the text was copied in).
+    package var showsUnidentifiedBrowserPage: Bool { hosts.contains(where: \.isUnidentifiedBrowserPage) }
 
     /// PaperDeck's reader under the capture's point: its paper and page (the capture's match).
     package var reader: (paperID: String, page: Int?)? {
@@ -279,12 +304,23 @@ package enum ExplainPrivacyRules {
             || (surroundings?.showsMessaging ?? false)
     }
 
+    /// A browser page that can't be told shows part of the capture (its host, any surrounding
+    /// window, the front window or the app text was copied in): without Screen Recording no
+    /// browser title is readable, so webmail in a browser can't be told from a journal page —
+    /// the turn asks first (`.unknownBrowserPage`). Native mail apps are known by bundle id.
+    package static func showsUnidentifiedBrowserPage(_ capture: ExplainCapture, surroundings: CaptureSurroundings?) -> Bool {
+        MailWindow.isUnidentifiedBrowserPage(bundleID: capture.hostBundleID, windowTitle: capture.windowTitle)
+            || (surroundings?.showsUnidentifiedBrowserPage ?? false)
+    }
+
     /// The verdicts as one: any unreadable (nil) → nil, nothing is sent (fail closed); any never-AI
     /// → blocked; else every confirmation reason (in `Reason.allCases` order), with
-    /// `.messagingHost` when `messaging`.
-    package static func combine(_ verdicts: [AssistPrivacy.Verdict?], messaging: Bool) -> AssistPrivacy.Verdict? {
+    /// `.messagingHost` when `messaging` and `.unknownBrowserPage` when `unknownBrowserPage`.
+    package static func combine(_ verdicts: [AssistPrivacy.Verdict?], messaging: Bool,
+                                unknownBrowserPage: Bool = false) -> AssistPrivacy.Verdict? {
         var reasons = Set<AssistPrivacy.Reason>()
         if messaging { reasons.insert(.messagingHost) }
+        if unknownBrowserPage { reasons.insert(.unknownBrowserPage) }
         var blocked = false
         for v in verdicts {
             switch v {

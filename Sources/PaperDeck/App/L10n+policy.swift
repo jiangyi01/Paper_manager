@@ -27,12 +27,18 @@ extension L {
                 return zh ? "你把这篇论文标记为未发表 / 保密。" : "You marked this paper unpublished / confidential."
             case .mailUnpublished:
                 return zh ? "这篇论文来自邮件，可能是未发表的稿件。" : "This paper came by email and may be unpublished work."
+            case .mailConfidential:
+                return zh ? "这篇论文来自一封保密邮件（例如审稿邀请或在审稿件），可能是未发表的稿件。"
+                          : "This paper came from a confidential email (such as a review invitation or a manuscript under review) and may be unpublished."
             case .personSourcedNoID:
                 return zh ? "这篇论文来自某个人的邮件，而且没有 DOI 或 arXiv 编号。"
                           : "This paper came from a person's email and has no DOI or arXiv ID."
             case .messagingHost:
                 return zh ? "所选内容来自邮件或聊天应用，可能包含别人的私人信息。"
                           : "The selection comes from a mail or chat app and may contain someone's private message."
+            case .unknownBrowserPage:
+                return zh ? "所选内容来自 PaperDeck 无法识别的浏览器页面（可能是网页邮箱）。没有「屏幕录制」权限时，PaperDeck 看不到窗口标题。"
+                          : "The selection comes from a browser page PaperDeck can't identify (it may be webmail). Without Screen Recording, PaperDeck can't read window titles."
             }
         }
 

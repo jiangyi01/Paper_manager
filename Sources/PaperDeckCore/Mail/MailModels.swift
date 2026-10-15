@@ -170,6 +170,13 @@ package struct MailMessage: Sendable, Identifiable, Equatable {
     /// from a journal's domain): its titles wait for 「让 AI 分析」 like a person's
     /// (`MailSyncActor.mayLookUpTitles`). Nil for messages captured before this was recorded.
     package var isBulk: Bool?
+    /// The confidentiality guard's verdict at capture (`MailHeuristics.isConfidential(_:extraction:)`
+    /// on the uncut text: a manuscript under review, a reviewer invitation, the user's own
+    /// submission). Sticky once true — a retention purge of the body or a stale copy written back
+    /// can't take it away; `MailHeuristics.isConfidential(_ m:)` reads it first. Nil for messages
+    /// captured before it was recorded (and whose body was already purged by then): the guard then
+    /// reads the subject and whatever body is stored.
+    package var confidential: Bool?
     package var seen: Bool
     package var createdAt: Date
     package var updatedAt: Date
@@ -186,7 +193,8 @@ package struct MailMessage: Sendable, Identifiable, Equatable {
                  triageModel: String? = nil, triageMs: Int? = nil, triageInputTokens: Int? = nil,
                  triageOutputTokens: Int? = nil, triageStdinBytes: Int? = nil, seen: Bool = false,
                  createdAt: Date = Date(), updatedAt: Date = Date(), handledAt: Date? = nil,
-                 triageConsented: Bool = false, triageConsentProvider: String? = nil, isBulk: Bool? = nil) {
+                 triageConsented: Bool = false, triageConsentProvider: String? = nil, isBulk: Bool? = nil,
+                 confidential: Bool? = nil) {
         self.pk = pk; self.id = id; self.accountID = accountID; self.sourceRef = sourceRef
         self.internetMessageID = internetMessageID; self.fromAddress = fromAddress; self.fromName = fromName
         self.ruleID = ruleID; self.senderKind = senderKind; self.authState = authState; self.subject = subject
@@ -199,7 +207,7 @@ package struct MailMessage: Sendable, Identifiable, Equatable {
         self.triageOutputTokens = triageOutputTokens; self.triageStdinBytes = triageStdinBytes
         self.seen = seen; self.createdAt = createdAt; self.updatedAt = updatedAt; self.handledAt = handledAt
         self.triageConsented = triageConsented; self.triageConsentProvider = triageConsentProvider
-        self.isBulk = isBulk
+        self.isBulk = isBulk; self.confidential = confidential
     }
 
     package var isOpen: Bool { state == .pending || state == .snoozed }

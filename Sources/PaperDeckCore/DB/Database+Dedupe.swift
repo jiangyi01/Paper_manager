@@ -213,7 +213,8 @@ extension Database {
 
     /// Whether a removed paper may leave a tombstone: not when its title or identifiers are
     /// private — marked unpublished / confidential or "never use AI", held as a possibly
-    /// unpublished emailed PDF, from a confidential email (a manuscript under review), or from a
+    /// unpublished emailed PDF, from a confidential email (a manuscript under review; the capture-time
+    /// verdict, so a purged body still counts — or the provenance's subject when the message is gone), or from a
     /// person's email without a public identifier (a purged or unknown message counts as a
     /// person's, as `Engine.privacyInputs` reads it).
     package func mayRemember(_ p: Paper) throws -> Bool {
@@ -224,7 +225,7 @@ extension Database {
             var message: MailMessage?
             if let id = source.mailMessageID { message = try mailMessage(id: id) }
             if message == nil, let mid = source.internetMessageID { message = try mailMessage(internetMessageID: mid) }
-            if let message, MailHeuristics.isConfidential(message) { return false }
+            if MailHeuristics.isConfidential(source: source, message: message) { return false }
             if !identified, message.map({ $0.senderKind != .alert }) ?? true { return false }
         }
         return true

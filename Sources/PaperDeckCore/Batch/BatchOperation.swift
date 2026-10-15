@@ -92,10 +92,15 @@ package enum RereadHold: String, Sendable, Equatable, CaseIterable {
     /// Marked "Never use AI" (`paper_policy.never_ai`).
     case neverAI
     /// Held as possibly unpublished (`ai_note = mail_unpublished`: a person's emailed PDF with no
-    /// DOI / arXiv id) — "confirm before AI reading".
+    /// DOI / arXiv id) — "confirm before AI reading". Also such a PDF without the note (it was
+    /// merged with "Read with AI" unticked, or the note was cleared): `AssistPrivacy.personSourcedNoID`.
     case possiblyUnpublished
     /// Marked "Unpublished / confidential" (`paper_policy.confidential`): asks before any AI use.
     case confidential
+    /// From a confidential email (`AssistPrivacy.mailConfidential`: a manuscript under review, a
+    /// reviewer invitation — an alert preset's domain too): Explain and Ask confirm first, and so
+    /// must a batch.
+    case confidentialEmail
     /// Under duplicate review: an open review holds this new paper's AI reading until it is decided.
     case duplicateReview
 }
