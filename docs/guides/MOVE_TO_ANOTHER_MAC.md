@@ -11,8 +11,10 @@ settings file**. Everything else is rebuilt or set up again on the new Mac.
 1. **Export your settings** while PaperDeck is still running: Settings ▸ General ▸ **Export
    Settings…**. Pick the sections (profile and institution, general, plan and reminder, AI
    preferences, library preferences, mail senders and criteria, mail accounts, the edge strip). The
-   file never contains passwords or app passwords; mail accounts include your mailbox addresses, and
-   the Crossref contact email is off by default.
+   file never contains passwords or app passwords. **Include mailbox addresses** is on by default,
+   so mail accounts arrive with their addresses; untick it to leave every mailbox address out (also
+   out of account names and a Google Drive folder's account name) — then type each account's address
+   again on the new Mac. The Crossref contact email is a separate box, off by default.
 2. **Quit PaperDeck** (menu-bar icon ▸ Quit), so nothing changes while you copy.
 3. **Copy the library folder** (default `~/Documents/PaperDeck`) to the new Mac — an external disk,
    AirDrop, or `ditto`, which keeps file dates and attributes:
@@ -34,13 +36,15 @@ settings file**. Everything else is rebuilt or set up again on the new Mac.
    that already runs PaperDeck: Settings ▸ Library & Storage ▸ **Change…**.)
 3. **Import the settings file:** Settings ▸ General ▸ **Import Settings…** (or the welcome page's
    option). Every change is listed before it's applied ("Reminder: 11:00 → 09:30"). The import rules:
-   - **AI reading and Mail stay off** until you turn them on.
+   - **An import never turns AI reading or Mail on**: they stay as they are on this Mac (on a new
+     Mac, off until you turn them on).
    - **Senders and mail accounts are merged, not replaced.** An entry is matched by its id, else a
      sender by its address or domain and an account by its mailbox (IMAP server and address) or
      watched folder. A matched entry takes the file's version but keeps **this Mac's id** — so an
      account keeps its saved app password and its emails stay linked; the file's other entries are
      added, and entries only this Mac has (say, an account added during setup) are kept. The preview
-     lists them: "Sender list: add 2 · replace 1 · keep 3".
+     lists them: "Sender list: add 2 · replace 1 · keep 3". The saved app password is only ever used
+     for the server it was saved for (see below).
    - **Nothing gets looser about privacy or quota.** Where this Mac is stricter than the file —
      AI email sorting on "Local rules only", a lower AI triage daily limit, less email or paper text
      sent to AI, a smaller attachment limit, mail checked less often (or manually), notifications of
@@ -50,7 +54,11 @@ settings file**. Everything else is rebuilt or set up again on the new Mac.
      account's shorter look-back, the institution's "Never send to AI" for people — this Mac's
      value stays. The same goes for AI email sorting switched to **another AI service** than the one
      this Mac uses, for a folder account's **Delete processed files** turned on where this Mac keeps
-     the files, and for a **new sender that is more specific than a stricter rule here** — say
+     the files, for a person's or advisor's sender turned into an **alert** (alert mail is treated as
+     public, so a person's unpublished PDF would no longer wait before AI reads it), for an IMAP
+     account pointed at **another mail server** (host, port or address — ticked, it gets a new
+     identity, so the app password saved for the old server is never sent to the new one and you
+     type it again), and for a **new sender that is more specific than a stricter rule here** — say
      `news@lab.example.edu` set to Always while this Mac has `@lab.example.edu` on Never or turned
      off: it would take over that mail, so it arrives with the stricter rule's values. The preview
      lists each one under **Kept stricter** ("Kept stricter: AI triage daily limit — 30 per day
@@ -61,9 +69,11 @@ settings file**. Everything else is rebuilt or set up again on the new Mac.
      hour of 25, an account's look-back of 100,000 days) or a value of the wrong type is not
      imported; the preview says which.
    - **IMAP accounts need their app password again** (it's in the old Mac's keychain), unless the
-     same mailbox is already set up on this Mac.
+     same account or mailbox is already set up on this Mac with the same server — re-importing your
+     own backup asks for none.
    - **Folder accounts** are matched to this Mac's cloud folders: the same OneDrive / Dropbox / Google
-     Drive root if it exists, else the only root of the same provider, else "choose later".
+     Drive root if it exists, else the only root of the same provider, else "choose later". A Google
+     Drive folder keeps its area — My Drive or a shared drive.
    - **A new person's "Always send to AI"** arrives as "Ask each time" unless you tick *Keep "Always"
      for people I set myself*.
    - **The reader description** and **the instructions for AI email sorting** (Mail ▸ Reading
@@ -72,7 +82,8 @@ settings file**. Everything else is rebuilt or set up again on the new Mac.
    - **The institution** carries only its name, short name, approved tools, policy link and people
      default — never other text.
 4. **Sign in to Claude or ChatGPT** on this Mac and turn AI reading on (Settings ▸ AI Reading).
-5. **Re-enter IMAP app passwords:** Settings ▸ Mail ▸ edit each account ▸ Test & Save.
+5. **Re-enter IMAP app passwords:** Settings ▸ Mail ▸ edit each account ▸ Test & Save (type the
+   address too if you exported without mailbox addresses).
 6. **Check the cloud folder of a Power Automate account** is detected again (Settings ▸ Mail shows
    the account as ready after a sync).
 7. **Grant permissions again:** notifications (the first reminder asks), the desktop widget (right-click

@@ -37,7 +37,7 @@ import Testing
     }
 
     static func export(_ d: [String: Any], _ sections: Set<SettingsSection>) -> SettingsBundle {
-        SettingsExporter.export(PersistedDomain(d), sections: sections, includePersonal: false, home: home, roots: [],
+        SettingsExporter.export(PersistedDomain(d), sections: sections, includePersonal: false, includeAddresses: false, home: home, roots: [],
                                 app: "PaperDeck test", now: now)
     }
 

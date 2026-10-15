@@ -642,13 +642,14 @@ only — nothing is sent to AI.
 ### Moving to another Mac
 
 1. **Old Mac:** Settings ▸ General ▸ **Export Settings…** (preferences, senders, reading criteria and
-   mail accounts — never passwords). Then quit PaperDeck and copy the library folder to the new Mac,
-   or keep it in a cloud folder (one Mac at a time).
+   mail accounts — never passwords; keep **Include mailbox addresses** ticked so accounts arrive with
+   their addresses). Then quit PaperDeck and copy the library folder to the new Mac, or keep it in a
+   cloud folder (one Mac at a time).
 2. **New Mac:** put PaperDeck in Applications and open it; choose **Use an existing PaperDeck
    library…** and pick the copied folder.
-3. **Import Settings…** shows every change before it applies. AI reading and Mail stay off; IMAP
-   accounts need their app passwords again; a new person's "Always send to AI" arrives as "Ask each
-   time". Senders and accounts are merged by id — this Mac's own entries stay. A privacy or quota
+3. **Import Settings…** shows every change before it applies. An import never turns AI reading or
+   Mail on; IMAP accounts need their app passwords again (not one already set up here with the same
+   server); a new person's "Always send to AI" arrives as "Ask each time". Senders and accounts are merged by id — this Mac's own entries stay. A privacy or quota
    setting that is looser in the file than on this Mac is **kept stricter** unless you tick it.
 4. Sign in to Claude or ChatGPT, turn AI on; re-enter IMAP app passwords; allow notifications, add the
    widget, turn on Open at Login; **Re-index full text**.
@@ -685,11 +686,13 @@ These are the same for every institution and can't be loosened by a preset or an
   notifications or automatic reading off, email text kept for less time, a lighter model, a sender's
   lower AI policy, a sender or account turned off (or a sender's automatic merge / attachment storing
   off, an account's shorter look-back), the institution's "Never send to AI" for people, AI email
-  sorting on another AI service, a folder account's "Delete processed files", a new sender more
-  specific than a stricter rule here (it would take over that mail) — this Mac's value stays and is
-  listed under **Kept stricter**; that item's own checkbox (off by default) takes the file's value.
-  Values out of range (a daily limit of 1e300) aren't imported, and the instructions for AI email
-  sorting, like the reader description, only after you confirm them.
+  sorting on another AI service, a folder account's "Delete processed files", a person's or advisor's
+  sender turned into an alert, an IMAP account pointed at another mail server (its saved app password
+  is never sent there), a new sender more specific than a stricter rule here (it would take over that
+  mail) — this Mac's value stays and is listed under **Kept stricter**; that item's own checkbox
+  (off by default) takes the file's value. Values out of range (a daily limit of 1e300) aren't
+  imported, and the instructions for AI email sorting, like the reader description, only after you
+  confirm them.
 - **Confidential mail is never sent to AI or merged automatically**, whatever a sender's policy says:
   review invitations and requests, manuscript-system emails, decisions and proofs of your own
   submissions, and emails marked confidential. Titles of possibly unpublished manuscripts aren't

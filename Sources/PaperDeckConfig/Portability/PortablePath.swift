@@ -19,10 +19,11 @@ package enum PortablePath: Codable, Sendable, Equatable {
         case unresolved
     }
 
-    /// Cloud roots first (`CloudRootLocator.split`), then home-relative, else absolute. `~` paths
-    /// count as home-relative.
+    /// Cloud roots first (`CloudRootLocator.split`; a Google Drive path relative to the account
+    /// folder, keeping `My Drive/` or `Shared drives/`), then home-relative, else absolute. `~`
+    /// paths count as home-relative.
     package static func encode(_ absolutePath: String, home: URL, roots: [CloudRoot]) -> PortablePath {
-        if let (root, relative) = CloudRootLocator.split(absolutePath, home: home) {
+        if let (root, relative) = CloudRootLocator.split(absolutePath, home: home, googleAccountRelative: true) {
             return .cloud(provider: root.provider, root: root.name, relative: relative)
         }
         let path = absolutePath.hasPrefix("~/") ? home.path + String(absolutePath.dropFirst(1)) : absolutePath
@@ -35,7 +36,8 @@ package enum PortablePath: Codable, Sendable, Equatable {
 
     /// The path on this Mac: home-relative under `home`; absolute as is; a cloud path under the
     /// root of the same name, else under the only root of the same provider (iCloud Drive: always
-    /// this Mac's), else unresolved.
+    /// this Mac's), else unresolved. A Google Drive path is resolved in the account folder, in its
+    /// area (`My Drive/…`, `Shared drives/…`; an earlier build's file: My Drive).
     package func resolve(home: URL, roots: [CloudRoot]) -> Resolution {
         func under(_ base: URL, _ relative: String) -> URL {
             relative.isEmpty ? base : base.appendingPathComponent(relative)
@@ -45,14 +47,27 @@ package enum PortablePath: Codable, Sendable, Equatable {
         case .absolute(let path): return .exact(URL(fileURLWithPath: path))
         case .cloud(let provider, let root, let relative):
             if provider == .iCloudDrive { return .exact(under(CloudRootLocator.iCloudDrive(home: home).url, relative)) }
-            if let same = roots.first(where: { $0.name == root }) { return .exact(under(same.url, relative)) }
+            func place(_ r: CloudRoot) -> URL {
+                guard provider == .googleDrive else { return under(r.url, relative) }
+                return under(CloudRootLocator.accountFolder(r), CloudRootLocator.googleAccountRelative(relative))
+            }
+            if let same = roots.first(where: { $0.name == root }) { return .exact(place(same)) }
             if let legacy = CloudRootLocator.homeRoot(named: root, home: home),
                FileManager.default.fileExists(atPath: legacy.url.path) {
                 return .exact(under(legacy.url, relative))            // the legacy app folder in home
             }
             let sameProvider = roots.filter { $0.provider == provider }
-            if sameProvider.count == 1 { return .sameProvider(under(sameProvider[0].url, relative)) }
+            if sameProvider.count == 1 { return .sameProvider(place(sameProvider[0])) }
             return .unresolved
         }
+    }
+
+    /// The same path without a mailbox address in its cloud root's name
+    /// (`GoogleDrive-jane@example.com` → `GoogleDrive`, `CloudRootLocator.rootNameWithoutAddress`):
+    /// an export without mailbox addresses. On import it goes to the only root of that provider.
+    package var withoutAddresses: PortablePath {
+        guard case .cloud(let provider, let root, let relative) = self, root.contains("@") else { return self }
+        return .cloud(provider: provider, root: CloudRootLocator.rootNameWithoutAddress(root, provider: provider),
+                      relative: relative)
     }
 }

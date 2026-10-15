@@ -739,8 +739,8 @@ extension L {
         static var export: String { zh ? "导出设置…" : "Export Settings…" }
         static var `import`: String { zh ? "导入设置…" : "Import Settings…" }
         static var note: String {
-            zh ? "导出偏好设置、发件人列表、阅读标准和邮件账户 — 绝不包含密码或应用专用密码。导入后，AI 解读和邮件保持关闭，直到你把它们打开。"
-               : "Exports preferences, the sender list, reading criteria and mail accounts — never passwords or app passwords. After an import, AI reading and Mail stay off until you turn them on."
+            zh ? "导出偏好设置、发件人列表、阅读标准和邮件账户 — 绝不包含密码或应用专用密码。导入不会打开 AI 解读或邮件。"
+               : "Exports preferences, the sender list, reading criteria and mail accounts — never passwords or app passwords. An import never turns AI reading or Mail on."
         }
         static func lastExported(_ when: String) -> String { zh ? "上次导出：\(when)" : "Last exported \(when)" }
 
@@ -764,6 +764,12 @@ extension L {
         }
         static var accountsHaveAddresses: String {
             zh ? "邮件账户包含你的邮箱地址。" : "Mail accounts include your mailbox addresses."
+        }
+        /// The export's mailbox-address choice (on by default: a new Mac needs the addresses).
+        static var includeAddresses: String { zh ? "包含邮箱地址" : "Include mailbox addresses" }
+        static var addressesLeftOut: String {
+            zh ? "邮件账户不含邮箱地址（账户名称中的地址也会去掉）：在新 Mac 上需要重新填写每个账户的地址。"
+               : "Mail accounts leave out their addresses (also in account names): type each account's address again on the new Mac."
         }
         static var includePersonal: String { zh ? "包含 Crossref 联系邮箱" : "Include the Crossref contact email" }
         static var exportButton: String { zh ? "导出…" : "Export…" }
@@ -845,7 +851,8 @@ extension L {
         static var criteriaInstructions: String { zh ? "邮件分拣：给 AI 的说明" : "Email sorting: instructions for the AI" }
         static var useCriteriaInstructions: String { zh ? "使用这段说明" : "Use these instructions" }
         static var footer: String {
-            zh ? "AI 解读和邮件保持关闭，准备好后再打开。" : "AI reading and Mail stay off. Turn them on when you're ready."
+            zh ? "导入不会打开 AI 解读或邮件；它们保持这台 Mac 上的现状。"
+               : "An import never turns AI reading or Mail on; they stay as they are on this Mac."
         }
         static var importButton: String { zh ? "导入" : "Import" }
         static func imported(_ n: Int) -> String { zh ? "已导入 \(n) 项设置。" : "Imported \(n) setting(s)." }
@@ -897,6 +904,8 @@ extension L {
             case .autoDownload: return L.MailPref.autoDownload
             case .lookbackDays: return L.MailPref.lookback
             case .deleteProcessedFiles: return L.MailPref.deleteProcessed
+            case .kind: return L.MailPref.kind
+            case .server: return zh ? "邮件服务器、端口和地址" : "Mail host, port and address"
             }
         }
         /// A kept-stricter item's value in words ("30 per day", "Local rules only", "Ask", "Off", "14 days").
@@ -909,6 +918,10 @@ extension L {
                 if let p = v.stringValue.flatMap(MailAIPolicy.init(rawValue:)) { return L.MailPref.aiPolicyShort(p) }
             case .lookbackDays?:
                 if let n = v.doubleValue.flatMap({ Int(exactly: $0.rounded()) }) { return L.MailPref.days(n) }
+            case .kind?:
+                if let k = v.stringValue.flatMap(SenderKind.init(rawValue:)) { return L.MailPref.kindName(k) }
+            case .server?:
+                if let s = v.stringValue { return s }            // "me@example.com · imap.example.com:993"
             case .enabled?, .autoMerge?, .autoDownload?, .deleteProcessedFiles?, nil:
                 break
             }

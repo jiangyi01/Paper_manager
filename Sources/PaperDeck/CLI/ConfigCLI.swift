@@ -170,14 +170,18 @@ enum ConfigCLI {
 
     // MARK: --export-settings
 
-    /// `--export-settings OUT.json [--plist FILE | --suite NAME] [--sections a,b,…] [--include-personal] [--home DIR]`:
-    /// a `paperdeck.settings/1` file, byte-compatible with Settings ▸ General ▸ Export Settings…
-    /// (never a password or app password: those live in the keychain, which is never read).
+    /// `--export-settings OUT.json [--plist FILE | --suite NAME] [--sections a,b,…] [--include-mailbox-addresses]
+    /// [--include-personal] [--home DIR]`: a `paperdeck.settings/1` file, byte-compatible with
+    /// Settings ▸ General ▸ Export Settings… (never a password or app password: those live in the
+    /// keychain, which is never read). Personal data only when asked for: `--include-mailbox-addresses`
+    /// the mailbox addresses (the sheet's "Include mailbox addresses"; without it an account has no
+    /// address and an address in an account or cloud folder name is left out), `--include-personal`
+    /// the Crossref contact email and, as before, the mailbox addresses.
     /// `--home` (default: your home folder) is where paths are made portable from and where the
     /// cloud-folder root names are listed (`<home>/Library/CloudStorage`, names only).
     static func exportSettings(_ a: CLIArgs) -> Int32 {
         guard let out = a.positional else {
-            return CLIRunner.fail("--export-settings OUT.json [--plist FILE | --suite NAME] [--sections \(SettingsSection.allCases.map(\.rawValue).joined(separator: ","))] [--include-personal] [--home DIR]")
+            return CLIRunner.fail("--export-settings OUT.json [--plist FILE | --suite NAME] [--sections \(SettingsSection.allCases.map(\.rawValue).joined(separator: ","))] [--include-mailbox-addresses] [--include-personal] [--home DIR]")
         }
         let s: Source
         switch source(a) {
@@ -191,7 +195,9 @@ enum ConfigCLI {
         }
         let home = a.url("--home") ?? SharedPaths.realHome
         let roots = cloudRoots(home: home)
-        let bundle = SettingsExporter.export(s.domain, sections: sections, includePersonal: a.has("--include-personal"),
+        let personal = a.has("--include-personal")
+        let bundle = SettingsExporter.export(s.domain, sections: sections, includePersonal: personal,
+                                             includeAddresses: personal || a.has("--include-mailbox-addresses"),
                                              home: home, roots: roots, app: SettingsExportSheet.appVersion, now: Date())
         let url = URL(fileURLWithPath: (out as NSString).expandingTildeInPath)
         guard !FileManager.default.fileExists(atPath: url.path) else {
@@ -216,7 +222,9 @@ enum ConfigCLI {
     /// change here, with the same rules as the app (never `agent.mode`, `mail.enabled` or
     /// `setup.completed`; a privacy or quota setting looser in the file than here keeps this Mac's
     /// value — one `keptStricter` line each — unless `--accept-looser`; a new person's "Always"
-    /// arrives as "Ask"; IMAP accounts need their app password again). Nothing is written — a real
+    /// arrives as "Ask"; IMAP accounts need their app password again unless this Mac has the same
+    /// account on the same server — one the file points at another server keeps this Mac's server
+    /// unless `--accept-looser`). Nothing is written — a real
     /// import is GUI-only (Settings ▸ General ▸ Import Settings…).
     static func importSettings(_ a: CLIArgs) -> Int32 {
         guard let input = a.positional else {

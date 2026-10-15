@@ -4,9 +4,11 @@ import UniformTypeIdentifiers
 import PaperDeckCore
 import PaperDeckConfig
 
-/// Export Settings…: section checkboxes, the personal-data choice, then a `paperdeck.settings/1`
-/// file (`SettingsExporter` over the allowlist — unknown keys, passwords and app passwords never
-/// leave). Writes `transfer.lastExportedAt`.
+/// Export Settings…: section checkboxes, the personal-data choices — the mailbox addresses (on: a
+/// new Mac needs them; off leaves them out of accounts, account names and cloud folder names) and
+/// the Crossref contact email (off) — then a `paperdeck.settings/1` file (`SettingsExporter` over
+/// the allowlist — unknown keys, passwords and app passwords never leave). Writes
+/// `transfer.lastExportedAt`.
 struct SettingsExportSheet: View {
     let settings: SettingsStore
     let onClose: () -> Void
@@ -18,6 +20,7 @@ struct SettingsExportSheet: View {
 
     @State private var chosen = Set(SettingsSection.allCases)
     @State private var includePersonal = false
+    @State private var includeAddresses = true
     @State private var working = false
     @State private var result: (kind: StatusKind, text: String)?
 
@@ -36,8 +39,11 @@ struct SettingsExportSheet: View {
                         Toggle(L.Transfer.sectionName(group[0]), isOn: binding(group))
                             .toggleStyle(.checkbox)
                     }
+                    Toggle(L.Transfer.includeAddresses, isOn: $includeAddresses)
+                        .toggleStyle(.checkbox)
                     if chosen.contains(.mailAccounts) {
-                        NoteText(L.Transfer.accountsHaveAddresses, symbol: "person.crop.circle")
+                        NoteText(includeAddresses ? L.Transfer.accountsHaveAddresses : L.Transfer.addressesLeftOut,
+                                 symbol: "person.crop.circle")
                     }
                     Toggle(L.Transfer.includePersonal, isOn: $includePersonal)
                         .toggleStyle(.checkbox)
@@ -102,11 +108,13 @@ struct SettingsExportSheet: View {
         let domain = settings.persistedDomain
         let sections = chosen
         let personal = includePersonal
+        let addresses = includeAddresses
         Task {
             let roots = await MailSettingsIO.cloudRoots(home: SharedPaths.realHome).roots
             let now = Date()
             let bundle = SettingsExporter.export(domain, sections: sections, includePersonal: personal,
-                                                 home: SharedPaths.realHome, roots: roots, app: Self.appVersion, now: now)
+                                                 includeAddresses: addresses, home: SharedPaths.realHome, roots: roots,
+                                                 app: Self.appVersion, now: now)
             do {
                 let data = try Self.encode(bundle)
                 try await BlockingIO.run { try data.write(to: url, options: .atomic) }

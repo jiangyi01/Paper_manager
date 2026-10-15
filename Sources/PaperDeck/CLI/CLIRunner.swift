@@ -239,13 +239,17 @@ enum CLIRunner {
                                                     the keys the first launch of this build would add (only absent
                                                     keys; legacy installs are backed up first); --out writes the
                                                     migrated copy to a new plist file
-      --export-settings OUT.json [--plist FILE | --suite NAME] [--sections profile,organization,…] [--include-personal] [--home DIR]
+      --export-settings OUT.json [--plist FILE | --suite NAME] [--sections profile,organization,…]
+                 [--include-mailbox-addresses] [--include-personal] [--home DIR]
                                                     a paperdeck.settings/1 file like Settings ▸ General ▸ Export
-                                                    Settings… (no passwords; the keychain is never read)
+                                                    Settings… (no passwords; the keychain is never read);
+                                                    mailbox addresses only with --include-mailbox-addresses,
+                                                    the Crossref contact email (and addresses) only with
+                                                    --include-personal
       --import-settings IN.json --dry-run [--plist FILE | --suite NAME] [--sections …] [--keep-people-always]
                  [--accept-reader] [--accept-instructions] [--accept-looser] [--home DIR] [--lang en|zh]
-                                                    what an import would change and warn about (AI reading and Mail
-                                                    are never turned on; a privacy or quota setting looser than this
+                                                    what an import would change and warn about (an import never turns
+                                                    AI reading or Mail on; a privacy or quota setting looser than this
                                                     Mac's is kept stricter unless --accept-looser; the reader
                                                     description / triage instructions only with --accept-reader /
                                                     --accept-instructions; out-of-range values are dropped); a real

@@ -17,7 +17,7 @@ import Testing
         var d: [String: Any] = [:]
         if !senders.isEmpty { d[MailSettings.Keys.senders] = MailSettings.encode(senders) }
         if !accounts.isEmpty { d[MailSettings.Keys.accounts] = MailSettings.encode(accounts) }
-        return SettingsExporter.export(PersistedDomain(d), sections: Set(SettingsSection.allCases), includePersonal: personal,
+        return SettingsExporter.export(PersistedDomain(d), sections: Set(SettingsSection.allCases), includePersonal: personal, includeAddresses: personal,
                                        home: home, roots: [], app: "PaperDeck 1.0 (27)", now: now)
     }
 

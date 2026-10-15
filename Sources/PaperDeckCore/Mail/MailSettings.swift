@@ -155,6 +155,43 @@ package struct MailAccount: Codable, Sendable, Equatable, Identifiable {
     package var secretKey: String { "\(id).imap" }
     // The Power Automate folder suggestion lives in PaperDeckConfig (`CloudRootLocator.suggestedFolder`):
     // the engine knows no institution or tenant folder name.
+
+    /// Where (and as whom) an IMAP account signs in, normalised the way the account form saves it:
+    /// trimmed, case-insensitive host (an empty host means the preset's; a trailing dot is the same
+    /// host) and username, the default port. The keychain item (`secretKey`) is keyed by the account
+    /// id alone, so comparing this is the only thing binding a saved app password to its server.
+    package struct ServerIdentity: Sendable, Equatable {
+        package var host: String
+        package var port: Int
+        package var username: String
+
+        package init(host: String, port: Int, username: String) {
+            self.host = host; self.port = port; self.username = username
+        }
+
+        /// "me@example.com · imap.example.com:993" (no address: just the host and port).
+        package var summary: String {
+            let server = "\(host.isEmpty ? "—" : host):\(port)"
+            return username.isEmpty ? server : "\(username) · \(server)"
+        }
+    }
+
+    package var serverIdentity: ServerIdentity {
+        func clean(_ s: String?) -> String { (s ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        var host = clean(self.host)
+        if host.isEmpty { host = clean(imapPreset?.host) }
+        while host.hasSuffix(".") { host.removeLast() }          // `imap.gmail.com.` is the same host
+        return ServerIdentity(host: host, port: port ?? imapPreset?.port ?? 993, username: clean(username))
+    }
+
+    /// Whether the app password saved for `original` (an IMAP account as it is saved here) may be
+    /// sent when signing in as `edited`: only for the same account (same id, IMAP both times) on the
+    /// same server, port and address — never to another host, whether the account was edited
+    /// (「编辑…」) or changed by a settings import.
+    package static func mayReuseSavedPassword(original: MailAccount?, edited: MailAccount) -> Bool {
+        guard let original, original.id == edited.id, original.kind == .imap, edited.kind == .imap else { return false }
+        return original.serverIdentity == edited.serverIdentity
+    }
 }
 
 /// Global mail settings snapshot (engine side). Loaded like EngineSettings.
