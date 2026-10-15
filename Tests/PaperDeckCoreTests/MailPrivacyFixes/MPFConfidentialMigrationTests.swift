@@ -117,16 +117,65 @@ import Testing
             let old = try SQLiteConnection(path: url.path)
             try Self.insertLikeTheShippedBuild(old, id: "m-old-build", subject: "Lab meeting", from: "pi@lab.example.edu",
                                                kind: "advisor", body: "See you at noon.", purged: false)
+            // Integration X3: confidential by its body only — the subject alone says nothing.
+            try Self.insertLikeTheShippedBuild(old, id: "m-old-build-invite", subject: "Request from Nature Neuroscience",
+                                               from: "editor@neuroscience.nature.com",
+                                               body: "Dear Dr. Example,\nI would like to invite you to review the attached manuscript.",
+                                               purged: false)
+            #expect(try old.scalarInt("SELECT count(*) FROM mail_message WHERE confidential IS NULL AND body_purged = 0") == 2)
             old.close()
         }
 
-        // Reopening is a no-op: no second backup; the shipped build's row reads with no verdict.
+        // Reopening: no second backup, no schema change — but the rows the shipped build stored after
+        // the marker get their verdict while the bodies are still there (integration X3).
         let again = try await Database.open(url: url, backupsDir: backups)
         #expect(again.migration == Migrations.Outcome(fromVersion: 2, toVersion: 2, backup: nil))
-        #expect(try await again.mailMessage(id: "m-old-build")?.confidential == nil)
+        #expect(try await again.mailMessage(id: "m-old-build")?.confidential == false)
+        #expect(try await again.mailMessage(id: "m-old-build-invite")?.confidential == true)
         #expect(try await again.mailMessage(id: "m-invite")?.confidential == true)
+        #expect(try await again.mailMessage(id: "m-purged-invite")?.confidential == nil)   // purged: still not judged
+        // So the retention purge can't make it look harmless.
+        #expect(try await again.purgeMailBodies(handledBefore: Self.t0.addingTimeInterval(1), now: Self.t0) == 4)
+        let purged = try #require(try await again.mailMessage(id: "m-old-build-invite"))
+        #expect(purged.bodyPurged && purged.bodyText == nil && MailHeuristics.isConfidential(purged))
         await again.close()
         #expect(try FileManager.default.contentsOfDirectory(atPath: backups.path).count == 1)
+    }
+
+    /// Integration X3: an older build sharing the library stores a message while this build runs (no
+    /// reopen in between); the retention purge judges it before it drops the body.
+    @Test func thePurgeJudgesAMessageWithoutAVerdictBeforeDroppingItsBody() async throws {
+        let db = try Database.inMemory()
+        let invite = MailMessage(accountID: "acct", internetMessageID: "<x3-invite@example.org>",
+                                 fromAddress: "editor@neuroscience.nature.com", senderKind: .alert,
+                                 subject: "Request from Nature Neuroscience", receivedAt: Self.t0,
+                                 bodyText: "Dear Dr. Example,\nI would like to invite you to review the attached manuscript.",
+                                 state: .dismissed, createdAt: Self.t0, updatedAt: Self.t0, handledAt: Self.t0)
+        var digest = invite
+        digest.id = UUID().uuidString.lowercased()
+        digest.internetMessageID = "<x3-digest@example.org>"
+        digest.subject = "Nature Neuroscience: new issue"
+        digest.bodyText = "New this month: cortical folding, radial glia and more."
+        var pending = invite
+        pending.id = UUID().uuidString.lowercased()
+        pending.internetMessageID = "<x3-pending@example.org>"
+        pending.state = .pending
+        for m in [invite, digest, pending] {
+            #expect(m.confidential == nil)                                         // no verdict, as an older build writes it
+            _ = try await db.insertMailMessage(m, items: [])
+        }
+        #expect(try await db.purgeMailBodies(handledBefore: Self.t0.addingTimeInterval(86_400), now: Self.t0) == 2)
+        let purged = try #require(try await db.mailMessage(id: invite.id))
+        #expect(purged.bodyPurged && purged.bodyText == nil)
+        #expect(purged.confidential == true)
+        #expect(MailHeuristics.isConfidential(purged), "the purge took the only confidential signal away")
+        #expect(try await db.mailMessage(id: digest.id)?.confidential == false)
+        // A pending one keeps its body and is left to the next launch (only what the purge empties is judged).
+        let kept = try #require(try await db.mailMessage(id: pending.id))
+        #expect(kept.confidential == nil && !kept.bodyPurged && MailHeuristics.isConfidential(kept))
+        // Nothing left to purge: nothing is written.
+        #expect(try await db.purgeMailBodies(handledBefore: Self.t0.addingTimeInterval(86_400), now: Self.t0) == 0)
+        #expect(try await db.mailMessage(id: pending.id)?.confidential == nil)
     }
 
     @Test func theBackfillOnlyJudgesRowsWithoutAVerdict() throws {

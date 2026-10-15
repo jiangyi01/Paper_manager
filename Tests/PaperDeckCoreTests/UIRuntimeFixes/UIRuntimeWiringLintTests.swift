@@ -85,22 +85,26 @@ struct UIRuntimeWiringLintTests {
     @Test(.enabled(if: LintRepo.hasSources, "the sources aren't next to the tests"))
     func thePaperMenuCarriesTheCardMenusShortcuts() throws {
         let menu = try Self.source("Sources/PaperDeck/Windows/PaperMenu.swift")
-        let start = try #require(menu.range(of: "static let entries: [Entry] = ["))
-        let end = try #require(menu[start.upperBound...].range(of: "\n    ]\n"))
-        let entries = menu[start.upperBound..<end.lowerBound]
+        // The keys live in Core (`PaperCommand.shortcut`, also `HotKeySpec.appShortcuts`, integration
+        // INT-1); the menu derives its entries from them.
+        let entries = try Self.body("static let entries: [Entry] = PaperCommand.allCases.map", in: menu)
+        #expect(entries.contains("let shortcut = command.shortcut"))
+        #expect(entries.contains("shortcut.keyCode == HotKeySpec.Key.delete"))
+        #expect(entries.contains("HotKeySpec.cocoaFlags(carbon: shortcut.carbonModifiers)"))
+        let commands = try Self.source("Sources/PaperDeckCore/Batch/PaperCommands.swift")
         for line in [
-            "Entry(command: .openPDF, key: \"o\", modifiers: .command)",
-            "Entry(command: .openInPreview, key: \"o\", modifiers: [.command, .option])",
-            "Entry(command: .toggleDone, key: \"d\", modifiers: .command)",
-            "Entry(command: .priorityHigh, key: \"1\", modifiers: [.command, .option])",
-            "Entry(command: .priorityNormal, key: \"2\", modifiers: [.command, .option])",
-            "Entry(command: .priorityLow, key: \"3\", modifiers: [.command, .option])",
-            "Entry(command: .postponeDay, key: \"p\", modifiers: [.command, .shift])",
-            "Entry(command: .readWithAI, key: \"r\", modifiers: [.command, .option])",
-            "Entry(command: .revealInFinder, key: \"r\", modifiers: [.command, .shift])",
-            "Entry(command: .moveToTrash, key: deleteKey, modifiers: .command)",
+            "case .openPDF: return .init(keyCode: 0x1F, carbonModifiers: C.command)",
+            "case .openInPreview: return .init(keyCode: 0x1F, carbonModifiers: C.command | C.option)",
+            "case .toggleDone: return .init(keyCode: 0x02, carbonModifiers: C.command)",
+            "case .priorityHigh: return .init(keyCode: 0x12, carbonModifiers: C.command | C.option)",
+            "case .priorityNormal: return .init(keyCode: 0x13, carbonModifiers: C.command | C.option)",
+            "case .priorityLow: return .init(keyCode: 0x14, carbonModifiers: C.command | C.option)",
+            "case .postponeDay: return .init(keyCode: 0x23, carbonModifiers: C.command | C.shift)",
+            "case .readWithAI: return .init(keyCode: 0x0F, carbonModifiers: C.command | C.option)",
+            "case .revealInFinder: return .init(keyCode: 0x0F, carbonModifiers: C.command | C.shift)",
+            "case .moveToTrash: return .init(keyCode: HotKeySpec.Key.delete, carbonModifiers: C.command)",
         ] {
-            #expect(entries.contains(line), "\(line)")
+            #expect(commands.contains(line), "\(line)")
         }
         #expect(menu.contains("static let deleteKey = \"\\u{8}\""))
         // Validation: the rules decide (library key, no text editing, a selection).

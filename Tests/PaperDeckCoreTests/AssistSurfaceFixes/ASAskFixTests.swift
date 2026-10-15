@@ -155,6 +155,10 @@ import Testing
         for e in qa { #expect(e.message(.en) != e.message(.zh)) }
         for e in explain { #expect(e.message(.en) != e.message(.zh)) }
         #expect(qa.allSatisfy { $0.message(.zh).unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) } })
+        // Integration INT-2: an explanation is「讲解」everywhere in the Chinese UI (「解释术语」is a chip).
+        for e in explain {
+            #expect(e.message(.zh).contains("讲解") && !e.message(.zh).contains("解释"), "\(e.message(.zh))")
+        }
     }
 
     // MARK: assist-surfaces-9

@@ -40,7 +40,28 @@ package enum HotKeySpec {
         case reservedKey
         /// A shortcut the system or every app already uses (⌘Q, ⌘Tab, ⌘Space, the screenshot keys…).
         case systemShortcut
+        /// One of PaperDeck's own window shortcuts (`appShortcuts`): the global shortcut is matched
+        /// first wherever PaperDeck is, so that menu item would never fire again.
+        case appShortcut
     }
+
+    /// The library window's own shortcuts — its menu bar (the Paper menu's `PaperCommand.shortcut`s,
+    /// Settings ⌘,, Add PDF ⌘N, Import Folder ⌥⌘N, Hide Others ⌥⌘H, the Edit menu, Help ⌘?) and its
+    /// toolbar and inspector (Search ⌘F, Inspector ⌘I, Edit Metadata ⌘E). Explain's global shortcut
+    /// can't be one of them (`validate` → `.appShortcut`). ⌘Q/W/H/M are `systemShortcut`s.
+    package static let appShortcuts: [AssistSettings.HotKey] = {
+        let cmd = Carbon.command, shift = Carbon.shift, option = Carbon.option
+        let shell: [(Int, Int)] = [
+            (0x2B, cmd),                                    // ⌘,  Settings…
+            (0x2D, cmd), (0x2D, cmd | option),              // ⌘N Add PDF…, ⌥⌘N Import Folder…
+            (Key.h, cmd | option),                          // ⌥⌘H Hide Others
+            (0x06, cmd), (0x06, cmd | shift),               // ⌘Z Undo, ⇧⌘Z Redo
+            (0x07, cmd), (0x08, cmd), (0x09, cmd), (0x00, cmd),   // ⌘X ⌘C ⌘V ⌘A
+            (0x2C, cmd | shift),                            // ⌘? PaperDeck Help
+            (0x03, cmd), (0x22, cmd), (Key.e, cmd),         // ⌘F Search, ⌘I Inspector, ⌘E Edit Metadata
+        ]
+        return PaperCommand.allCases.map(\.shortcut) + shell.map { AssistSettings.HotKey(keyCode: $0.0, carbonModifiers: $0.1) }
+    }()
 
     /// The Carbon mask of AppKit modifier flags (other bits ignored).
     package static func carbonModifiers(cocoaFlags: UInt) -> Int {
@@ -72,6 +93,9 @@ package enum HotKeySpec {
         guard mods & (Carbon.control | Carbon.command) != 0 else { return .needsControlOrCommand }
         if isSystem(keyCode: k.keyCode, mods: mods) { return .systemShortcut }
         guard keyName(k.keyCode) != nil else { return .reservedKey }
+        if appShortcuts.contains(where: { $0.keyCode == k.keyCode && $0.carbonModifiers & Carbon.all == mods }) {
+            return .appShortcut
+        }
         return nil
     }
 

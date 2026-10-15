@@ -17,19 +17,15 @@ enum PaperMenu {
     /// ⌫ as a menu key equivalent (`NSBackspaceCharacter`): the Delete key.
     static let deleteKey = "\u{8}"
 
-    /// Each command's shortcut, the one its context-menu item shows (`PaperContextMenu`).
-    static let entries: [Entry] = [
-        Entry(command: .openPDF, key: "o", modifiers: .command),
-        Entry(command: .openInPreview, key: "o", modifiers: [.command, .option]),
-        Entry(command: .toggleDone, key: "d", modifiers: .command),
-        Entry(command: .priorityHigh, key: "1", modifiers: [.command, .option]),
-        Entry(command: .priorityNormal, key: "2", modifiers: [.command, .option]),
-        Entry(command: .priorityLow, key: "3", modifiers: [.command, .option]),
-        Entry(command: .postponeDay, key: "p", modifiers: [.command, .shift]),
-        Entry(command: .readWithAI, key: "r", modifiers: [.command, .option]),
-        Entry(command: .revealInFinder, key: "r", modifiers: [.command, .shift]),
-        Entry(command: .moveToTrash, key: deleteKey, modifiers: .command),
-    ]
+    /// Each command's shortcut, the one its context-menu item shows (`PaperContextMenu`): Core's
+    /// `PaperCommand.shortcut`, which Explain's global shortcut can't take (`HotKeySpec.appShortcuts`).
+    static let entries: [Entry] = PaperCommand.allCases.map { command in
+        let shortcut = command.shortcut
+        let key = shortcut.keyCode == HotKeySpec.Key.delete
+            ? deleteKey : (HotKeySpec.keyName(shortcut.keyCode) ?? "").lowercased()
+        return Entry(command: command, key: key,
+                     modifiers: NSEvent.ModifierFlags(rawValue: HotKeySpec.cocoaFlags(carbon: shortcut.carbonModifiers)))
+    }
 
     /// The Paper menu (`LibraryMainMenu` adds it after Edit). Titles in the UI language; the
     /// changing ones (Mark as Read / Unread, Read / Re-read with AI) are set when it validates.

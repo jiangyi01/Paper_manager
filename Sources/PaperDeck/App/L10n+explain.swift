@@ -231,6 +231,7 @@ extension L {
                 return zh ? "请配合 ⌃ 或 ⌘ 使用（macOS 不接受只有 ⌥ 的组合）" : "Use ⌃ or ⌘ with the key (macOS refuses ⌥-only shortcuts)"
             case .reservedKey: return zh ? "这个键不能做快捷键" : "That key can't be a shortcut"
             case .systemShortcut: return zh ? "系统已经在用这个快捷键" : "macOS already uses that shortcut"
+            case .appShortcut: return zh ? "PaperDeck 已在使用这个快捷键" : "PaperDeck already uses that shortcut"
             }
         }
         static var settingsOpens: String { zh ? "快捷键打开" : "The shortcut opens" }
@@ -319,7 +320,7 @@ extension L {
             out += ExplainSource.allCases.map(source)
             out += ExplainChip.allCases.map(chip)
             out += ExplainChip.allCases.map(chipShort)
-            out += [HotKeySpec.Problem.needsControlOrCommand, .reservedKey, .systemShortcut].map(shortcutProblem)
+            out += [HotKeySpec.Problem.needsControlOrCommand, .reservedKey, .systemShortcut, .appShortcut].map(shortcutProblem)
             out += ["explain", "simpler", "technical", "terms", "figure", "translate", "ask"].map(action)
             return out
         }

@@ -113,9 +113,18 @@ fileprivate func makeV1File(at url: URL) throws {
 
         let second = try await Database.open(url: url, backupsDir: backups)
         #expect(second.migration == Migrations.Outcome(fromVersion: 2, toVersion: 2, backup: nil))
-        #expect(try await second.mailMessage(id: m.id) == m)
+        // The row was stored without a confidentiality verdict (as an older build writes it): the
+        // reopen judges it while its body is stored (integration X3); nothing else changes.
+        var judged = m
+        judged.confidential = false
+        #expect(try await second.mailMessage(id: m.id) == judged)
         #expect(!FileManager.default.fileExists(atPath: backups.path))
         await second.close()
+
+        let third = try await Database.open(url: url, backupsDir: backups)
+        #expect(third.migration == Migrations.Outcome(fromVersion: 2, toVersion: 2, backup: nil))
+        #expect(try await third.mailMessage(id: m.id) == judged)
+        await third.close()
     }
 
     @Test func refusesASchemaNewerThanV2() throws {

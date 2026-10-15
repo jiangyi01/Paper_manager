@@ -50,7 +50,9 @@ package enum DatabaseError: Error, Equatable, Sendable, CustomStringConvertible 
 /// message whose body is still stored (`MailHeuristics.isConfidential` on its subject and body; a
 /// purged one stays NULL and is judged as before). Same rules: backup first, one transaction,
 /// adopted without a backup when the column is already there, refused when newer. An older build
-/// names its columns, so it keeps reading and writing the file (its new rows get NULL).
+/// names its columns, so it keeps reading and writing the file (its new rows get NULL); every full
+/// `prepare` after the marker judges such rows while their bodies are still stored, and the
+/// retention purge judges them before it drops a body (`Database.purgeMailBodies`).
 package enum Migrations {
     package static let latestVersion = 2
     /// `PRAGMA user_version` of the library core this build writes.
@@ -171,8 +173,23 @@ package enum Migrations {
         if features, targetVersion == latestVersion {
             try ensureAssistFeature(db, backupsDir: backupsDir, fromLevel: from, now: now, outcome: &outcome)
             try ensureMailConfidentialFeature(db, backupsDir: backupsDir, fromLevel: from, now: now, outcome: &outcome)
+            try catchUpMailConfidential(db)
         }
         return outcome
+    }
+
+    /// Rows an older build wrote after the marker (it names its columns, so `confidential` is NULL)
+    /// get their verdict while the body is still stored — at every full prepare, not only when the
+    /// marker is first written — so a later retention purge can't make a confidential email look
+    /// harmless. Data only (no schema change, no backup); a cheap EXISTS when there is nothing to do.
+    private static func catchUpMailConfidential(_ db: SQLiteConnection) throws {
+        guard try featureVersion(db, mailConfidentialFeature) >= mailConfidentialFeatureVersion,
+              try tableExists(db, "mail_message"),
+              try columnExists(db, table: "mail_message", column: "confidential"),
+              try db.scalarInt("SELECT EXISTS(SELECT 1 FROM mail_message WHERE confidential IS NULL AND body_purged = 0)") == 1
+        else { return }
+        let filled = try db.transaction(immediate: true) { try backfillMailConfidential(db) }
+        Log.db.info("Judged \(filled, privacy: .public) messages an older build stored without a confidentiality verdict")
     }
 
     /// `mail_message.confidential` and its marker, in one transaction, with the backfill: every
@@ -202,16 +219,23 @@ package enum Migrations {
     }
 
     /// The verdict for every message with a stored body and no verdict yet (idempotent: only NULL
-    /// rows are written; `updated_at` is left alone — nothing about the message changed). Returns how
-    /// many rows were judged. Bodies never leave this function (nothing is logged).
-    package static func backfillMailConfidential(_ db: SQLiteConnection) throws -> Int {
+    /// rows are written; `updated_at` is left alone — nothing about the message changed, and
+    /// `MailHeuristics.isConfidential(_ m:)` already reads the same verdict off a stored body).
+    /// `purgeableBefore` (the retention purge's stamp of its cutoff) limits it to the messages that
+    /// purge is about to empty. Returns how many rows were judged. Bodies never leave this function
+    /// (nothing is logged).
+    package static func backfillMailConfidential(_ db: SQLiteConnection, purgeableBefore: String? = nil) throws -> Int {
         var after: Int64 = 0, judged = 0
+        let purgeable = purgeableBefore == nil ? ""
+            : " AND state NOT IN ('pending', 'snoozed') AND COALESCE(handled_at, updated_at) < ?2"
         while true {
             // In pages (bodies are up to 20 000 characters each): only one page is in memory.
             let rows = try db.query("""
                 SELECT pk, subject, from_address, body_text FROM mail_message
-                WHERE confidential IS NULL AND body_purged = 0 AND pk > ? ORDER BY pk LIMIT 200
-                """, [.integer(after)]) { (pk: $0.int64(0), subject: $0.string(1), from: $0.string(2), body: $0.optionalString(3)) }
+                WHERE confidential IS NULL AND body_purged = 0 AND pk > ?1\(purgeable) ORDER BY pk LIMIT 200
+                """, [.integer(after)] + (purgeableBefore.map { [SQLiteValue.text($0)] } ?? [])) {
+                (pk: $0.int64(0), subject: $0.string(1), from: $0.string(2), body: $0.optionalString(3))
+            }
             guard let last = rows.last else { return judged }
             for r in rows {
                 let verdict = MailHeuristics.isConfidential(subject: r.subject, fromAddress: r.from, body: r.body)

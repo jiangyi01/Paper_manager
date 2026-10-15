@@ -18,6 +18,24 @@ package enum PaperCommand: String, Sendable, CaseIterable {
     case revealInFinder         // ⇧⌘R
     case moveToTrash            // ⌘⌫  Move to Recently Deleted
 
+    /// The shortcut its context-menu item shows and the Paper menu's key equivalent (Carbon key code
+    /// and modifiers, `HotKeySpec`). Explain's global shortcut can't take one (`HotKeySpec.appShortcuts`).
+    package var shortcut: AssistSettings.HotKey {
+        typealias C = HotKeySpec.Carbon
+        switch self {
+        case .openPDF: return .init(keyCode: 0x1F, carbonModifiers: C.command)                       // ⌘O
+        case .openInPreview: return .init(keyCode: 0x1F, carbonModifiers: C.command | C.option)      // ⌥⌘O
+        case .toggleDone: return .init(keyCode: 0x02, carbonModifiers: C.command)                    // ⌘D
+        case .priorityHigh: return .init(keyCode: 0x12, carbonModifiers: C.command | C.option)       // ⌥⌘1
+        case .priorityNormal: return .init(keyCode: 0x13, carbonModifiers: C.command | C.option)     // ⌥⌘2
+        case .priorityLow: return .init(keyCode: 0x14, carbonModifiers: C.command | C.option)        // ⌥⌘3
+        case .postponeDay: return .init(keyCode: 0x23, carbonModifiers: C.command | C.shift)         // ⇧⌘P
+        case .readWithAI: return .init(keyCode: 0x0F, carbonModifiers: C.command | C.option)         // ⌥⌘R
+        case .revealInFinder: return .init(keyCode: 0x0F, carbonModifiers: C.command | C.shift)      // ⇧⌘R
+        case .moveToTrash: return .init(keyCode: HotKeySpec.Key.delete, carbonModifiers: C.command)  // ⌘⌫
+        }
+    }
+
     /// The priority a priority command sets.
     package var priority: Priority? {
         switch self {

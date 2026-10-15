@@ -186,6 +186,34 @@ struct ExplainUIRulesTests {
         #expect(HotKeySpec.menuKeyEquivalent(.init(keyCode: 0x7A, carbonModifiers: C.control)) == nil, "F-keys stay out of menus")
     }
 
+    /// Integration INT-1: Explain's global shortcut is matched before the menu bar, so it can't take
+    /// one of PaperDeck's own window shortcuts — the Paper menu's (⌘D, ⌥⌘R …) or the shell's.
+    @Test func paperDeckOwnShortcutsAreRejected() {
+        typealias C = HotKeySpec.Carbon
+        func v(_ key: Int, _ mods: Int) -> HotKeySpec.Problem? { HotKeySpec.validate(.init(keyCode: key, carbonModifiers: mods)) }
+        for command in PaperCommand.allCases {
+            let problem = HotKeySpec.validate(command.shortcut)
+            #expect(problem == (command == .moveToTrash ? .reservedKey : .appShortcut), "\(command)")
+            #expect(HotKeySpec.menuKeyEquivalent(command.shortcut) == nil, "\(command): never shown twice in the menu bar")
+            #expect(HotKeySpec.appShortcuts.contains(command.shortcut))
+        }
+        #expect(PaperCommand.readWithAI.shortcut == .init(keyCode: 0x0F, carbonModifiers: C.command | C.option))
+        #expect(HotKeySpec.display(PaperCommand.readWithAI.shortcut) == "⌥⌘R")
+        #expect(HotKeySpec.display(PaperCommand.toggleDone.shortcut) == "⌘D")
+        #expect(HotKeySpec.display(PaperCommand.postponeDay.shortcut) == "⇧⌘P")
+        #expect(HotKeySpec.display(PaperCommand.priorityLow.shortcut) == "⌥⌘3")
+        // The shell: Settings ⌘, · Add PDF ⌘N · Import Folder ⌥⌘N · Search ⌘F · Inspector ⌘I · ⌘C.
+        for (key, mods) in [(0x2B, C.command), (0x2D, C.command), (0x2D, C.command | C.option), (0x03, C.command),
+                            (0x22, C.command), (0x08, C.command), (0x0E, C.command)] {
+            #expect(v(key, mods) == .appShortcut, "\(key)/\(mods)")
+        }
+        // Only the exact combination: other modifiers on the same key stay free; the default is fine.
+        #expect(v(0x0F, C.control | C.option) == nil && v(0x02, C.control | C.command) == nil)
+        #expect(v(0x0F, C.command | C.option | C.control) == nil)
+        #expect(HotKeySpec.validate(.defaultExplain) == nil)
+        #expect(Set(HotKeySpec.appShortcuts.map { "\($0.keyCode)/\($0.carbonModifiers)" }).count == HotKeySpec.appShortcuts.count)
+    }
+
     @Test func modifierFlagsMapBothWays() {
         let all: UInt = HotKeySpec.Cocoa.command | HotKeySpec.Cocoa.shift | HotKeySpec.Cocoa.option | HotKeySpec.Cocoa.control
         #expect(HotKeySpec.carbonModifiers(cocoaFlags: all | (1 << 16) | (1 << 23)) == HotKeySpec.Carbon.all, "caps lock / fn ignored")

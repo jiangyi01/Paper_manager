@@ -200,15 +200,21 @@ extension Database {
     /// Retention: clears `body_text` and `snippet` (and sets `bodyPurged`) of handled messages —
     /// not pending/snoozed — whose `handled_at` (or, when unset, `updated_at`) is before
     /// `handledBefore`. Subject, sender, link, triage and items stay for provenance.
+    /// A message about to be purged without a confidentiality verdict (an older build sharing the
+    /// library stored it after this build's last launch) is judged first, while its body is still
+    /// there, so the purge can't make a confidential email look harmless
+    /// (`Migrations.backfillMailConfidential`).
     /// Returns the number of messages purged.
     @discardableResult
     package func purgeMailBodies(handledBefore cutoff: Date, now: Date = Date()) throws -> Int {
         try write {
+            let before = Database.timestamp(cutoff)
+            _ = try Migrations.backfillMailConfidential(db, purgeableBefore: before)
             try db.run("""
                 UPDATE mail_message SET body_text = NULL, snippet = NULL, body_purged = 1, updated_at = ?1
                 WHERE state NOT IN ('pending', 'snoozed') AND COALESCE(handled_at, updated_at) < ?2
                   AND (body_purged = 0 OR body_text IS NOT NULL OR snippet IS NOT NULL)
-                """, [.text(Database.timestamp(now)), .text(Database.timestamp(cutoff))])
+                """, [.text(Database.timestamp(now)), .text(before)])
             let n = db.changes
             if n > 0 {
                 note(.mailBulk)

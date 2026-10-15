@@ -151,6 +151,23 @@ extension SelfTestAppRules {
         }
     }
 
+    private static func allItems(_ menu: NSMenu) -> [NSMenuItem] {
+        menu.items.flatMap { item in [item] + (item.submenu.map(allItems) ?? []) }
+    }
+
+    /// A menu item's key equivalent as the Carbon combination a global shortcut would register.
+    private static func hotKey(_ item: NSMenuItem) -> AssistSettings.HotKey? {
+        var mods = HotKeySpec.carbonModifiers(cocoaFlags: item.keyEquivalentModifierMask.rawValue)
+        let key = item.keyEquivalent
+        let code: Int?
+        switch key {
+        case "\u{8}": code = HotKeySpec.Key.delete
+        case "?": code = 0x2C; mods |= HotKeySpec.Carbon.shift          // ⌘? is ⇧⌘/
+        default: code = (0..<0x80).first { HotKeySpec.keyName($0)?.lowercased() == key.lowercased() }
+        }
+        return code.map { AssistSettings.HotKey(keyCode: $0, carbonModifiers: mods) }
+    }
+
     static func paperMenu(_ state: AppState, _ c: Checker) async {
         let engine = state.engine
         var ids: [String] = []
@@ -174,10 +191,25 @@ extension SelfTestAppRules {
         let items = holder?.submenu.map(paperItems) ?? []
         let keys = Set(items.map { "\($0.keyEquivalentModifierMask.rawValue)/\($0.keyEquivalent)" })
         let wanted = Set(PaperMenu.entries.map { "\($0.modifiers.rawValue)/\($0.key)" })
+        let cmd = NSEvent.ModifierFlags.command, opt: NSEvent.ModifierFlags = [.command, .option]
+        let shift: NSEvent.ModifierFlags = [.command, .shift]
+        let literal = Set([(cmd, "o"), (opt, "o"), (cmd, "d"), (opt, "1"), (opt, "2"), (opt, "3"), (shift, "p"),
+                           (opt, "r"), (shift, "r"), (cmd, "\u{8}")].map { "\($0.0.rawValue)/\($0.1)" })
         c.check("paper menu: in the menu bar with ⌘O ⌥⌘O ⌘D ⌥⌘1/2/3 ⇧⌘P ⌥⌘R ⇧⌘R ⌘⌫",
-                holder != nil && items.count == PaperCommand.allCases.count && keys == wanted && wanted.count == 10
+                holder != nil && items.count == PaperCommand.allCases.count && keys == wanted && wanted == literal
                     && PaperMenu.entries.contains { $0.command == .moveToTrash && $0.key == "\u{8}" && $0.modifiers == .command },
                 ["items": items.map(\.title)])
+        // Explain's global shortcut is matched before the menu bar: it can't take any key the menu
+        // bar shows (`HotKeySpec.appShortcuts` / `systemShortcut`), or that item would never fire.
+        let keyed = bar.items.compactMap(\.submenu).flatMap(allItems).filter {
+            !$0.keyEquivalent.isEmpty && $0.action != #selector(ReadingAssistMenuTarget.explain)
+        }
+        let takeable = keyed.filter { item in
+            guard let hotKey = hotKey(item) else { return true }
+            return HotKeySpec.validate(hotKey) == nil
+        }
+        c.check("paper menu: Explain's shortcut can't take a key the menu bar shows",
+                keyed.count >= 20 && takeable.isEmpty, ["takeable": takeable.map(\.title), "keyed": keyed.count])
         c.check("paper menu: the items act through its target (kept by the menu target)",
                 items.allSatisfy { $0.target === target.paper && $0.action == #selector(PaperMenuTarget.runCommand(_:)) })
         c.check("paper menu: titled in the UI language",

@@ -115,10 +115,12 @@ extension Engine {
         return item
     }
 
-    /// Deletes one item. When every item left is ticked (and 全部勾选后自动标记已读 is on), the
-    /// paper is marked done (+ `done_at`, `opened_at` if unset) exactly as ticking the last one
+    /// Deletes one item. When the deleted item was the last open one (and 全部勾选后自动标记已读 is
+    /// on), the paper is marked done (+ `done_at`, `opened_at` if unset) exactly as ticking it
     /// would — deleting the last open item must not leave it "reading" at 100 % in Today and the
-    /// reminder. `markedDone` lets the UI show the same「已标记为已读」toast as a tick.
+    /// reminder. Deleting an already-ticked item completes nothing, so it never re-marks a paper
+    /// the user sent back with Mark as Unread (⌘D) while every item was ticked. `markedDone` lets
+    /// the UI show the same「已标记为已读」toast as a tick.
     @discardableResult
     package func deleteChecklistItem(paperID: String, itemID: String) async throws -> (paper: Paper, markedDone: Bool) {
         let pk = try await PaperOpsSupport.livePK(db, paperID)
@@ -127,12 +129,14 @@ extension Engine {
         let outcome = try await db.transaction { db -> (Paper, Bool) in
             var p = try PaperOpsSupport.live(db, pk: pk, id: paperID)
             var items = try db.checklist(paperPK: pk)
-            guard items.contains(where: { $0.id == itemID }) else {
+            guard let deleted = items.first(where: { $0.id == itemID }) else {
                 throw PaperOperationError.checklistItemNotFound(itemID)
             }
             try db.deleteChecklistItem(id: itemID)
             items.removeAll { $0.id == itemID }
-            guard autoDone, p.status != .done, !items.isEmpty, items.allSatisfy(\.isDone) else { return (p, false) }
+            guard autoDone, !deleted.isDone, p.status != .done, !items.isEmpty, items.allSatisfy(\.isDone) else {
+                return (p, false)
+            }
             p.status = .done
             p.doneAt = now
             if p.openedAt == nil { p.openedAt = now }

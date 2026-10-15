@@ -10,9 +10,9 @@ package enum ExplainOperationError: Error, Equatable, Sendable {
     package func message(_ lang: UILang) -> String {
         let zh = lang == .zh
         switch self {
-        case .explanationNotFound: return zh ? "这条解释已不存在" : "This explanation no longer exists"
+        case .explanationNotFound: return zh ? "这条讲解已不存在" : "This explanation no longer exists"
         case .notMatched:
-            return zh ? "这条解释还没有归到某篇论文，请先选择论文" : "This explanation isn't filed under a paper yet — choose the paper first"
+            return zh ? "这条讲解还没有归到某篇论文，请先选择论文" : "This explanation isn't filed under a paper yet — choose the paper first"
         }
     }
 }

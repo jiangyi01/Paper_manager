@@ -69,7 +69,10 @@ backups, text cache and mail files), `~/Library/Caches/PaperDeck`, the widget da
 
 - two copies can't run at the same time — the second one hands the first `paperdeck://today` and quits;
 - a copy with a fresh settings domain still opens the shared library, and a newer build upgrades the
-  shared database, after which an older build refuses to open it until it is updated too;
+  shared database. After an additive upgrade (new tables or columns, such as the stored mail
+  confidentiality verdict) an older build still opens and writes it, and the newer build fills in
+  what the older one left out at its next launch; after a change to the core schema an older build
+  refuses to open it until it is updated too;
 - widgets and `paperdeck:` links may reach either copy.
 
 Keep the default id. To try a build next to your daily library, quit PaperDeck and run that build's

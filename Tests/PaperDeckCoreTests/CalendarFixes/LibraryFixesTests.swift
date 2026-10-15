@@ -54,6 +54,28 @@ import Testing
         }
     }
 
+    /// Integration X2: Mark as Unread (⌘D, now also in the Paper menu) on a fully ticked paper
+    /// sends it back to reading; deleting an already-ticked item afterwards completes nothing and
+    /// must not re-mark it read.
+    @Test func deletingATickedItemDoesNotUndoMarkAsUnread() async throws {
+        try await Kit.run { env in
+            let p = try await Kit.addPaper(env, deadline: Kit.day(2026, 9, 29))
+            let items = try await Kit.checklist(env, p.id)
+            #expect(items.count >= 2)
+            for item in items { _ = try await env.engine.toggleChecklistItem(paperID: p.id, itemID: item.id) }
+            #expect(try await Kit.paper(env, p.id).status == .done)
+            let unread = try await env.engine.toggleDone(paperID: p.id)
+            #expect(unread.status == .reading && unread.doneAt == nil)
+            env.advance(60)
+            let result = try await env.engine.deleteChecklistItem(paperID: p.id, itemID: items.last!.id)
+            #expect(!result.markedDone)
+            #expect(result.paper.status == .reading)
+            let after = try await Kit.paper(env, p.id)
+            #expect(after.status == .reading && after.doneAt == nil)
+            #expect(try await Kit.checklist(env, p.id).count == items.count - 1)
+        }
+    }
+
     // MARK: core-data-5
 
     @Test func theDailyHousekeepingBacksUpAndPurges() async throws {
