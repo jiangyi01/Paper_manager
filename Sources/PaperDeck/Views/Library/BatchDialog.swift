@@ -138,19 +138,16 @@ struct BatchDialog: View {
         }
     }
 
+    /// Papers that wait for their own confirmation (possibly unpublished, confidential, under
+    /// duplicate review…) stay held, as with Read All Now; a toast names them. The paper whose
+    /// badge opened the dialog is confirmed by this click.
     private func readAll() {
-        let ids = summary.heldForAI
+        let ids = summary.heldForAI, confirmed = summary.confirmedPaperID
+        let appState = state, engine = state.engine
         aiQueued = true
-        state.perform {
-            var pks: [Int64] = []
-            for id in ids {
-                if let pk = state.snapshot?.row(id: id)?.paper.pk {
-                    pks.append(pk)
-                } else if let pk = try await state.engine.db.paper(id: id)?.pk {
-                    pks.append(pk)
-                }
-            }
-            await state.engine.agents.releaseHeld(paperPKs: pks)
+        Task {
+            let outcome = await engine.releaseHeldReadings(paperIDs: ids, confirmed: confirmed)
+            if let note = L.Select.rereadHeld(outcome.held) { appState.post(Toast(kind: .info, message: note)) }
         }
         onClose()
     }

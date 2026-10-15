@@ -335,7 +335,10 @@ extension SelfTestAppRules {
         store.language = lang
         let state = AppState(engine: engine, settings: store)
         let card = MailDocumentRenders.demoCard(state: state)
-        func squeezed(_ lines: [String]) -> String { lines.joined().filter { !$0.isWhitespace }.lowercased() }
+        // Text recognition sometimes reads 换 as its traditional form 換 (转換); the drawn string is 换.
+        func squeezed(_ lines: [String]) -> String {
+            lines.joined().filter { !$0.isWhitespace }.lowercased().replacingOccurrences(of: "換", with: "换")
+        }
         func has(_ lines: [String], _ text: String) -> Bool {
             squeezed(lines).contains(text.filter { !$0.isWhitespace }.lowercased())
         }

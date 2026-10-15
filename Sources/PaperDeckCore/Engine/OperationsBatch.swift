@@ -143,18 +143,43 @@ extension Engine {
     @discardableResult
     package func releaseHeldReadings() async -> HeldRelease {
         let held = (try? await db.jobs(states: [.held])) ?? []
+        var papers: [Paper] = [], seen = Set<Int64>()
+        for job in held where seen.insert(job.paperPK).inserted {
+            if let p = try? await db.paper(pk: job.paperPK), p.isLive { papers.append(p) }
+        }
+        return await releaseHeld(papers, confirmed: nil)
+    }
+
+    /// The batch dialog's [Read All] — an import's held papers, or every held paper after a click
+    /// on one paper's "awaiting confirmation" badge: the held readings of `paperIDs` start, under
+    /// the same rule as "Read All Now" (a paper a batch must never send keeps its held job and note
+    /// and is reported). `confirmed` is the paper whose own badge was clicked: that click confirms
+    /// it, as its detail bar's Start Now would — unless it is marked "Never use AI". Papers without
+    /// a held reading are left alone.
+    @discardableResult
+    package func releaseHeldReadings(paperIDs: [String], confirmed: String? = nil) async -> HeldRelease {
+        let heldPKs = Set(((try? await db.jobs(states: [.held])) ?? []).map(\.paperPK))
         var papers: [Paper] = []
-        for job in held {
-            if let p = try? await db.paper(pk: job.paperPK), p.isLive, !papers.contains(where: { $0.pk == p.pk }) {
-                papers.append(p)
+        for id in BatchSupport.unique(paperIDs) {
+            if let p = try? await db.paper(id: id), p.isLive, heldPKs.contains(p.pk) { papers.append(p) }
+        }
+        return await releaseHeld(papers, confirmed: confirmed?.lowercased())
+    }
+
+    /// Releases `papers`' held readings except the ones `rereadHolds` keeps (`confirmed` passes
+    /// any hold but never-AI). When the holds can't be read, nothing is released.
+    private func releaseHeld(_ papers: [Paper], confirmed: String?) async -> HeldRelease {
+        guard !papers.isEmpty, let holds = await batchHolds(papers) else { return HeldRelease() }
+        var release: [Int64] = [], left: [RereadHeld] = []
+        for p in papers {
+            if let reason = holds[p.pk], reason == .neverAI || p.id != confirmed {
+                left.append(RereadHeld(paperID: p.id, reason: reason))
+            } else {
+                release.append(p.pk)
             }
         }
-        guard !papers.isEmpty else { return HeldRelease() }
-        guard let holds = await batchHolds(papers) else { return HeldRelease() }
-        let release = papers.filter { holds[$0.pk] == nil }.map(\.pk)
         if !release.isEmpty { await agents.releaseHeld(paperPKs: release) }
-        return HeldRelease(released: release.count,
-                           held: papers.compactMap { p in holds[p.pk].map { RereadHeld(paperID: p.id, reason: $0) } })
+        return HeldRelease(released: release.count, held: left)
     }
 
     /// "Queue Existing Papers" (AI queue, Settings ▸ AI): `releaseHeldReadings`, then a reading for

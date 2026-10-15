@@ -464,8 +464,9 @@ Markdown — metadata only. Every batch change is one step to undo (30 seconds);
 since are left alone. Reading the selection with AI asks first and queues only while AI reading is on;
 papers that wait for your own confirmation — marked unpublished / confidential or *Never use AI*,
 possibly unpublished, from a confidential email or from a person's email without a DOI / arXiv id, or
-under duplicate review — are left out and listed (as they are by **Read All Now** and **Queue Existing
-Papers**): open each one to confirm.
+under duplicate review — are left out and listed (as they are by **Read All Now**, **Queue Existing
+Papers** and **Read All** in the dialog after a large drop or a click on an *awaiting confirmation*
+badge, which confirms only the paper whose badge you clicked): open each one to confirm.
 
 ## Mail
 

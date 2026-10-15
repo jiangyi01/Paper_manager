@@ -7,7 +7,12 @@ import Foundation
 /// keep their material until that token expires (`DupBatchKeepAlive`). Per engine
 /// (`EngineContext.undoCleanups`).
 package actor UndoCleanups {
-    private var pending: Set<String> = []
+    /// The latest schedule of each pending removal. Scheduling a key again (a copy merged, undone
+    /// and merged again; a parked file skipped, restored and skipped again) supersedes the earlier
+    /// timer: only the newest one runs the removal, so material the newer undo needs is not
+    /// removed on the older timer.
+    private var generation: [String: Int] = [:]
+    private var scheduled = 0
     /// Time added to a pending removal since its timer last started (consumed when it fires).
     private var extra: [String: TimeInterval] = [:]
 
@@ -18,32 +23,38 @@ package actor UndoCleanups {
     package static func replacedKey(_ undoID: String) -> String { "replaced." + undoID }
     package static func mergedCopyKey(_ paperID: String) -> String { "merged." + paperID.lowercased() }
 
-    /// Runs `cleanup` after `delay` seconds plus every extension of `key` made before then.
+    /// Runs `cleanup` after `delay` seconds plus every extension of `key` made before then —
+    /// unless `key` is scheduled again meanwhile (then the newer schedule runs it).
     package func schedule(_ key: String, after delay: TimeInterval, _ cleanup: @escaping @Sendable () async -> Void) {
-        pending.insert(key)
+        scheduled += 1
+        let mine = scheduled
+        generation[key] = mine
         extra[key] = nil
-        Task { await self.run(key, delay: delay, cleanup) }
+        Task { await self.run(key, generation: mine, delay: delay, cleanup) }
     }
 
-    private func run(_ key: String, delay: TimeInterval, _ cleanup: @escaping @Sendable () async -> Void) async {
+    private func run(_ key: String, generation mine: Int, delay: TimeInterval,
+                     _ cleanup: @escaping @Sendable () async -> Void) async {
         var wait = delay
         while wait > 0 {
             try? await Task.sleep(for: .seconds(wait))
+            guard generation[key] == mine else { return }           // superseded
             wait = extra.removeValue(forKey: key) ?? 0
         }
-        pending.remove(key)
+        guard generation[key] == mine else { return }
+        generation[key] = nil
         await cleanup()
     }
 
     /// Keeps the pending removal `key` `seconds` longer (unknown or finished keys: nothing).
     package func extend(_ key: String, by seconds: TimeInterval) {
-        guard seconds > 0, pending.contains(key) else { return }
+        guard seconds > 0, generation[key] != nil else { return }
         extra[key, default: 0] += seconds
     }
 
     /// Whether `key`'s removal is still waiting, and the time added to it not yet slept (tests).
     package func state(_ key: String) -> (pending: Bool, extra: TimeInterval) {
-        (pending.contains(key), extra[key] ?? 0)
+        (generation[key] != nil, extra[key] ?? 0)
     }
 }
 

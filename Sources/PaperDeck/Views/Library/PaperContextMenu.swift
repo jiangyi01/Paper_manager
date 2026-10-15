@@ -274,8 +274,10 @@ enum CardActions {
                 .map(\.id)
             let ids = held.contains(paper.id) ? held : [paper.id] + held
             // `added` stays empty: the batch dialog then only asks about Claude, not scheduling.
+            // [Read All] confirms this paper; the others that wait for their own confirmation
+            // (possibly unpublished, confidential, under duplicate review…) stay held and are named.
             state.pendingBatch = ImportBatchSummary(batchID: "held-" + UUID().uuidString.lowercased(),
-                                                    added: [], heldForAI: ids)
+                                                    added: [], heldForAI: ids, confirmedPaperID: paper.id)
         }
     }
 }

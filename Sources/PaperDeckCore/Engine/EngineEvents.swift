@@ -126,10 +126,15 @@ package struct ImportBatchSummary: Sendable, Equatable {
     package var lastDeadline: LocalDate?
     /// One result per item, in the order the items were expanded (folders: their PDFs).
     package var items: [ImportItemResult]
+    /// The paper whose own "awaiting confirmation" badge opened this dialog (nil: an import's):
+    /// [Read All] counts as that paper's confirmation (`Engine.releaseHeldReadings(paperIDs:confirmed:)`).
+    package var confirmedPaperID: String?
     package init(batchID: String, added: [String] = [], duplicates: Int = 0, rejected: Int = 0, failed: Int = 0,
-                 heldForAI: [String] = [], lastDeadline: LocalDate? = nil, items: [ImportItemResult] = []) {
+                 heldForAI: [String] = [], lastDeadline: LocalDate? = nil, items: [ImportItemResult] = [],
+                 confirmedPaperID: String? = nil) {
         self.batchID = batchID; self.added = added; self.duplicates = duplicates; self.rejected = rejected
         self.failed = failed; self.heldForAI = heldForAI; self.lastDeadline = lastDeadline; self.items = items
+        self.confirmedPaperID = confirmedPaperID
     }
 }
 
