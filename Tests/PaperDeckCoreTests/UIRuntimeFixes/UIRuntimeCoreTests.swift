@@ -151,6 +151,25 @@ struct UIRuntimeCoreTests {
         #expect(written.items == ["a", "b-new"], "nothing runs twice")
     }
 
+    /// Review fix: a save that lands clears only its own registration. The editor shown when the
+    /// paper is opened again (same key: the paper) registers a newer text; the earlier editor's
+    /// save finishing afterwards must not drop it, and a stale earlier text is never written last.
+    @MainActor @Test func aFinishedSaveClearsOnlyItsOwnRegistration() async {
+        let pending = PendingSaves()
+        let written = Written()
+        let first = pending.set("notes-p") { written.items.append("first editor's text") }
+        let second = pending.set("notes-p") { written.items.append("newer text") }
+        #expect(first != second && pending.count == 1)
+        pending.clear("notes-p", ifToken: first)             // the earlier save landed late
+        #expect(pending.count == 1, "the newer edit still has to be written at quit")
+        await pending.flushAll()
+        #expect(written.items == ["newer text"])
+
+        let token = pending.set("notes-p") { written.items.append("saved by its debounce") }
+        pending.clear("notes-p", ifToken: token)             // its own save landed: nothing left
+        #expect(pending.isEmpty)
+    }
+
     @MainActor @Test func aSaveRegisteredDuringTheFlushIsWrittenToo() async {
         let pending = PendingSaves()
         let written = Written()

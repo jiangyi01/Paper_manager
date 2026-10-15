@@ -19,11 +19,11 @@ package enum PortablePath: Codable, Sendable, Equatable {
         case unresolved
     }
 
-    /// Cloud roots first (`CloudRootLocator.split`; a Google Drive path relative to the account
-    /// folder, keeping `My Drive/` or `Shared drives/`), then home-relative, else absolute. `~`
-    /// paths count as home-relative.
+    /// Cloud roots first (`CloudRootLocator.split`: a Google Drive path inside My Drive without
+    /// `My Drive/`, one in `Shared drives` with it — the form every build writes and reads), then
+    /// home-relative, else absolute. `~` paths count as home-relative.
     package static func encode(_ absolutePath: String, home: URL, roots: [CloudRoot]) -> PortablePath {
-        if let (root, relative) = CloudRootLocator.split(absolutePath, home: home, googleAccountRelative: true) {
+        if let (root, relative) = CloudRootLocator.split(absolutePath, home: home) {
             return .cloud(provider: root.provider, root: root.name, relative: relative)
         }
         let path = absolutePath.hasPrefix("~/") ? home.path + String(absolutePath.dropFirst(1)) : absolutePath
@@ -36,8 +36,8 @@ package enum PortablePath: Codable, Sendable, Equatable {
 
     /// The path on this Mac: home-relative under `home`; absolute as is; a cloud path under the
     /// root of the same name, else under the only root of the same provider (iCloud Drive: always
-    /// this Mac's), else unresolved. A Google Drive path is resolved in the account folder, in its
-    /// area (`My Drive/…`, `Shared drives/…`; an earlier build's file: My Drive).
+    /// this Mac's), else unresolved. A Google Drive path goes back into its area of the account
+    /// folder (`CloudRootLocator.googleFolder`: `Shared drives/…` next to My Drive, never inside it).
     package func resolve(home: URL, roots: [CloudRoot]) -> Resolution {
         func under(_ base: URL, _ relative: String) -> URL {
             relative.isEmpty ? base : base.appendingPathComponent(relative)
@@ -48,8 +48,7 @@ package enum PortablePath: Codable, Sendable, Equatable {
         case .cloud(let provider, let root, let relative):
             if provider == .iCloudDrive { return .exact(under(CloudRootLocator.iCloudDrive(home: home).url, relative)) }
             func place(_ r: CloudRoot) -> URL {
-                guard provider == .googleDrive else { return under(r.url, relative) }
-                return under(CloudRootLocator.accountFolder(r), CloudRootLocator.googleAccountRelative(relative))
+                provider == .googleDrive ? CloudRootLocator.googleFolder(r, relative: relative) : under(r.url, relative)
             }
             if let same = roots.first(where: { $0.name == root }) { return .exact(place(same)) }
             if let legacy = CloudRootLocator.homeRoot(named: root, home: home),

@@ -75,10 +75,10 @@ package enum CloudRootLocator {
         return CloudRoot(provider: .other, name: name, url: url, displayName: name)
     }
 
-    /// The areas of a Google Drive account folder (`GoogleDrive-<account>/My Drive`,
-    /// `…/Shared drives`, `…/Other computers`, shortcut targets). A Google root's `url` is its My Drive.
-    package static let googleMyDrive = "My Drive", googleSharedDrives = "Shared drives"
-    static let googleAreas: Set<String> = [googleMyDrive, googleSharedDrives, "Other computers", ".shortcut-targets-by-id"]
+    /// A Google Drive account folder (`GoogleDrive-<account>`) holds `My Drive` — a Google root's
+    /// `url` — and other areas next to it (`Shared drives`, `Other computers`, shortcut targets).
+    package static let googleMyDrive = "My Drive"
+    static let googleOutsideMyDrive: Set<String> = ["Shared drives", "Other computers", ".shortcut-targets-by-id"]
 
     /// The account folder of a Google Drive root (`…/CloudStorage/GoogleDrive-<account>`, the parent
     /// of its My Drive); any other root's `url`.
@@ -87,14 +87,15 @@ package enum CloudRootLocator {
         return root.url.deletingLastPathComponent()
     }
 
-    /// A Google Drive path inside the account folder, as a settings file stores it: one in an area
-    /// (`My Drive/…`, `Shared drives/…`, `Other computers/…`) as is; anything else is a file of an
-    /// earlier build, which stored My Drive paths without the area (`Lab/PaperDeck Mail` →
-    /// `My Drive/Lab/PaperDeck Mail`).
-    package static func googleAccountRelative(_ relative: String) -> String {
+    /// Where a Google Drive path as `split` gives it (a settings file's form, `PortablePath`) lies
+    /// under `root`: a path in another area of the account folder (`Shared drives/…`,
+    /// `Other computers/…`, shortcut targets) under the account folder; any other path is inside
+    /// My Drive, which `split` leaves out (`Lab/PaperDeck Mail` → `<account>/My Drive/Lab/PaperDeck Mail`).
+    /// The form every build writes, so files of earlier and later builds mean the same place.
+    package static func googleFolder(_ root: CloudRoot, relative: String) -> URL {
         let first = relative.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init)
-        if let first, googleAreas.contains(first) { return relative }
-        return relative.isEmpty ? googleMyDrive : "\(googleMyDrive)/\(relative)"
+        let base = first.map(googleOutsideMyDrive.contains) == true ? accountFolder(root) : root.url
+        return relative.isEmpty ? base : base.appendingPathComponent(relative)
     }
 
     /// A root name without the account address it may hold (`GoogleDrive-jane@example.com` →
@@ -185,10 +186,9 @@ package enum CloudRootLocator {
     /// (`…/Library/Mobile Documents/com~apple~CloudDocs/…`), or the legacy OneDrive app folder
     /// `~/OneDrive - <Org>/…` directly in `home`. `~` expands to `home`. Nil for anything else.
     /// A Google Drive path is inside the root's My Drive (`relative` without `My Drive/`); one
-    /// elsewhere in the account folder (`Shared drives/…`) has the account folder as the root's
-    /// `url`. `googleAccountRelative`: every Google path relative to the account folder, keeping its
-    /// area (`My Drive/…`, `Shared drives/…`) — a settings file's form (`PortablePath`).
-    package static func split(_ path: String, home: URL, googleAccountRelative: Bool = false) -> (root: CloudRoot, relative: String)? {
+    /// elsewhere in the account folder (`Shared drives/…`) keeps its area and has the account folder
+    /// as the root's `url` (`googleFolder` places it back).
+    package static func split(_ path: String, home: URL) -> (root: CloudRoot, relative: String)? {
         let expanded: String
         if path == "~" { expanded = home.path }
         else if path.hasPrefix("~/") { expanded = home.path + String(path.dropFirst(1)) }
@@ -205,7 +205,7 @@ package enum CloudRootLocator {
                 var rest = Array(parts[(i + 3)...])
                 if root.provider == .googleDrive {
                     // Paths outside "My Drive" ("Shared drives") keep the account folder as the root.
-                    if !googleAccountRelative, rest.first == googleMyDrive { rest.removeFirst() }
+                    if rest.first == googleMyDrive { rest.removeFirst() }
                     else { root.url = base.appendingPathComponent(root.name, isDirectory: true) }
                 }
                 return (root, rest.joined(separator: "/"))

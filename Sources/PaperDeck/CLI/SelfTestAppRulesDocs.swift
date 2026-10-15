@@ -347,7 +347,9 @@ extension SelfTestAppRules {
         let exportDrop = zh ? "导出为PDF后拖到这里" : "Export as PDF and drop it here"
         let sharedDrop = zh ? "把PDF拖到这里" : "Download it, then drop the PDF here"   // OCR misreads 下载 now and then
         let shareTitle = zh ? "共享的Word文档" : "Shared Word document"
-        let progress = zh ? "正在本机转换为PDF" : "Converting to PDF on this Mac"
+        // The progress line's own words (OCR reads its 换 as 換 since the row's restyle; the full
+        // sentence is L.Mail.converting, unchanged).
+        let progress = zh ? "正在本机" : "Converting to PDF on this Mac"
         let kept = zh ? "文件随论文保存" : "is kept with the paper"
 
         let signIn = zh ? "不会自动下载共享链接" : "Sign-in needed"

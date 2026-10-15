@@ -127,7 +127,12 @@ struct UIRuntimeWiringLintTests {
         #expect(changed.contains("holdForQuit(new)"))
         #expect(try Self.body("private func holdForQuit(_ value: String)", in: notes)
                     .contains("state.pendingSaves.set(pendingKey)"))
-        #expect(try Self.body("private func save(_ value: String)", in: notes).contains("state.pendingSaves.clear(pendingKey)"))
+        // One entry per paper (an editor shown again replaces the earlier one's), and a finished
+        // save clears only its own registration (never by reading a view that may be gone).
+        #expect(notes.contains("private var pendingKey: String { \"notes-\" + paperID }"))
+        let save = try Self.body("private func save(_ value: String)", in: notes)
+        #expect(save.contains("let token = holdForQuit(value)") && save.contains("pending.clear(key, ifToken: token)"))
+        #expect(!save.contains("if text == value { state.pendingSaves.clear"))
     }
 
     /// ui-runtime-6: a minimized regular window keeps the app in the Dock.

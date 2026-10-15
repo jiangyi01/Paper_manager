@@ -21,8 +21,9 @@ struct NotesEditor: View {
     @State private var saveTask: Task<Void, Never>?
     /// Texts this editor is saving right now (their snapshot echo is ours, never merged).
     @State private var inFlight: [String] = []
-    /// This editor's entry in `AppState.pendingSaves`.
-    @State private var pendingKey = "notes-" + UUID().uuidString
+    /// The paper's entry in `AppState.pendingSaves`: one per paper, so the editor shown when the
+    /// paper is opened again replaces an earlier editor's entry (never an older text written last).
+    private var pendingKey: String { "notes-" + paperID }
 
     init(state: AppState, paperID: String, notes: String, readOnly: Bool = false) {
         self.state = state
@@ -132,24 +133,28 @@ struct NotesEditor: View {
     }
 
     /// Quitting before the debounce fires (or while a save is still on its way) writes `value`.
-    private func holdForQuit(_ value: String) {
+    /// Returns the registration's token (`PendingSaves.clear(_:ifToken:)`).
+    @discardableResult
+    private func holdForQuit(_ value: String) -> Int {
         let engine = state.engine, id = paperID
-        state.pendingSaves.set(pendingKey) { _ = try? await engine.setNotes(paperID: id, value) }
+        return state.pendingSaves.set(pendingKey) { _ = try? await engine.setNotes(paperID: id, value) }
     }
 
     private func save(_ value: String) {
         phase = .saving
-        let id = paperID
+        let id = paperID, key = pendingKey, pending = state.pendingSaves
         inFlight.append(value)
-        holdForQuit(text)
+        let token = holdForQuit(value)
         Task {
             defer { if let i = inFlight.firstIndex(of: value) { inFlight.remove(at: i) } }
             do {
                 _ = try await state.engine.setNotes(paperID: id, value)
                 lastSaved = value
                 phase = text == value ? .saved : .pending
-                // Written: nothing left for a quit unless the user typed on meanwhile.
-                if text == value { state.pendingSaves.clear(pendingKey) }
+                // Written: nothing left for a quit unless an edit was registered meanwhile (typing
+                // on, or this paper's editor shown again) — decided by the registration, not by
+                // this view's text, which may be gone (the paper was switched away).
+                pending.clear(key, ifToken: token)
             } catch {
                 phase = .failed
                 state.report(error)
