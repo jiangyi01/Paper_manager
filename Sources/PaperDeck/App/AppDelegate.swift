@@ -201,6 +201,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await engine.assist.closeAllSessions() }
             ExplainBootstrap.assistModeChanged()    // the shortcut is registered only while assist.mode is on
         }
+        // Another provider or cap: today's count and cap in the Explain / Ask footers follow at once.
+        settings.onAssistQuotaChange = { Task { await engine.assist.publishSnapshot() } }
         // Another shortcut (the recorder in Settings, or a settings import) is registered again.
         settings.onExplainHotKeyChange = { ExplainBootstrap.shortcutChanged() }
     }

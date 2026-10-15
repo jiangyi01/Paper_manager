@@ -49,7 +49,7 @@ struct QAFixSourceLintTests {
         #expect(session.contains("typealias AskIntent = QAIntent"))
         #expect(session.contains("QASendPlan.send(intent, current: options, last: lastAsk, threadID: thread?.id,"))
         #expect(session.contains("intent.gesture(firstQuestion: messages.isEmpty)"))
-        #expect(session.contains("lastAsk = QASentQuestion(threadID: thread?.id, question: question, options: options)"))
+        #expect(session.contains("lastAsk = QASendPlan.sent(intent, send, threadID: thread?.id)"))
         // The last question is forgotten whenever the thread or the papers change.
         for function in ["func newThread()", "func select(threadID: String)", "func setPapers(_ ids: [String])"] {
             let start = try #require(session.range(of: function))

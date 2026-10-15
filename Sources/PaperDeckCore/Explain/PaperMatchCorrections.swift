@@ -110,11 +110,30 @@ package final class PaperMatchCorrections: @unchecked Sendable {
     }
 
     package func reject(_ paperID: String, windowTitle: String?, excerpt: String?, scope: ObjectIdentifier, now: Date) {
-        record(.notThis(paperID), windowTitle: windowTitle, excerpt: excerpt, scope: scope, now: now)
+        record(.notThis(paperID), windowTitle: windowTitle, excerpts: [excerpt].compactMap { $0 }, scope: scope, now: now)
     }
 
     package func choose(_ paperID: String, windowTitle: String?, excerpt: String?, scope: ObjectIdentifier, now: Date) {
-        record(.paper(paperID), windowTitle: windowTitle, excerpt: excerpt, scope: scope, now: now)
+        record(.paper(paperID), windowTitle: windowTitle, excerpts: [excerpt].compactMap { $0 }, scope: scope, now: now)
+    }
+
+    /// "Not this paper", remembered under every one of `excerpts` (a clicked term and its paragraph).
+    package func reject(_ paperID: String, windowTitle: String?, excerpts: [String], scope: ObjectIdentifier, now: Date) {
+        record(.notThis(paperID), windowTitle: windowTitle, excerpts: excerpts, scope: scope, now: now)
+    }
+
+    /// A picked paper, remembered under every one of `excerpts`.
+    package func choose(_ paperID: String, windowTitle: String?, excerpts: [String], scope: ObjectIdentifier, now: Date) {
+        record(.paper(paperID), windowTitle: windowTitle, excerpts: excerpts, scope: scope, now: now)
+    }
+
+    /// The keys of one capture remembered under several excerpts (the window's once).
+    package static func keys(windowTitle: String?, excerpts: [String]) -> [String] {
+        var out = keys(windowTitle: windowTitle, excerpt: nil)
+        for excerpt in excerpts {
+            for k in keys(windowTitle: nil, excerpt: excerpt) where !out.contains(k) { out.append(k) }
+        }
+        return out
     }
 
     /// What the user said for this capture: the paper picked last (nil: none), and every paper said
@@ -161,8 +180,8 @@ package final class PaperMatchCorrections: @unchecked Sendable {
         return out
     }
 
-    private func record(_ d: Decision, windowTitle: String?, excerpt: String?, scope: ObjectIdentifier, now: Date) {
-        let keys = Self.keys(windowTitle: windowTitle, excerpt: excerpt)
+    private func record(_ d: Decision, windowTitle: String?, excerpts: [String], scope: ObjectIdentifier, now: Date) {
+        let keys = Self.keys(windowTitle: windowTitle, excerpts: excerpts)
         lock.withLock {
             prune(now)
             for k in keys { entries.insert(Entry(key: k, scope: scope, decision: d, at: now), at: 0) }

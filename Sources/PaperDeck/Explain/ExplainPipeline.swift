@@ -78,16 +78,19 @@ final class LiveExplainServices {
                 content = .mixed                  // a reader box: the exact text plus its drawing
             }
         }
+        // What the locator matches and the context centres on; a correction of the match is remembered
+        // under it too (`ExplainPrepared.locatedText`), so explaining again finds that correction.
+        let located = around ?? selection
         let match: PaperMatch?
         if let known = ExplainPreparation.knownMatch(anchor: anchor, surroundings: capture.surroundings) {
             match = known                                  // the reader's toolbar, or a capture over PaperDeck's reader
         } else {
-            match = await PaperLocator.locate(windowTitle: capture.windowTitle, ocrText: around ?? selection, engine: engine)
+            match = await PaperLocator.locate(windowTitle: capture.windowTitle, ocrText: located, engine: engine)
         }
         let prepared = ExplainPrepared(selection: selection, image: image, content: content, match: match,
-                                       selectionIsExact: exact,
+                                       selectionIsExact: exact, locatedText: located,
                                        surroundings: ExplainPreparation.sentSurroundings(capture.surroundings, sentUnit: sentUnit))
-        contexts[prepared.id] = await PaperContextBuilder.context(for: match, around: around ?? selection, engine: engine)
+        contexts[prepared.id] = await PaperContextBuilder.context(for: match, around: located, engine: engine)
         return prepared
     }
 

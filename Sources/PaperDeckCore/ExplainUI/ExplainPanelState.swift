@@ -24,14 +24,18 @@ package struct ExplainPrepared: Sendable, Equatable {
     /// Who was on screen under what is actually sent (a clicked paragraph: under its crop only);
     /// nil: the capture's own `surroundings` apply. Privacy only, never sent.
     package var surroundings: CaptureSurroundings?
+    /// The text the paper locator matched (and the context centred on): a ⇧-clicked term's
+    /// paragraph, else the selection; nil when no locator ran on text. A match correction is
+    /// remembered under it, so explaining again finds it (`ExplainPanelState.correctionExcerpts`).
+    package var locatedText: String?
 
     /// What the capture holds (the capture lane's region classifier, or plain text).
     package enum Content: String, Sendable, Equatable { case text, mixed, visual }
 
     package init(id: UUID = UUID(), selection: String?, image: AssistImage?, content: Content, match: PaperMatch?,
-                 selectionIsExact: Bool = true, surroundings: CaptureSurroundings? = nil) {
+                 selectionIsExact: Bool = true, locatedText: String? = nil, surroundings: CaptureSurroundings? = nil) {
         self.id = id; self.selection = selection; self.image = image; self.content = content; self.match = match
-        self.selectionIsExact = selectionIsExact; self.surroundings = surroundings
+        self.selectionIsExact = selectionIsExact; self.surroundings = surroundings; self.locatedText = locatedText
     }
 
     /// Nothing to explain.
@@ -166,6 +170,17 @@ package final class ExplainPanelState: Identifiable {
     package var hasImage: Bool { capture.image != nil || prepared?.image != nil }
     /// What was explained (exact or OCR text).
     package var excerpt: String? { prepared?.selection ?? anchor?.text ?? capture.text }
+    /// The texts "Not this paper" / "Change…" remember the correction under (`PaperMatchCorrections`):
+    /// the text the locator matched — a ⇧-clicked term's paragraph, which is what the locator looks
+    /// the correction up by when the capture is explained again — and the excerpt shown (the term),
+    /// when it differs.
+    package var correctionExcerpts: [String] {
+        var out: [String] = []
+        for text in [prepared?.locatedText, excerpt].compactMap({ $0 }) where !text.isEmpty && !out.contains(text) {
+            out.append(text)
+        }
+        return out
+    }
     package var paperID: String? { anchor?.paperID ?? prepared?.match?.paperID }
     package var page: Int? { anchor?.page ?? prepared?.match?.page }
     package var isRunning: Bool { phase.isBusy }
@@ -187,6 +202,7 @@ package final class ExplainPanelState: Identifiable {
     /// ignored: one press, one turn (F9).
     package func run(_ kind: ExplainTurnKind, ticket: ConsentTicket, depth: AssistSettings.Depth? = nil) {
         guard debounce.allow(.run(kind), at: clock()) else { return }
+        askConfirmedOnce = false                            // a new send: "Ask before every send" asks for it
         start(kind, ticket: ticket, depth: depth)
     }
 
@@ -195,17 +211,21 @@ package final class ExplainPanelState: Identifiable {
         let q = followUp.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, debounce.allow(.run(.ask(q)), at: clock()) else { return }
         followUp = ""
+        askConfirmedOnce = false
         start(.ask(q), ticket: ticket, depth: depth)
     }
 
     /// [Send anyway] (privacy), [Send] (ask before every send, a Services request), [Continue]
     /// (soft cap, with a `capOverride` ticket): the turn that was held goes out with this click's ticket.
+    /// [Continue] is itself the user's click for that held send, so with "Ask before every send" on
+    /// it is not held for [Send] once more (the two holds would otherwise take turns forever: [Send]'s
+    /// plain ticket can't pass the soft cap, and [Continue]'s send was held again for [Send]).
     package func confirm(ticket: ConsentTicket) {
         guard case .refused(let r) = phase, r.isConfirmable, let kind = pending,
               debounce.allow(.confirm, at: clock()) else { return }
         switch r {
         case .confirmPrivacy: privacyConfirmed = true
-        case .askBeforeSend: askConfirmedOnce = true
+        case .askBeforeSend, .softCap: askConfirmedOnce = true
         default: break
         }
         start(kind, ticket: ticket, depth: nil)
@@ -214,6 +234,7 @@ package final class ExplainPanelState: Identifiable {
     /// [Retry] / ⌘R: the held turn, else the last one, again (a fresh ticket).
     package func retry(ticket: ConsentTicket, depth: AssistSettings.Depth? = nil) {
         guard let kind = pending ?? current?.kind, debounce.allow(.retry, at: clock()) else { return }
+        askConfirmedOnce = false
         start(kind, ticket: ticket, depth: depth)
     }
 
@@ -251,12 +272,14 @@ package final class ExplainPanelState: Identifiable {
         await services.cancelTurn()
     }
 
-    /// The panel closed: the turn stops and the session ends.
+    /// The panel closed: its own turn stops and its session ends. Only this panel's turn: ending the
+    /// session stops the lane's turn when it is this panel's (`AssistLane.closeSession(threadKey:)`),
+    /// and a turn still on its way there ends with the dropped stream. Never Explain's running turn
+    /// as such — a panel still reading its capture (`.locating`) has none in the lane, and that turn
+    /// may be a pinned panel's answer.
     package func close() async {
-        let running = phase.isBusy
         turnTask?.cancel()
         flushTask?.cancel()
-        if running { await services.cancelTurn() }
         await services.closeSession(threadKey: threadKey)
     }
 

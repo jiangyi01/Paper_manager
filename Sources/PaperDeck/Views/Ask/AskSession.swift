@@ -93,7 +93,8 @@ final class AskSession {
     /// Redraws while streaming: at most one per this interval.
     static let flushInterval: Duration = .milliseconds(33)
 
-    let key: String
+    /// `AskSessions.key(paperIDs)`: follows the papers (a paper removed re-files the session).
+    private(set) var key: String
     private(set) var paperIDs: [String]
     var thread: QAThread?
     /// Stored threads over exactly these papers, most recent first.
@@ -117,6 +118,9 @@ final class AskSession {
     var lastAsk: QASentQuestion?
 
     @ObservationIgnored weak var state: AppState?
+    /// The papers changed (`setPapers`): the Ask window showing this session follows (its registration
+    /// and title). `filed`: this session is now the one kept for the new set (`AskSessions.rekey`).
+    @ObservationIgnored var onPapersChange: ((_ oldKey: String, _ filed: Bool) -> Void)?
     @ObservationIgnored private var buffer = ""
     @ObservationIgnored private var flushTask: Task<Void, Never>?
     @ObservationIgnored private var turnTask: Task<Void, Never>?
@@ -267,10 +271,16 @@ final class AskSession {
         scheduleEstimate()
     }
 
-    /// The Ask window's paper list changed (a paper removed): a new thread over the new set.
+    /// The Ask window's paper list changed (a paper removed): a new thread over the new set. The
+    /// session is filed under the new set (`AskSessions.rekey`): asking across the old selection again
+    /// opens a session over all of it, and asking across the new one finds this window.
     func setPapers(_ ids: [String]) {
         guard ids != paperIDs, !ids.isEmpty, !isRunning else { return }
+        let oldKey = key
         paperIDs = ids
+        key = AskSessions.key(ids)
+        let filed = state.map { AskSessions.rekey(self, from: oldKey, state: $0) } ?? false
+        onPapersChange?(oldKey, filed)
         thread = nil
         messages = []
         notice = nil
@@ -290,7 +300,16 @@ final class AskSession {
         guard let send = QASendPlan.send(intent, current: options, last: lastAsk, threadID: thread?.id,
                                          messages: messages, confirming: confirming) else { return }
         if case .ask = intent { draft = "" }
-        start(send.question, options: send.options, ticket: ticket)
+        start(send, intent: intent, ticket: ticket)
+    }
+
+    /// Cancel / ✕ on the notice. A privacy confirmation's question goes back into an empty composer:
+    /// it was cleared when the question was sent, and nothing was stored.
+    func dismissNotice() {
+        if case .confirm(_, let q, _)? = notice {
+            draft = QASendPlan.draftAfterDismissing(confirming: q, draft: draft, messages: messages)
+        }
+        notice = nil
     }
 
     /// Stops the answer streaming in this session.
@@ -307,9 +326,10 @@ final class AskSession {
         QASendPlan.question(answering: messageID, in: messages)
     }
 
-    private func start(_ question: String, options: QAOptions, ticket: ConsentTicket) {
+    private func start(_ send: QASendPlan.Send, intent: AskIntent, ticket: ConsentTicket) {
         guard let engine = state?.engine else { return }
-        lastAsk = QASentQuestion(threadID: thread?.id, question: question, options: options)
+        let question = send.question, options = send.options
+        lastAsk = QASendPlan.sent(intent, send, threadID: thread?.id)
         notice = nil
         buffer = ""
         streaming = Streaming(threadID: thread?.id, question: question, startedAt: Date())
@@ -446,7 +466,10 @@ enum AskSessions {
     static func session(for paperIDs: [String], state: AppState) -> AskSession {
         let sid = ObjectIdentifier(state)
         let k = key(paperIDs)
-        if let s = byState[sid]?[k] { return s }
+        if let s = byState[sid]?[k] {
+            if s.paperIDs == paperIDs { return s }
+            order[sid]?.removeAll { $0 == k }           // it covers other papers now: not this selection's
+        }
         let s = AskSession(paperIDs: paperIDs, state: state, settings: state.settings.assist)
         byState[sid, default: [:]][k] = s
         order[sid, default: []].append(k)
@@ -456,5 +479,21 @@ enum AskSessions {
             byState[sid]?[oldest] = nil
         }
         return s
+    }
+
+    /// `session` now covers other papers (`AskSession.setPapers`): it is found under its new key, no
+    /// longer under `old`. Another session already kept for the new set stays the one found for it.
+    /// True when `session` is the one kept for its new key.
+    @discardableResult
+    static func rekey(_ session: AskSession, from old: String, state: AppState) -> Bool {
+        let sid = ObjectIdentifier(state)
+        if old != session.key, byState[sid]?[old] === session {
+            byState[sid]?[old] = nil
+            order[sid]?.removeAll { $0 == old }
+        }
+        if let kept = byState[sid]?[session.key] { return kept === session }
+        byState[sid, default: [:]][session.key] = session
+        order[sid, default: []].append(session.key)
+        return true
     }
 }

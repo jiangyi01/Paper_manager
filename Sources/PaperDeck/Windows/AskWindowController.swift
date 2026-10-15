@@ -10,7 +10,8 @@ final class AskWindowController: NSObject, NSWindowDelegate {
     private static var open: [String: AskWindowController] = [:]
 
     private let window: NSWindow
-    private let key: String
+    /// The session's key while this window shows it (a paper removed re-files both).
+    private var key: String
 
     /// Shows the window for `paperIDs` (≥ 2; the first `multiMax` are kept).
     static func show(state: AppState, paperIDs: [String], prefill: String? = nil) {
@@ -27,14 +28,15 @@ final class AskWindowController: NSObject, NSWindowDelegate {
             existing.present()
             return
         }
-        let controller = AskWindowController(state: state, session: session, selectedCount: unique.count, key: key)
+        let capped = unique.count > kept.count ? (kept: kept.count, selected: unique.count) : nil
+        let controller = AskWindowController(state: state, session: session, capped: capped, key: key)
         open[key] = controller
         controller.present()
     }
 
-    private init(state: AppState, session: AskSession, selectedCount: Int, key: String) {
+    private init(state: AppState, session: AskSession, capped: (kept: Int, selected: Int)?, key: String) {
         self.key = key
-        let host = NSHostingController(rootView: AskWindowView(state: state, session: session, selectedCount: selectedCount))
+        let host = NSHostingController(rootView: AskWindowView(state: state, session: session, capped: capped))
         host.sizingOptions = []
         let w = NSWindow(contentViewController: host)
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -47,6 +49,10 @@ final class AskWindowController: NSObject, NSWindowDelegate {
         window = w
         super.init()
         w.delegate = self
+        session.onPapersChange = { [weak self, weak session] oldKey, filed in
+            guard let self, let session else { return }
+            self.papersChanged(session, from: oldKey, filed: filed)
+        }
         let restored = w.setFrameUsingName("PaperDeckAsk")
         w.setFrameAutosaveName("PaperDeckAsk")
         if !restored { w.center() } else { w.cascadeTopLeft(from: NSPoint(x: w.frame.minX + 24, y: w.frame.maxY - 24)) }
@@ -59,8 +65,19 @@ final class AskWindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    /// "Remove from This Question": the window is found under the new set of papers (asking across
+    /// the old selection again opens a window over all of it) and its title counts the papers left.
+    /// When another session was already kept for the new set (`filed` false), asking across it
+    /// brings that session's own window, not this one.
+    private func papersChanged(_ session: AskSession, from oldKey: String, filed: Bool) {
+        if Self.open[oldKey] === self { Self.open[oldKey] = nil }
+        if filed, Self.open[session.key] == nil { Self.open[session.key] = self }
+        key = session.key
+        window.title = L.QA.windowTitle(session.paperIDs.count)
+    }
+
     func windowWillClose(_ notification: Notification) {
-        Self.open[key] = nil
+        if Self.open[key] === self { Self.open[key] = nil }
         ActivationPolicy.update(closing: window)
     }
 }

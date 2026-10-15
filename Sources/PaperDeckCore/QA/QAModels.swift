@@ -243,17 +243,23 @@ package enum QAIntent: Equatable, Sendable {
 
 /// A question as it was last sent from one Ask surface — what Try Again and Continue resend. Its
 /// options never carry the privacy acknowledgement: a confirmation covers exactly one send
-/// (Phase 2 fix QA-6), so a resend of a confirmable paper asks again.
+/// (Phase 2 fix QA-6), so a resend of a confirmable paper asks again. The one exception is
+/// `acknowledged`: this was "Send Anyway"'s own send, and if today's soft cap refused it — before
+/// anything reached a backend — [Continue] resends it with that unused confirmation (`QASendPlan`).
 package struct QASentQuestion: Sendable, Equatable {
     package var threadID: String?
     package var question: String
     package private(set) var options: QAOptions
+    /// The send carried the user's privacy confirmation ("Send Anyway"); only Continue past the soft
+    /// cap may carry it once more. Never set for a resend (`QASendPlan.sent`).
+    package private(set) var acknowledged: Bool
 
-    package init(threadID: String?, question: String, options: QAOptions) {
+    package init(threadID: String?, question: String, options: QAOptions, acknowledged: Bool = false) {
         self.threadID = threadID; self.question = question
         var o = options
         o.privacyAcknowledged = false
         self.options = o
+        self.acknowledged = acknowledged
     }
 }
 
@@ -282,7 +288,13 @@ package enum QASendPlan {
             // unanswered question with the toggles' options. Never a stale confirmation.
             if let last, last.threadID == threadID,
                trailingQuestion(messages).map({ $0 == last.question }) ?? true {
-                return Send(question: last.question, options: last.options)
+                var o = last.options
+                // Continue (offered only on the soft-cap refusal): "Send Anyway"'s send of this same
+                // question in this thread was refused at the cap before it reached a backend, so its
+                // confirmation was never used — it covers this one resend (else the confirmation and
+                // the cap would take turns forever). Try Again never carries it.
+                if intent == .continuePastCap, last.acknowledged { o.privacyAcknowledged = true }
+                return Send(question: last.question, options: o)
             }
             return trailingQuestion(messages).map { Send(question: $0, options: options) }
         case .confirmPrivacy:
@@ -301,6 +313,23 @@ package enum QASendPlan {
             options.language = target == .zh ? .zh : .en
             return Send(question: q, options: options)
         }
+    }
+
+    /// What the surface remembers of `send` made for `intent` (Try Again / Continue resend it): only
+    /// "Send Anyway"'s own send keeps its acknowledgement (for one Continue past the soft cap); a
+    /// resend never does, so one confirmation covers at most one send that reaches a backend.
+    package static func sent(_ intent: QAIntent, _ send: Send, threadID: String?) -> QASentQuestion {
+        QASentQuestion(threadID: threadID, question: send.question, options: send.options,
+                       acknowledged: intent == .confirmPrivacy && send.options.privacyAcknowledged)
+    }
+
+    /// The composer after the user cancelled or dismissed a privacy confirmation of `confirming`:
+    /// the question goes back into an empty composer (it was cleared when it was sent, and nothing
+    /// was stored), unless it is still in the thread as its unanswered question ([Try Again]).
+    package static func draftAfterDismissing(confirming question: String?, draft: String, messages: [QAMessage]) -> String {
+        guard let question, !question.isEmpty, draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              trailingQuestion(messages) != question else { return draft }
+        return question
     }
 
     /// A question stored without an answer at the end of the thread (a refused one).
@@ -330,4 +359,26 @@ package enum QAError: Error, Equatable, Sendable {
     case notAnAnswer(String)
     /// A `qa.json` of another schema.
     case unsupportedSidecar(String)
+
+    /// The toast's text (never the case's raw name or an id).
+    package func message(_ lang: UILang) -> String {
+        let zh = lang == .zh
+        switch self {
+        case .unknownThread: return zh ? "这个对话已不存在" : "This conversation no longer exists"
+        case .unknownMessage: return zh ? "这条消息已不存在" : "This message no longer exists"
+        case .notAnAnswer:
+            return zh ? "只有已完成或已停止的回答可以保存到笔记" : "Only a finished or stopped answer can be saved to notes"
+        case .unsupportedSidecar:
+            return zh ? "这个 qa.json 来自其他版本的 PaperDeck，无法读取" : "This qa.json comes from another version of PaperDeck and can't be read"
+        }
+    }
+}
+
+extension QAMessage {
+    /// "Save to Notes" may be offered: an answer that finished or was stopped, with text — exactly what
+    /// `QAService.saveToNotes` accepts (a failed or timed-out answer's partial text is not saved).
+    package var canSaveToNotes: Bool {
+        role == .assistant && (state == .done || state == .cancelled)
+            && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }

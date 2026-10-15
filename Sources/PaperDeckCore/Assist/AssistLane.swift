@@ -68,8 +68,8 @@ package actor AssistLane {
     /// shared pause, `agent.<provider>.pausedUntil`).
     package func setOnUsageLimit(_ hook: (@Sendable (AIProviderKind, Date?) async -> Void)?) { onUsageLimit = hook }
 
-    /// Receives a status snapshot when a turn starts or ends and after a pause (the engine forwards
-    /// it as `EngineEvent.assistStatus`). Snapshots never run a detection.
+    /// Receives a status snapshot when a turn starts or ends, after a pause and on `publishSnapshot`
+    /// (the engine forwards it as `EngineEvent.assistStatus`). Snapshots never run a detection.
     package func setStatusSink(_ sink: (@Sendable (AssistStatus) -> Void)?) { statusSink = sink }
 
     /// The engine's wiring in one call: usage limits pause the queue's provider, status goes out
@@ -244,6 +244,12 @@ package actor AssistLane {
         }
         return snapshot()
     }
+
+    /// Sends the status as it is now to the status sink, without a detection or anything spawned
+    /// (zero quota): after launch (the restored daily counts), when `assist.mode` or the caps
+    /// changed, and when the day changed — a turn starting or ending isn't the only time today's
+    /// count can be stale.
+    package func publishSnapshot() { publishStatus() }
 
     // MARK: - Internals
 

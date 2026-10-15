@@ -397,6 +397,8 @@ final class AppState {
         if let e = error as? PaperOperationError { message = e.message(settings.language) }
         else if let e = error as? MailOperationError { message = e.message(settings.language) }
         else if let e = error as? MailTriageError { message = e.message(settings.language) }
+        else if let e = error as? QAError { message = e.message(settings.language) }
+        else if let e = error as? ExplainOperationError { message = e.message(settings.language) }
         else { message = String(describing: error) }
         lastError = message
         post(Toast(kind: .error, message: message))

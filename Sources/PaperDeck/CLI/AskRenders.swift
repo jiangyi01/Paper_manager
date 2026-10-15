@@ -180,14 +180,14 @@ enum AskRenders {
         // The Ask window: three papers with an answer; ten of twelve selected, cards only.
         let window = NSSize(width: 960, height: 680)
         let multi = await session(fixture.multi)
-        try await PreviewRenderer.captureView(AskWindowView(state: state, session: multi, selectedCount: fixture.multi.count)
+        try await PreviewRenderer.captureView(AskWindowView(state: state, session: multi, capped: nil)
                                                 .frame(width: window.width, height: window.height),
                                               size: window, appearance: appearance, png("window"))
         let many = Array(fixture.ids.prefix(10))
         let cards = await session(many)
         cards.setMode(.cards)
         try await Task.sleep(for: .milliseconds(500))
-        try await PreviewRenderer.captureView(AskWindowView(state: state, session: cards, selectedCount: fixture.ids.count)
+        try await PreviewRenderer.captureView(AskWindowView(state: state, session: cards, capped: (kept: many.count, selected: fixture.ids.count))
                                                 .frame(width: window.width, height: window.height),
                                               size: window, appearance: appearance, png("window-cards"))
 
