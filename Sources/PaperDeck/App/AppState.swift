@@ -55,6 +55,9 @@ final class AppState {
     let dedupe = DedupeUIModel()
     /// Explain & Ask state shared by the assist surfaces (Slice A, Assist/AssistUIModel.swift).
     let assist = AssistUIModel()
+    /// Edits saved a moment later (the notes editor's 1 s debounce): quitting writes them first
+    /// (`AppDelegate.applicationShouldTerminate`).
+    @ObservationIgnored let pendingSaves = PendingSaves()
 
     // Library read model (refreshed on every committed change, debounced)
     private(set) var snapshot: LibrarySnapshot? { didSet { rowsGeneration &+= 1 } }

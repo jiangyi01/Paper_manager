@@ -16,6 +16,9 @@ final class LibraryWindowController: NSObject, NSWindowDelegate {
     private let state: AppState
     private let chrome = LibraryChrome()
     private var window: NSWindow?
+    /// The title this controller gave the window (`L.libraryTitle`), until SwiftUI's
+    /// `.navigationTitle` (the section) replaces it.
+    private var ownTitle: String?
 
     init(state: AppState) {
         self.state = state
@@ -102,6 +105,7 @@ final class LibraryWindowController: NSObject, NSWindowDelegate {
                          backing: .buffered, defer: false)
         w.toolbarStyle = .unified
         w.title = L.libraryTitle
+        ownTitle = w.title
         w.contentView = hosting
         w.contentMinSize = Self.minimumSize
         w.isReleasedWhenClosed = false
@@ -120,6 +124,14 @@ final class LibraryWindowController: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         // Back to menu-bar only, unless the onboarding or Help window is still open.
         ActivationPolicy.update(closing: window)
+    }
+
+    /// A language switch: the window's own title in the new language. A section title SwiftUI set
+    /// (`.navigationTitle`, which follows the language by itself) is left alone.
+    func relocalizeTitle() {
+        guard let w = window, let own = ownTitle, w.title == own else { return }
+        w.title = L.libraryTitle
+        ownTitle = w.title
     }
 }
 
@@ -160,9 +172,23 @@ enum LibraryMainMenu {
         target = t
         let (menu, windowMenu, helpMenu) = build(target: t)
         installed = menu
-        NSApp.mainMenu = menu      // rebuilt on every show(): picks up a language switch
+        NSApp.mainMenu = menu      // rebuilt on every show() and on a language switch (`relocalize`)
         NSApp.windowsMenu = windowMenu
         NSApp.helpMenu = helpMenu  // macOS adds its Help search field
+    }
+
+    /// The menu bar as `install` builds it, never installed (`--selftest app-rules`). Its items hold
+    /// their targets weakly: keep the returned target while using the menu.
+    static func built(state: AppState?) -> (menu: NSMenu, target: LibraryMenuTarget) {
+        let t = LibraryMenuTarget(state: state)
+        return (build(target: t).0, t)
+    }
+
+    /// A language switch (`AppDelegate.observeLanguage`): the menu bar is built again in the new
+    /// language for the same target — only while it is ours.
+    static func relocalize() {
+        guard let target, let current = NSApp.mainMenu, current === installed else { return }
+        install(target)
     }
 
     private static func hasPaste(_ menu: NSMenu) -> Bool {
@@ -222,6 +248,13 @@ enum LibraryMainMenu {
         ])
         // Reading assist (Edit ▸ Select ▸ …, Library, Explain): nothing until each slice ships.
         ReadingAssistMenus.appendSelectItems(to: edit, state: target.appState)
+        if target.hasState {
+            // The card menu's shortcuts for the selected papers (⌘O, ⌘D, ⌥⌘1/2/3, ⇧⌘P, ⌘⌫ …).
+            let paper = PaperMenu.make(target: target.paper)
+            let holder = NSMenuItem(title: paper.title, action: nil, keyEquivalent: "")
+            holder.submenu = paper
+            main.addItem(holder)
+        }
         ReadingAssistMenus.appendMenus(to: main, state: target.appState)
         let window = submenu(L.Shell.menuWindow, [
             item(L.Shell.menuMinimize, #selector(NSWindow.performMiniaturize(_:)), "m"),
@@ -242,12 +275,15 @@ enum LibraryMainMenu {
     }
 }
 
-private final class LibraryMenuTarget: NSObject {
+final class LibraryMenuTarget: NSObject {
     private weak var state: AppState?
     let hasState: Bool
+    /// The Paper menu's target (menu items hold their targets weakly: kept here).
+    let paper: PaperMenuTarget
     init(state: AppState?) {
         self.state = state
         hasState = state != nil
+        paper = PaperMenuTarget(state: state)
     }
     var appState: AppState? { state }
     @objc func showSettings() { state?.router.showSettings(nil) }

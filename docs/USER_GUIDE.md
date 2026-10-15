@@ -459,6 +459,12 @@ to Recently Deleted (or restore them), check them for duplicates, or **export** 
 Markdown — metadata only. Every batch change is one step to undo (30 seconds); papers you changed
 since are left alone. Reading the selection with AI asks first and queues only while AI reading is on.
 
+The menu bar's **Paper** menu has the context menu's shortcuts for the selected paper (or the whole
+selection): ⌘O open the PDF, ⌥⌘O open in Preview, ⌘D mark as read / unread, ⌥⌘1 / ⌥⌘2 / ⌥⌘3
+priority, ⇧⌘P postpone one day, ⌥⌘R read with AI, ⇧⌘R show in Finder, ⌘⌫ move to Recently Deleted.
+They work while the library window is in front and you aren't typing in a field (there ⌘⌫ still
+deletes to the start of the line).
+
 ## Mail
 
 <a id="connect-mail"></a>

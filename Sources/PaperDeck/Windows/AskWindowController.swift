@@ -12,6 +12,8 @@ final class AskWindowController: NSObject, NSWindowDelegate {
     private let window: NSWindow
     /// The session's key while this window shows it (a paper removed re-files both).
     private var key: String
+    /// How many papers the window asks about (its title).
+    private var paperCount: Int
 
     /// Shows the window for `paperIDs` (≥ 2; the first `multiMax` are kept).
     static func show(state: AppState, paperIDs: [String], prefill: String? = nil) {
@@ -36,6 +38,7 @@ final class AskWindowController: NSObject, NSWindowDelegate {
 
     private init(state: AppState, session: AskSession, capped: (kept: Int, selected: Int)?, key: String) {
         self.key = key
+        paperCount = session.paperIDs.count
         let host = NSHostingController(rootView: AskWindowView(state: state, session: session, capped: capped))
         host.sizingOptions = []
         let w = NSWindow(contentViewController: host)
@@ -73,7 +76,13 @@ final class AskWindowController: NSObject, NSWindowDelegate {
         if Self.open[oldKey] === self { Self.open[oldKey] = nil }
         if filed, Self.open[session.key] == nil { Self.open[session.key] = self }
         key = session.key
+        paperCount = session.paperIDs.count
         window.title = L.QA.windowTitle(session.paperIDs.count)
+    }
+
+    /// A language switch: every open Ask window's title in the new language.
+    static func relocalizeTitles() {
+        for controller in open.values { controller.window.title = L.QA.windowTitle(controller.paperCount) }
     }
 
     func windowWillClose(_ notification: Notification) {

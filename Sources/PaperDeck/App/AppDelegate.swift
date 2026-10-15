@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import PaperDeckCore
 import PaperDeckConfig
 import PaperDeckShared
@@ -24,6 +25,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Files/URLs delivered before the engine finished opening (cold "Open With").
     private var pendingOpens: [URL] = []
     private var shuttingDown = false
+    /// Opens wait in `pendingOpens` until the launch has checked the library folder (`engine.start`
+    /// and, for a folder that holds another library, the mismatch alert).
+    private var acceptingOpens = false
+    /// The launch's library-mismatch alert chose to quit (or relaunch): nothing more is opened or
+    /// imported into this library before the deferred quit runs.
+    private var quittingAtLaunch = false
 
     /// `--gui-root <dir>` runs the GUI against an isolated library (dev/testing only). Only the
     /// library: settings (the defaults domain) and the single-instance lock are the normal ones.
@@ -72,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onboarding = OnboardingWindowController(settings: settings, guide: guide, facts: facts)
         help = HelpWindowController(settings: settings, facts: facts)
         installHelpRoutes()
+        observeLanguage()
         Task { await bootstrap() }
         Log.app.info("PaperDeck launched")
     }
@@ -90,6 +98,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .close: if self.settings.setupCompleted, self.libraryWindow?.isVisible != true { self.state?.router.showToday() }
             }
         }
+    }
+
+    /// A language switch reaches the AppKit chrome SwiftUI doesn't redraw: the menu bar and the
+    /// window titles set once (library, Help, setup, Ask, Explain History). Settings follows by itself.
+    private func observeLanguage() {
+        withObservationTracking {
+            _ = LangStore.shared.lang
+        } onChange: { [weak self] in
+            // onChange runs before the new value is stored: relocalize on the next turn.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.languageDidChange()
+                self.observeLanguage()
+            }
+        }
+    }
+
+    private func languageDidChange() {
+        LibraryMainMenu.relocalize()
+        libraryWindow?.relocalizeTitle()
+        help?.relocalizeTitle()
+        onboarding?.relocalizeTitle()
+        AskWindowController.relocalizeTitles()
+        ExplainHistoryWindowController.relocalizeTitle()
     }
 
     // MARK: - Engine
@@ -180,8 +212,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // holds another library stops it before anything is written (the alert decides).
         let report = await engine.start()
         facts.libraryIdentity = report.libraryMismatch
-        if let mismatch = report.libraryMismatch { await resolveMismatch(mismatch, engine: engine) }
+        if let mismatch = report.libraryMismatch, await resolveMismatch(mismatch, engine: engine) {
+            // Go back / Choose another folder / Quit: the quit is queued (`Relaunch.quitSoon`). No
+            // refresher, no queued opens: nothing is imported into the folder that holds another library.
+            quittingAtLaunch = true
+            return
+        }
         refresher?.start()
+        acceptingOpens = true
         let opens = pendingOpens
         pendingOpens.removeAll()
         if !opens.isEmpty { handleOpen(opens) }
@@ -219,9 +257,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The index belongs to another library than the folder (PORTABILITY_PLAN §3.3 P4): nothing was
-    /// written; the user picks what happens.
-    private func resolveMismatch(_ check: LibraryIdentityCheck, engine: Engine) async {
-        guard case .mismatch(_, _, let papers) = check else { return }
+    /// written; the user picks what happens. True when the app quits (Go back / Choose another
+    /// folder relaunch first): the caller stops the launch there. The quit is deferred
+    /// (`Relaunch.quitSoon`): this runs inside the bootstrap task, where a synchronous terminate
+    /// would hang the app.
+    private func resolveMismatch(_ check: LibraryIdentityCheck, engine: Engine) async -> Bool {
+        guard case .mismatch(_, _, let papers) = check else { return false }
         let current = engine.paths.library.path
         let previous = UserDefaults.standard.string(forKey: ConfigKeys.libraryPreviousPath)
             .flatMap { $0 == current || $0.isEmpty ? nil : $0 }
@@ -229,36 +270,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = L.Onb.mismatchTitle
         alert.informativeText = L.Onb.mismatchBody(papers)
-        var buttons: [String] = ["open"]
-        alert.addButton(withTitle: L.Onb.openThisLibrary)
-        if let previous {
-            alert.addButton(withTitle: L.Onb.goBackTo(SettingsFormat.tildePath(previous)))
-            buttons.append("back")
+        let buttons = MismatchChoice.buttons(hasPrevious: previous != nil)
+        for choice in buttons {
+            switch choice {
+            case .openThisLibrary: alert.addButton(withTitle: L.Onb.openThisLibrary)
+            case .goBack: alert.addButton(withTitle: L.Onb.goBackTo(SettingsFormat.tildePath(previous ?? "")))
+            case .chooseAnother: alert.addButton(withTitle: L.Onb.chooseAnotherFolder)
+            case .quit: alert.addButton(withTitle: L.quit)
+            }
         }
-        alert.addButton(withTitle: L.Onb.chooseAnotherFolder)
-        buttons.append("choose")
-        alert.addButton(withTitle: L.quit)
-        buttons.append("quit")
         NSApp.activate()
         let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
-        switch buttons.indices.contains(index) ? buttons[index] : "quit" {
-        case "open":
+        switch MismatchChoice.chosen(index, in: buttons) {
+        case .openThisLibrary:
             if await replaceIndex(engine, starterPack: nil) {
                 let again = await engine.start()
                 facts.libraryIdentity = again.libraryMismatch
-                if let still = again.libraryMismatch { await resolveMismatch(still, engine: engine) }
-            } else {
-                await resolveMismatch(check, engine: engine)
+                if let still = again.libraryMismatch { return await resolveMismatch(still, engine: engine) }
+                return false
             }
-        case "back":
+            return await resolveMismatch(check, engine: engine)
+        case .goBack:
             if let previous { settings.libraryPath = previous }
             Relaunch.now()
-        case "choose":
-            guard let url = Self.chooseLibraryFolder() else { await resolveMismatch(check, engine: engine); return }
+            return true
+        case .chooseAnother:
+            guard let url = Self.chooseLibraryFolder() else { return await resolveMismatch(check, engine: engine) }
             settings.libraryPath = url.path
             Relaunch.now()
-        default:
-            NSApp.terminate(nil)
+            return true
+        case .quit:
+            Relaunch.quitSoon()
+            return true
         }
     }
 
@@ -321,7 +364,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleOpen(_ urls: [URL]) {
-        guard let state else {
+        // The mismatch alert chose to quit: the folder holds another library, nothing goes into it.
+        guard !quittingAtLaunch else { return }
+        guard let state, acceptingOpens else {
             pendingOpens.append(contentsOf: urls)
             onboarding?.setPendingOpens(pendingOpens.count(where: \.isFileURL))
             return
@@ -350,7 +395,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    /// Give the engine a moment to cancel the agent child, flush card.json and checkpoint.
+    /// Give the engine a moment to cancel the agent child, flush card.json and checkpoint. Notes
+    /// still waiting for their 1 s debounce are written first: the process exits before it fires, and
+    /// terminating closes no view (no onDisappear flush).
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let engine = state?.engine, !shuttingDown else { return .terminateNow }
         shuttingDown = true
@@ -358,7 +405,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mailNotifier?.stop()
         state?.stop()
         ExplainBootstrap.shutdown()             // Explain's panels close (their sessions end), the shortcut goes
+        let pendingSaves = state?.pendingSaves  // notes typed in the last second (`PendingSaves`)
         Task {
+            await pendingSaves?.flushAll()
             await engine.shutdown()
             NSApp.reply(toApplicationShouldTerminate: true)
         }
@@ -391,4 +440,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         src.resume()
         sigtermSource = src
     }
+}
+
+/// The launch's library-mismatch alert (`AppDelegate.resolveMismatch`): its buttons, in order.
+enum MismatchChoice: Equatable, CaseIterable {
+    case openThisLibrary, goBack, chooseAnother, quit
+
+    /// Go back to the previous library only when there is one.
+    static func buttons(hasPrevious: Bool) -> [MismatchChoice] {
+        hasPrevious ? [.openThisLibrary, .goBack, .chooseAnother, .quit] : [.openThisLibrary, .chooseAnother, .quit]
+    }
+
+    /// The button `runModal` returned (its offset from the first button); anything else is Quit.
+    static func chosen(_ offset: Int, in buttons: [MismatchChoice]) -> MismatchChoice {
+        buttons.indices.contains(offset) ? buttons[offset] : .quit
+    }
+
 }

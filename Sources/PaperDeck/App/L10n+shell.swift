@@ -293,6 +293,8 @@ extension L {
         static var menuPaste: String { zh ? "粘贴" : "Paste" }
         static var menuDelete: String { zh ? "删除" : "Delete" }
         static var menuSelectAll: String { zh ? "全选" : "Select All" }
+        /// The Paper menu (`PaperMenu`): the card menu's shortcuts for the selected papers.
+        static var menuPaper: String { zh ? "论文" : "Paper" }
         static var menuWindow: String { zh ? "窗口" : "Window" }
         static var menuMinimize: String { zh ? "最小化" : "Minimize" }
         static var menuZoom: String { zh ? "缩放" : "Zoom" }

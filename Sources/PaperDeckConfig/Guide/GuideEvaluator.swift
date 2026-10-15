@@ -167,7 +167,9 @@ package enum GuideEvaluator {
             return accounts(f, source).isEmpty ? .todo : .done
         case .mailAccountReady(let source):
             let matching = accounts(f, source)
-            if matching.contains(where: { if case .ready? = $0.status { return true }; return false }) { return .done }
+            // Ready, or reachable: a pass that got through but left emails skipped or undownloadable
+            // is a warning about those emails (the inbox pill), not "the server isn't reachable".
+            if matching.contains(where: { if case .ready? = $0.status { return true }; return $0.reachable }) { return .done }
             let failed = matching.filter { if case .authFailed? = $0.status { return true }; return false }
             if !failed.isEmpty { return .problem(Reason.authFailed(failed.count)) }
             if matching.contains(where: { if case .unavailable? = $0.status { return true }; return false }) {

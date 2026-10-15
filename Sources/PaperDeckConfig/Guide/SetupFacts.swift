@@ -129,6 +129,7 @@ package struct SigningFact: Sendable, Equatable {
 package struct MailAccountFact: Sendable, Equatable {
     package var id: String
     package var source: MailSourceID
+    /// As the inbox pill and Settings ▸ Mail show it (`MailNoticePolicy.shownStatus`).
     package var status: MailSourceStatus?
     package var lastSuccessAt: Date?
     package var captured: Int
@@ -137,12 +138,29 @@ package struct MailAccountFact: Sendable, Equatable {
     package var passwordPresent: Bool?
     /// Folder: the watched folder exists; nil for IMAP.
     package var folderExists: Bool?
+    /// The last pass reached the server or folder (`MailNoticePolicy.reachable`): an `.unavailable`
+    /// status then words emails it skipped or couldn't download, not the connection.
+    package var reachable: Bool
 
     package init(id: String, source: MailSourceID, status: MailSourceStatus? = nil, lastSuccessAt: Date? = nil,
-                 captured: Int = 0, notEmailFiles: Int = 0, passwordPresent: Bool? = nil, folderExists: Bool? = nil) {
+                 captured: Int = 0, notEmailFiles: Int = 0, passwordPresent: Bool? = nil, folderExists: Bool? = nil,
+                 reachable: Bool = false) {
         self.id = id; self.source = source; self.status = status; self.lastSuccessAt = lastSuccessAt
         self.captured = captured; self.notEmailFiles = notEmailFiles; self.passwordPresent = passwordPresent
-        self.folderExists = folderExists
+        self.folderExists = folderExists; self.reachable = reachable
+    }
+
+    /// The fact for an account from the pipeline's sync state (nil: not synced yet): the status the
+    /// inbox and Settings show (a skipped-emails suffix the notice owns is left out) and whether the
+    /// last pass got through. `captured` adds the inbox's cards.
+    package init(id: String, source: MailSourceID, info: MailAccountSyncInfo?, cards: Int = 0,
+                 passwordPresent: Bool? = nil, folderExists: Bool? = nil) {
+        self.init(id: id, source: source,
+                  status: info.flatMap { MailNoticePolicy.shownStatus($0, active: $0.enabled) },
+                  lastSuccessAt: info?.lastSuccessAt,
+                  captured: (info?.totalCaptured ?? 0) + cards, notEmailFiles: info?.notEmailFiles ?? 0,
+                  passwordPresent: passwordPresent, folderExists: folderExists,
+                  reachable: info.map(MailNoticePolicy.reachable) ?? false)
     }
 }
 

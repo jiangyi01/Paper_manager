@@ -272,13 +272,11 @@ final class SetupFactsCollector {
             for c in list { if let id = c.account?.id { cards[id, default: 0] += 1 } }
         }
         let accounts = settings.mailAccounts.map { a -> MailAccountFact in
-            let info = infos[a.id]
-            return MailAccountFact(id: a.id, source: MailSourceResolver.source(of: a), status: info?.status,
-                                   lastSuccessAt: info?.lastSuccessAt,
-                                   captured: (info?.totalCaptured ?? 0) + (cards[a.id] ?? 0),
-                                   notEmailFiles: info?.notEmailFiles ?? 0,
-                                   passwordPresent: a.kind == .imap ? passwords[a.id] : nil,
-                                   folderExists: a.kind == .folder ? a.folderPath.flatMap { folderExists[$0] } : nil)
+            // The status as the inbox pill and Settings ▸ Mail show it, and whether the last pass got
+            // through (skipped or undownloadable emails are no "server isn't reachable").
+            MailAccountFact(id: a.id, source: MailSourceResolver.source(of: a), info: infos[a.id], cards: cards[a.id] ?? 0,
+                            passwordPresent: a.kind == .imap ? passwords[a.id] : nil,
+                            folderExists: a.kind == .folder ? a.folderPath.flatMap { folderExists[$0] } : nil)
         }
         var senders: [SenderKind: Int] = [:]
         for r in settings.mailSenders where r.enabled { senders[r.kind, default: 0] += 1 }
