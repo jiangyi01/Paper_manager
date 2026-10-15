@@ -129,8 +129,20 @@ nonisolated struct LiveFactSources: FactSources {
 
     func appLocation() async -> AppLocationFact {
         let path = Bundle.main.bundlePath
+        // macOS keeps the attribute after Open Anyway (it sets the user-approved flag instead).
         return Self.location(bundlePath: path, home: SharedPaths.realHome.path,
-                             quarantined: getxattr(path, "com.apple.quarantine", nil, 0, 0, 0) >= 0)
+                             quarantined: AppLocationFact.isQuarantined(attribute: Self.quarantineAttribute(path)))
+    }
+
+    /// The value of `com.apple.quarantine` on `path`; nil without the attribute, "" when it can't be read.
+    nonisolated static func quarantineAttribute(_ path: String) -> String? {
+        let name = "com.apple.quarantine"
+        let size = getxattr(path, name, nil, 0, 0, 0)
+        guard size >= 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: max(size, 1))
+        let read = buffer.withUnsafeMutableBytes { getxattr(path, name, $0.baseAddress, size, 0, 0) }
+        guard read >= 0 else { return "" }
+        return String(decoding: buffer.prefix(read), as: UTF8.self)
     }
 
     static func location(bundlePath path: String, home: String, quarantined: Bool) -> AppLocationFact {

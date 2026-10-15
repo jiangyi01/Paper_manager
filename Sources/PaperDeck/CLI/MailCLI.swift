@@ -87,7 +87,7 @@ enum MailCLI {
             let paths = AppPaths.rooted(at: root)
             if FileManager.default.fileExists(atPath: paths.database.path) {
                 do {
-                    let db = try await Database.open(url: paths.database, backupsDir: nil)
+                    let db = try await Database.openForInspection(url: paths.database)      // read-only: nothing stored
                     categories = try await db.categories().map(\.name)
                     tags = try await db.frequentTags(limit: MailTriageSchema.maxFrequentTags).map(\.name)
                     await db.close()

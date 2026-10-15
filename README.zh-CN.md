@@ -189,7 +189,7 @@ PaperDeck 可以从邮件里收集**阅读请求**：导师或同事请你读 / 
 ```
 
 - 默认安装到 `/Applications/PaperDeck.app`（原地更新），用钥匙串里的自签名证书 **PaperDeck Local Signing** 签名（稳定签名 → 文稿授权、通知、小组件在重建后不失效）。证书只需创建一次：钥匙串访问 ▸ 证书助理 ▸ 创建证书…，类型「代码签名」，有效期 **3650 天**。缺证书时脚本会列出步骤；`--allow-adhoc` 可临时用 ad-hoc 签名。
-- **`build.local.env`**（不进版本库；从 `build.local.env.example` 复制）或环境变量可以改：`PAPERDECK_BUNDLE_ID`、`PAPERDECK_WIDGET_ID`、`PAPERDECK_SIGN_IDENTITY`、`PAPERDECK_INSTALL_DIR`（例如 `~/Applications`）、`PAPERDECK_KEYCHAIN_SERVICE`、`PAPERDECK_CHANNEL`、`PAPERDECK_JOBS`、`PAPERDECK_DEV_DIR`。优先级：脚本默认值 < `build.local.env` < 环境变量 < 命令行参数。`./build_app.sh --print-config` 不构建，只显示结果。更换 bundle id 会得到全新的设置、钥匙串、权限和小组件，原来的设置不会带过去。
+- **`build.local.env`**（不进版本库；从 `build.local.env.example` 复制）或环境变量可以改：`PAPERDECK_BUNDLE_ID`、`PAPERDECK_WIDGET_ID`、`PAPERDECK_SIGN_IDENTITY`、`PAPERDECK_INSTALL_DIR`（例如 `~/Applications`）、`PAPERDECK_KEYCHAIN_SERVICE`、`PAPERDECK_CHANNEL`、`PAPERDECK_JOBS`、`PAPERDECK_DEV_DIR`。优先级：脚本默认值 < `build.local.env` < 环境变量 < 命令行参数。`./build_app.sh --print-config` 不构建，只显示结果。更换 bundle id 会得到全新的设置、钥匙串、权限和小组件，原来的设置不会带过去；但它不是另一份独立的副本：所有 bundle id 共用同一个论文库、数据库、缓存、小组件数据、`paperdeck:` 链接和单实例锁，两份不能同时运行（见 [docs/BUILDING.md](docs/BUILDING.md)）。
 - 常用参数：`--no-install`（只在 `.build/stage` 中构建并校验，不安装、不停止正在运行的应用）、`--package`（生成发给别人的 zip 和 INSTALL.md 到 `dist/`，不在本机安装；绝不要把证书发出去）、`--jobs N`、`--test`。
 - 开发时用 `./build_app.sh --dev`：强制 `agent.mode=off`、`assist.mode=off`、`dedupe.ai.auto=false`，任何 GUI 调试都不会消耗 Claude / ChatGPT 额度。**日常使用的那份不要加 `--dev`。**
 - 测试：`./test.sh -j 8`（Swift Testing）。`tools/check_build_config.sh` 检查构建配置，`tools/verify_portability.sh` 运行全部可移植性检查。

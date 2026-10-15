@@ -4,7 +4,8 @@ import UserNotifications
 import PaperDeckCore
 import PaperDeckConfig
 
-/// Environment check that spends no quota and never probes TCC-protected folders.
+/// Environment check that spends no quota and never probes TCC-protected folders. The library's
+/// database is opened read-only (`Database.openForInspection`): never migrated, never backed up.
 enum Doctor {
     static func run(_ args: CLIArgs) async -> Int32 {
         if args.has("--mail-only") {
@@ -30,12 +31,21 @@ enum Doctor {
         let paths = libraryPaths(args)
         CLIRunner.line(["library": paths.library.path, "support": paths.support.path])
         if FileManager.default.fileExists(atPath: paths.database.path) {
+            // Read-only: a diagnostic never migrates (or backs up) the library's database.
             do {
-                let db = try await Database.open(url: paths.database, backupsDir: nil)
-                let ok = await db.quickCheck()
-                let count = try await db.livePapers().count
-                CLIRunner.line(["database": ok ? "ok" : "CORRUPT", "papers": count, "schema": (try? await db.schemaVersion()) ?? -1])
+                let db = try await Database.openForInspection(url: paths.database)
+                let found = db.inspection
+                var count: Int?
+                if (found?.level ?? 0) >= 1 { count = try? await db.livePapers().count }
+                CLIRunner.line(["database": "ok", "papers": count, "schema": found?.level ?? -1,
+                                "schemaExpected": Migrations.latestVersion, "schemaNote": found?.upgradeNote])
                 await db.close()
+            } catch let e as DatabaseError {
+                switch e {
+                case .corrupt(let detail): CLIRunner.line(["database": "CORRUPT", "detail": detail])
+                case .newerSchema: CLIRunner.line(["database": "newer than this build", "detail": e.description])
+                default: CLIRunner.line(["database": "error: \(e)"])
+                }
             } catch {
                 CLIRunner.line(["database": "error: \(error)"])
             }
@@ -120,7 +130,13 @@ enum Doctor {
         }
         guard FileManager.default.fileExists(atPath: paths.database.path) else { return }
         do {
-            let db = try await Database.open(url: paths.database, backupsDir: nil)
+            // Read-only, never migrated: a library from before mail has no mail tables yet.
+            let db = try await Database.openForInspection(url: paths.database)
+            if let found = db.inspection, found.level < 2 {
+                CLIRunner.line(["mail.database": "needs upgrade: " + (found.upgradeNote ?? "schema v\(found.level)")])
+                await db.close()
+                return
+            }
             let counts = try await db.mailCounts()
             let last = try await db.kv("mail.lastSyncAt")
             let day = try await db.kv(MailTriageCoordinator.dayKey)

@@ -276,7 +276,7 @@ extension GuideContent {
             GuideStep(id: "check",
                       text: t("Still missing? This Terminal command should list the widget:",
                               "还是没有？下面的「终端」命令应该能列出这个小组件："),
-                      commands: ["pluginkit -m -v -i \"$(\(bundleIDOfInstalledApp)).widget\""]),
+                      commands: ["pluginkit -m -v -i \"$(\(widgetIDOfInstalledApp))\""]),
         ],
         related: [.fixAppBlocked, .gettingStarted],
         diagnosis: .widgetRegistered,

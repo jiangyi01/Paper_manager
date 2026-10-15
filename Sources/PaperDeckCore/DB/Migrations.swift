@@ -64,6 +64,55 @@ package enum Migrations {
         package var backup: URL?
     }
 
+    /// What `inspect` found in a file it only read (`Database.openForInspection`, `--doctor`).
+    package struct Inspection: Sendable, Equatable {
+        /// `level` of the file: 0 (empty), 1 (library), 2 (library + mail).
+        package var level: Int
+        /// This build's `prepare` would change the file: a level migration, the assist tables, the
+        /// mail marks or the pre-release columns. The app does that (with its pre-migration backup)
+        /// at its next launch; a diagnostic never does.
+        package var needsUpgrade: Bool
+
+        package init(level: Int, needsUpgrade: Bool) {
+            self.level = level; self.needsUpgrade = needsUpgrade
+        }
+
+        /// "schema v1 (this build expects v2 — open the app to upgrade)"; nil when nothing is due.
+        package var upgradeNote: String? {
+            guard needsUpgrade else { return nil }
+            return level < Migrations.latestVersion
+                ? "schema v\(level) (this build expects v\(Migrations.latestVersion) — open the app to upgrade)"
+                : "schema v\(level) needs this build's additions (open the app to upgrade)"
+        }
+    }
+
+    /// quick_check, the version gate and the work a full `prepare` would do — reads only (no
+    /// pragma that writes, no transaction), so it is safe on a read-only connection. Throws
+    /// `.corrupt` / `.newerSchema` like `prepare`.
+    package static func inspect(_ db: SQLiteConnection) throws -> Inspection {
+        try db.exec("PRAGMA busy_timeout = 3000")
+        try quickCheck(db)
+        let level = try level(db)
+        var needs = level < latestVersion
+        if try featureVersion(db, assistFeature) < assistFeatureVersion { needs = true }
+        if level >= 2 {
+            if try db.userVersion() != coreUserVersion || featureVersion(db, mailFeature) < mailFeatureVersion { needs = true }
+            if try !missingPrereleaseColumns(db).isEmpty { needs = true }
+        }
+        return Inspection(level: level, needsUpgrade: needs)
+    }
+
+    /// `PRAGMA quick_check`; throws `.corrupt` unless it says "ok".
+    private static func quickCheck(_ db: SQLiteConnection) throws {
+        let check: [String]
+        do {
+            check = try db.query("PRAGMA quick_check") { $0.string(0) }
+        } catch let e as SQLiteError where e.isCorruption {
+            throw DatabaseError.corrupt(e.message)
+        }
+        guard check == ["ok"] else { throw DatabaseError.corrupt(check.prefix(5).joined(separator: "; ")) }
+    }
+
     /// Per-connection pragmas. WAL is persistent in the file; the others are not.
     package static func configure(_ db: SQLiteConnection) throws {
         try db.exec("PRAGMA busy_timeout = 3000")
@@ -86,13 +135,7 @@ package enum Migrations {
                                 targetVersion: Int = latestVersion, features: Bool = true) throws -> Outcome {
         precondition((1...latestVersion).contains(targetVersion), "unknown schema v\(targetVersion)")
         try db.exec("PRAGMA busy_timeout = 3000")
-        let check: [String]
-        do {
-            check = try db.query("PRAGMA quick_check") { $0.string(0) }
-        } catch let e as SQLiteError where e.isCorruption {
-            throw DatabaseError.corrupt(e.message)
-        }
-        guard check == ["ok"] else { throw DatabaseError.corrupt(check.prefix(5).joined(separator: "; ")) }
+        try quickCheck(db)
 
         try configure(db)
         let from = try level(db)                    // throws `newerSchema` before anything is written
@@ -240,11 +283,17 @@ package enum Migrations {
     ]
 
     private static func repairPrereleaseColumns(_ db: SQLiteConnection) throws {
-        for (table, column, definition) in prereleaseV2Columns {
-            let existing = try db.query("SELECT name FROM pragma_table_info(?)", [.text(table)]) { $0.string(0) }
-            guard !existing.isEmpty, !existing.contains(column) else { continue }
+        for (table, column, definition) in try missingPrereleaseColumns(db) {
             try db.exec("ALTER TABLE \(table) ADD COLUMN \(column) \(definition)")
             Log.db.info("Added the pre-release column \(column, privacy: .public) to \(table, privacy: .public)")
+        }
+    }
+
+    /// The `prereleaseV2Columns` an existing mail table lacks (reads only).
+    private static func missingPrereleaseColumns(_ db: SQLiteConnection) throws -> [(table: String, column: String, definition: String)] {
+        try prereleaseV2Columns.filter { (table, column, _) in
+            let existing = try db.query("SELECT name FROM pragma_table_info(?)", [.text(table)]) { $0.string(0) }
+            return !existing.isEmpty && !existing.contains(column)
         }
     }
 

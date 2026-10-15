@@ -203,7 +203,7 @@ macOS lists PaperDeck's widget only after the app has run from Applications at l
 4. Still missing? This Terminal command should list the widget:
 
    ```
-   pluginkit -m -v -i "$(defaults read /Applications/PaperDeck.app/Contents/Info CFBundleIdentifier).widget"
+   pluginkit -m -v -i "$(defaults read /Applications/PaperDeck.app/Contents/PlugIns/PaperDeckWidget.appex/Contents/Info CFBundleIdentifier)"
    ```
 
 **Related:** [macOS blocks PaperDeck or runs a temporary copy](#fix-app-blocked), [Getting started](USER_GUIDE.md#getting-started)
@@ -511,7 +511,7 @@ PaperDeck 至少从「应用程序」文件夹运行过一次后，macOS 才会�
 4. 还是没有？下面的「终端」命令应该能列出这个小组件：
 
    ```
-   pluginkit -m -v -i "$(defaults read /Applications/PaperDeck.app/Contents/Info CFBundleIdentifier).widget"
+   pluginkit -m -v -i "$(defaults read /Applications/PaperDeck.app/Contents/PlugIns/PaperDeckWidget.appex/Contents/Info CFBundleIdentifier)"
    ```
 
 **相关:** [macOS 阻止 PaperDeck 或运行临时副本](#fix-app-blocked), [入门清单](USER_GUIDE.md#getting-started)

@@ -54,8 +54,12 @@ final class OnboardingModel {
     var showImportSheet = false
 
     // P3 — in preflight a draft until the commit; live / revisit write at once.
+    /// The selected card: which provider's help the page shows. Selecting never changes the
+    /// provider or turns reading on (only Turn On / Switch Reading do).
     var aiChoice: OnboardingRules.AIChoice?
     var aiTurnedOn = false
+    /// Preflight: the provider [Turn On] drafted; the commit turns reading on with it.
+    private(set) var draftReadingProvider: AIProviderKind?
     var askContinueWithoutAI = false
     @ObservationIgnored private var aiPreselected = false
 
@@ -195,6 +199,13 @@ final class OnboardingModel {
         mode == .preflight ? aiTurnedOn : AgentMode(rawValue: settings.agentMode)?.providerKind != nil
     }
 
+    /// The provider AI reading runs with (live / revisit: `agent.mode`; preflight: the draft);
+    /// nil while reading is off. A selected card that differs offers [Switch Reading to ‹card›].
+    var readingProvider: AIProviderKind? {
+        if mode == .preflight { return aiTurnedOn ? draftReadingProvider ?? aiChoice?.provider : nil }
+        return AgentMode(rawValue: settings.agentMode)?.providerKind
+    }
+
     var aiDecided: Bool {
         if mode == .preflight { return aiTurnedOn || draftAIDecision == OnboardingRules.AIChoice.none }
         return OnboardingRules.aiDecided(mode: AgentMode(rawValue: settings.agentMode) ?? .off, decision: guide.aiDecision)
@@ -218,25 +229,29 @@ final class OnboardingModel {
         }
     }
 
-    /// A card was clicked: the provider preference (preflight: the draft).
+    /// A card was clicked: which provider's install / sign-in help the page shows. A provider card
+    /// never switches the provider or turns reading on (Help ▸ Setup Assistant on a Mac that reads
+    /// with Claude must not move reading to ChatGPT because its help was opened). "Not now" turns
+    /// reading off (live / revisit: at once, and records the decision; preflight: the draft).
     func selectAI(_ choice: OnboardingRules.AIChoice) {
         aiChoice = choice
-        guard mode != .preflight else {
-            if choice == .none { aiTurnedOn = false }
+        guard choice == .none else { return }
+        if mode == .preflight {
+            aiTurnedOn = false
+            draftReadingProvider = nil
             return
         }
-        if let k = choice.provider { state?.selectProvider(k) }
-        if choice == .none {
-            state?.setAIReading(false)
-            recordAIDecision(.none)
-        }
+        state?.setAIReading(false)
+        recordAIDecision(.none)
     }
 
-    /// [Turn On ‹provider› Reading] — the only way `agent.mode` becomes claude / codex.
+    /// [Turn On ‹provider› Reading] / [Switch Reading to ‹provider›] — the only ways `agent.mode`
+    /// becomes claude / codex or changes provider.
     func turnOnAI() {
         guard let k = aiChoice?.provider else { return }
         if mode == .preflight {
             aiTurnedOn = true
+            draftReadingProvider = k
             return
         }
         state?.selectProvider(k)
@@ -245,7 +260,7 @@ final class OnboardingModel {
     }
 
     func turnOffAI() {
-        if mode == .preflight { aiTurnedOn = false; return }
+        if mode == .preflight { aiTurnedOn = false; draftReadingProvider = nil; return }
         state?.setAIReading(false)
     }
 
@@ -253,6 +268,7 @@ final class OnboardingModel {
     func continueWithoutAI() {
         askContinueWithoutAI = false
         aiTurnedOn = false
+        draftReadingProvider = nil
         recordAIDecision(.none)
         advance()
     }
@@ -323,10 +339,12 @@ final class OnboardingModel {
         case .readOnly: libraryProblem = .readOnly; committing = false; return
         }
         settings.libraryPath = target.path
-        if let k = aiChoice?.provider { settings.agentProvider = k }
-        if aiTurnedOn, let k = aiChoice?.provider { settings.agentMode = k.rawValue }
+        // Reading turns on with the provider [Turn On] chose, not whichever card was opened last.
+        let reading = readingProvider
+        if let k = reading ?? aiChoice?.provider { settings.agentProvider = k }
+        if let k = reading { settings.agentMode = k.rawValue }
         // Past the AI page every path is a decision: reading turned on, or "not now".
-        let decision: OnboardingRules.AIChoice = aiTurnedOn ? (aiChoice ?? OnboardingRules.AIChoice.none) : OnboardingRules.AIChoice.none
+        let decision: OnboardingRules.AIChoice = reading.map { $0 == .claude ? .claude : .codex } ?? OnboardingRules.AIChoice.none
         guide.aiDecision = decision.rawValue
         if quickStart { guide.mailDecision = OnboardingRules.MailDecision.skipped.rawValue }
         let starter = isExisting ? nil : settings.config.snapshot.field.starterCategories
@@ -347,6 +365,7 @@ final class OnboardingModel {
         settings.config.organizationID = OrganizationPresets.generic.id
         aiChoice = OnboardingRules.AIChoice.none
         aiTurnedOn = false
+        draftReadingProvider = nil
         libraryChoice = .documents
         inspected = nil
         go(.library)

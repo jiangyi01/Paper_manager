@@ -118,9 +118,14 @@ struct AIPage: View {
             }
             if let k = model.aiChoice?.provider {
                 HStack(spacing: 10) {
-                    if model.aiIsOn {
+                    if let running = model.readingProvider, running == k {
                         StatusLine(.ok, L.Onb.readingOn(k))
                         Button(L.Onb.turnOff) { model.turnOffAI() }.controlSize(.small)
+                    } else if let running = model.readingProvider {
+                        // The card only shows this provider's help; reading stays with `running`
+                        // until the user switches it here.
+                        StatusLine(.ok, L.Onb.readingOn(running))
+                        Button(L.Onb.switchReading(to: k)) { model.turnOnAI() }.buttonStyle(.borderedProminent)
                     } else {
                         Button(L.Onb.turnOn(k)) { model.turnOnAI() }.buttonStyle(.borderedProminent)
                         Text(L.Onb.turnOnNote).font(.callout).foregroundStyle(.secondary)

@@ -71,7 +71,9 @@ confirm a change.
    research interests, and your institution's AI policy — see [Your field and institution](#profile-field-institution).
 3. **AI reading (optional).** PaperDeck checks whether Claude Code and the Codex CLI are installed
    and signed in, without using any quota. Pick one, or **Not now**. Reading starts only when you
-   click **Turn On** — see [AI reading](#ai-reading).
+   click **Turn On** — see [AI reading](#ai-reading). Clicking a card only shows that service's
+   install and sign-in steps: when reading is already on with the other service, it moves only when
+   you click **Switch Reading to ‹service›**.
 4. **Library.** Choose where the library lives *before* it's created: a new library in Documents
    (or ~/PaperDeck when Documents is in iCloud), in another folder, or **Use an existing PaperDeck
    library…**. macOS asks once for access to Documents — click Allow.
@@ -778,6 +780,10 @@ PD=/Applications/PaperDeck.app/Contents/MacOS/PaperDeck
 $PD --config                      # institution, field, stage, date order, bundle id, keychain service, channel
 $PD --doctor --mail-only          # mail accounts, senders and statuses (never a password)
 $PD --doctor                      # also the Claude / Codex CLIs (no quota), database, signing, widget
+                                  # (the database is only read: an older one says "open the app to upgrade")
+$PD --mail-dry-run message.eml --default-settings --now 2026-09-29T10:00:00
+                                  # parse + local sorting + the exact text that would go to AI, with the
+                                  # built-in mail settings (no AI, no network, nothing stored)
 $PD --migrate-dry-run --plist settings.plist --db-exists yes   # what a first launch would add to a defaults export
 $PD --export-settings out.json    # a settings file, like Export Settings…
 $PD --import-settings in.json --dry-run                        # what an import would change
@@ -786,8 +792,13 @@ $PD --selftest qa                 # Ask's strings (en / zh), notices, the estima
 $PD --ask-render OUT --root SCRATCH                            # PNGs of every Ask state (mock AI, no CLI probed)
 $PD --explain-render OUT --root SCRATCH                        # PNGs of every Explain state (mock AI, no CLI probed, no screen captured)
 $PD --render OUT --root SCRATCH --reader-only                  # PNGs of the reader (fixture PDF, no CLI probed)
+$PD --render OUT --root SCRATCH --library-only --widths "720, 1280"   # PNGs of the library at those window widths (no CLI probed)
 $PD --help
 ```
+
+A mistyped option (`--doctr`) stops with "unknown option" instead of opening the app. `--gui-root DIR`
+opens the app on an isolated library in DIR for testing; it isolates the library only, not
+settings, and refuses to start while PaperDeck is running.
 
 ### Institution notes
 

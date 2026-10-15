@@ -23,6 +23,10 @@ package actor Database {
     package nonisolated let url: URL?
     /// What opening did (versions, pre-migration backup).
     package nonisolated let migration: Migrations.Outcome
+    /// Set by `openForInspection` (a read-only connection that was never migrated); nil otherwise.
+    package nonisolated let inspection: Migrations.Inspection?
+    /// `openForInspection` of a private copy: the folder holding it, removed at close.
+    private nonisolated let inspectionCopy: URL?
 
     package nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
 
@@ -35,11 +39,68 @@ package actor Database {
 
     private init(connection: SQLiteConnection, url: URL?, backupsDir: URL?) throws {
         self.migration = try Migrations.prepare(connection, backupsDir: backupsDir)
+        self.inspection = nil
+        self.inspectionCopy = nil
         self.db = connection
         self.url = url
         let enc = JSONEncoder()
         enc.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         self.encoder = enc
+    }
+
+    /// Read-only: `Migrations.inspect` instead of `prepare` (no migration, no backup, no pragma that writes).
+    private init(inspecting connection: SQLiteConnection, url: URL, copy: URL? = nil) throws {
+        let found = try Migrations.inspect(connection)
+        self.inspection = found
+        self.inspectionCopy = copy
+        self.migration = Migrations.Outcome(fromVersion: found.level, toVersion: found.level, backup: nil)
+        self.db = connection
+        self.url = url
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        self.encoder = enc
+    }
+
+    /// Opens an existing library database for diagnostics (`--doctor`, `--mail-dry-run`) without
+    /// changing it: `SQLITE_OPEN_READONLY` + `query_only`, quick_check and the schema level — never
+    /// a migration, a backup or a new file (a missing file throws). Throws `.corrupt` /
+    /// `.newerSchema` like `open`. An older schema opens as it is (`inspection.needsUpgrade`; the
+    /// app upgrades it, with its backup, at its next launch): reads that need tables it lacks throw,
+    /// and every write throws.
+    ///
+    /// A WAL file nobody has open may lack its `-shm`, which a read-only connection can't create
+    /// (`SQLITE_CANTOPEN`): then the inspection reads a private copy in the temporary folder
+    /// (removed at `close`), and the original is still only read.
+    package static func openForInspection(url: URL) async throws -> Database {
+        // A failed inspection releases the connection (its deinit closes it).
+        try await BlockingIO.run {
+            do {
+                return try Database(inspecting: SQLiteConnection(path: url.path, readOnly: true), url: url)
+            } catch let e as SQLiteError where (e.code == SQLITE_CANTOPEN || e.code == SQLITE_READONLY)
+                                                && FileManager.default.fileExists(atPath: url.path) {
+                return try inspectCopy(of: url)
+            }
+        }
+    }
+
+    /// `openForInspection` on a copy of `url` (and its -wal, when there is one): the copy's
+    /// connection may create its own -shm; `query_only` still refuses every write.
+    private static func inspectCopy(of url: URL) throws -> Database {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("paperdeck-inspect-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        do {
+            let copy = dir.appendingPathComponent(url.lastPathComponent)
+            for suffix in ["", "-wal"] where fm.fileExists(atPath: url.path + suffix) {
+                try fm.copyItem(atPath: url.path + suffix, toPath: copy.path + suffix)
+            }
+            let connection = try SQLiteConnection(path: copy.path)
+            try connection.exec("PRAGMA query_only = 1")
+            return try Database(inspecting: connection, url: url, copy: dir)
+        } catch {
+            try? fm.removeItem(at: dir)
+            throw error
+        }
     }
 
     /// A private, fully migrated in-memory database (tests, previews).
@@ -913,8 +974,9 @@ package actor Database {
     /// Closes the connection; any later call throws `SQLITE_MISUSE`.
     package func close() {
         guard db.isOpen else { return }
-        try? db.exec("PRAGMA optimize")
+        if !db.isReadOnly && inspection == nil { try? db.exec("PRAGMA optimize") }
         db.close()
+        if let inspectionCopy { try? FileManager.default.removeItem(at: inspectionCopy) }
     }
 
     // MARK: - Encoding helpers

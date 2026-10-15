@@ -33,7 +33,8 @@
 #       PAPERDECK_SIGN_IDENTITY, PAPERDECK_INSTALL_DIR, PAPERDECK_KEYCHAIN_SERVICE,
 #       PAPERDECK_CHANNEL (local|distribution), PAPERDECK_JOBS, PAPERDECK_DEV_DIR (test.sh).
 # Changing the bundle id starts a fresh settings domain, keychain service, permissions and
-# widget — settings don't carry over (see docs/BUILDING.md).
+# widget — settings don't carry over. It is not a separate copy: every bundle id shares one
+# library, database, caches, widget data, URL scheme and single-instance lock (docs/BUILDING.md).
 #
 # The bundle is assembled and verified in .build/stage/PaperDeck.bundle (no .app suffix, so
 # LaunchServices never registers the staging copy) and then synced in place into the install folder.
@@ -225,6 +226,7 @@ plutil -replace DTPlatformName -string macosx "$PL"
 plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$PL"
 plutil -replace CFBundleURLTypes.0.CFBundleURLName -string "$BUNDLE_ID" "$PL"
 plutil -replace PDHostBundleIdentifier -string "$BUNDLE_ID" "$PL"
+plutil -replace PDWidgetBundleIdentifier -string "$WIDGET_ID" "$PL"
 plutil -replace PDKeychainService -string "$KEYCHAIN_SERVICE" "$PL"
 plutil -replace PDSigningIdentity -string "$SIGN_NAME" "$PL"
 plutil -replace PDBuildChannel -string "$CHANNEL" "$PL"
@@ -242,6 +244,7 @@ if [ "$WIDGET" = 1 ]; then
   plutil -replace DTPlatformName -string macosx "$WPL"
   plutil -replace CFBundleIdentifier -string "$WIDGET_ID" "$WPL"
   plutil -replace PDHostBundleIdentifier -string "$BUNDLE_ID" "$WPL"
+  plutil -replace PDWidgetBundleIdentifier -string "$WIDGET_ID" "$WPL"
 fi
 
 # ---- 4. sign (inner first, never --deep) --------------------------------------------

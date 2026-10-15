@@ -25,18 +25,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingOpens: [URL] = []
     private var shuttingDown = false
 
-    /// `--gui-root <dir>` runs the GUI against an isolated library (dev/testing only).
+    /// `--gui-root <dir>` runs the GUI against an isolated library (dev/testing only). Only the
+    /// library: settings (the defaults domain) and the single-instance lock are the normal ones.
     private lazy var rootOverride: URL? = {
         let args = CommandLine.arguments
-        guard let i = args.firstIndex(of: "--gui-root"), i + 1 < args.count else { return nil }
+        guard let i = args.firstIndex(of: CommandLineRules.guiRoot), i + 1 < args.count else { return nil }
         return URL(fileURLWithPath: (args[i + 1] as NSString).expandingTildeInPath, isDirectory: true)
     }()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard acquireSingleInstanceLock() else {
-            // Another copy is running: hand it the "open" and quit quietly.
-            NSWorkspace.shared.open(DeepLink.today.url)
-            exit(0)
+            switch CommandLineRules.whenLockHeld(guiRoot: rootOverride != nil) {
+            case .handOff:
+                // Another copy is running: hand it the "open" and quit quietly.
+                NSWorkspace.shared.open(DeepLink.today.url)
+                exit(0)
+            case .refuse(let message):
+                // `--gui-root`: never bring the running copy (a real library) forward instead.
+                FileHandle.standardError.write(Data("error: \(message)\n".utf8))
+                exit(1)
+            }
         }
         installSIGTERMHandler()
         NSAppleEventManager.shared().setEventHandler(

@@ -28,4 +28,9 @@ package enum GuideContent {
     /// A shell expression for the installed app's bundle id. Commands never spell the id out: the
     /// same text then fits any build, and the docs generated from these topics name no build.
     static let bundleIDOfInstalledApp = "defaults read /Applications/PaperDeck.app/Contents/Info CFBundleIdentifier"
+
+    /// The installed widget extension's own id (a build may use any `PAPERDECK_WIDGET_ID` under the
+    /// bundle id, not only `<bundle id>.widget`).
+    static let widgetIDOfInstalledApp =
+        "defaults read /Applications/PaperDeck.app/Contents/PlugIns/PaperDeckWidget.appex/Contents/Info CFBundleIdentifier"
 }

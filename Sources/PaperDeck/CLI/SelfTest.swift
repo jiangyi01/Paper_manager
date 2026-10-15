@@ -1,5 +1,6 @@
 import Foundation
 import PaperDeckCore
+import PaperDeckConfig
 
 /// Headless end-to-end checks against an isolated `--root` library. Default AI
 /// provider is the mock; a real run needs `--agent claude|codex --yes --max-runs N`.
@@ -63,6 +64,8 @@ enum SelfTest {
     // MARK: Entry
 
     static func run(_ args: CLIArgs) async -> Int32 {
+        // An unknown mode is refused before anything opens (no engine, no library on --root).
+        if let problem = CommandLineRules.selftestProblem(args.positional) { return CLIRunner.fail(problem) }
         // Pure rules, no library: needs no --root.
         if args.positional == "mail-notify" { return SelfTestMailNotify.run(args) }
         if args.positional == "app-rules" { return await SelfTestAppRules.run(args) }
@@ -95,7 +98,8 @@ enum SelfTest {
                 ok = try await agent(engine, o) && ok
                 ok = try await storage(engine, o) && ok
             default:
-                return CLIRunner.fail("unknown selftest '\(mode)' (import|schedule|agent|storage|all|mail)")
+                await engine.shutdown()
+                return CLIRunner.fail(CommandLineRules.selftestProblem(mode) ?? "unknown selftest '\(mode)'")
             }
             await engine.shutdown()
             print(ok ? "SELFTEST PASS" : "SELFTEST FAIL")

@@ -98,6 +98,21 @@ package struct AppLocationFact: Sendable, Equatable {
     package init(location: Location, quarantined: Bool) {
         self.location = location; self.quarantined = quarantined
     }
+
+    /// `QTN_FLAG_USER_APPROVED`: Gatekeeper's record that the user opened the app (Open Anyway or
+    /// the first approved open). macOS keeps `com.apple.quarantine` after approval and sets this bit.
+    package static let userApprovedFlag: UInt32 = 0x0040
+
+    /// Whether the app still counts as quarantined, from the value of its `com.apple.quarantine`
+    /// attribute (`"<hex flags>;<hex time>;<agent>;<uuid>"`, e.g. `"0083;66f1e2a0;Safari;"`): no
+    /// attribute → false; flags with the user-approved bit (`01c3;…`, `03c1`) → false; flags
+    /// without it (`0083;…`) or a value that doesn't parse → true.
+    package static func isQuarantined(attribute: String?) -> Bool {
+        guard let attribute else { return false }
+        let head = attribute.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+        guard let flags = UInt32(head.trimmingCharacters(in: .whitespaces), radix: 16) else { return true }
+        return flags & userApprovedFlag == 0
+    }
 }
 
 package struct SigningFact: Sendable, Equatable {

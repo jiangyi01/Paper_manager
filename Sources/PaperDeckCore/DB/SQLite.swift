@@ -220,11 +220,16 @@ package final class SQLiteConnection {
     private var cache: [String: SQLiteStatement] = [:]
     private var savepointDepth = 0
     package let path: String
+    /// Opened with `readOnly: true` (`SQLITE_OPEN_READONLY` + `PRAGMA query_only`).
+    package let isReadOnly: Bool
 
     /// Opens (creating if needed) the database at `path`; ":memory:" for a private in-memory DB.
-    package init(path: String) throws {
+    /// `readOnly`: an existing file only (never created), and every write fails — the connection is
+    /// `SQLITE_OPEN_READONLY` and `query_only` (diagnostics such as `--doctor`).
+    package init(path: String, readOnly: Bool = false) throws {
         var h: OpaquePointer?
-        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        let flags = readOnly ? SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
+                             : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
         let rc = sqlite3_open_v2(path, &h, flags, nil)
         guard rc == SQLITE_OK, let h else {
             let message = h.map { String(cString: sqlite3_errmsg($0)) } ?? "cannot open database"
@@ -234,6 +239,10 @@ package final class SQLiteConnection {
         sqlite3_extended_result_codes(h, 1)
         self.handle = h
         self.path = path
+        self.isReadOnly = readOnly
+        if readOnly {
+            do { try exec("PRAGMA query_only = 1") } catch { close(); throw error }
+        }
     }
 
     deinit { close() }
